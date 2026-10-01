@@ -1,0 +1,29 @@
+# ─────────────────────────────────────────────────────────────
+#  SunTax Frontend – Development Dockerfile
+#  Hot reload enabled via Next.js dev server
+# ─────────────────────────────────────────────────────────────
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install libc compatibility for native modules
+RUN apk add --no-cache libc6-compat
+
+# Copy package files
+COPY package.json package-lock.json* ./
+
+# Install all deps (including devDependencies)
+RUN npm ci
+
+# Copy source (will be overridden by volume mount in docker-compose)
+COPY . .
+
+# Disable Next.js telemetry
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=development
+
+EXPOSE 3000
+
+# next dev listens on all interfaces for docker networking
+CMD ["npm", "run", "dev", "--", "--hostname", "0.0.0.0"]

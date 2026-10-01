@@ -1,0 +1,192 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties ─────────────────────────────────────────────────── */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    /* Swiss red primary */
+    --primary: 0 100% 40%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 0 100% 40%;
+
+    --radius: 0.5rem;
+
+    /* SunTax custom */
+    --swiss-red: #CC0000;
+    --swiss-red-hover: #a80000;
+    --sidebar-width: 260px;
+    --header-height: 64px;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 0 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 0 100% 50%;
+  }
+}
+
+/* ─── Base Styles ────────────────────────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-sans font-semibold tracking-tight;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-muted rounded-full;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+}
+
+/* ─── Component Utilities ────────────────────────────────────────────────────── */
+@layer components {
+  /* Swiss cross icon used in logo */
+  .swiss-cross {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    background-color: #CC0000;
+    border-radius: 4px;
+  }
+  .swiss-cross::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 18px;
+    background: white;
+    border-radius: 1px;
+  }
+  .swiss-cross::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 18px;
+    height: 6px;
+    background: white;
+    border-radius: 1px;
+  }
+
+  /* Dashboard sidebar */
+  .sidebar-nav-item {
+    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-100 hover:text-slate-900;
+  }
+  .sidebar-nav-item.active {
+    @apply bg-red-50 text-primary-600 font-semibold;
+  }
+
+  /* Status badge */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* Form field error */
+  .field-error {
+    @apply text-sm text-red-600 mt-1;
+  }
+
+  /* Confidence dot */
+  .confidence-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+  .confidence-dot.high {
+    @apply bg-green-500;
+  }
+  .confidence-dot.medium {
+    @apply bg-yellow-500;
+  }
+  .confidence-dot.low {
+    @apply bg-red-500;
+  }
+}
+
+/* ─── Animation Utilities ────────────────────────────────────────────────────── */
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .gradient-swiss {
+    background: linear-gradient(135deg, #CC0000 0%, #8a0000 100%);
+  }
+
+  .gradient-hero {
+    background: linear-gradient(
+      135deg,
+      #fff0f0 0%,
+      #ffffff 40%,
+      #f8fafc 100%
+    );
+  }
+}

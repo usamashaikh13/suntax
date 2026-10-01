@@ -1,0 +1,196 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+# Only one deployment at a time
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  # ─────────────────────────────────────────────────────────────
+  #  Gate: require CI to pass first
+  # ─────────────────────────────────────────────────────────────
+  check-ci:
+    name: Wait for CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify CI status
+        uses: fountainhead/action-wait-for-check@v1.2.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          checkName: "Backend Tests (Python 3.12)"
+          ref: ${{ github.sha }}
+          timeoutSeconds: 600
+
+  # ─────────────────────────────────────────────────────────────
+  #  Build & push Docker images to GHCR
+  # ─────────────────────────────────────────────────────────────
+  build-images:
+    name: Build & Push Images
+    runs-on: ubuntu-latest
+    needs: check-ci
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for backend
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/backend
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=raw,value=latest
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: production
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          target: runner
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/frontend:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository }}/frontend:latest
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_WS_URL=${{ secrets.NEXT_PUBLIC_WS_URL }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────────────────────
+  #  Deploy to production server
+  # ─────────────────────────────────────────────────────────────
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: build-images
+    environment: production
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy docker-compose files to server
+        run: |
+          scp docker-compose.yml docker-compose.prod.yml \
+            ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/suntax/
+
+      - name: Pull latest images on server
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            cd /opt/suntax
+
+            # Log in to GHCR
+            echo "${{ secrets.GITHUB_TOKEN }}" | \
+              docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            # Pull new images
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+          ENDSSH
+
+      - name: Run database migrations
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            cd /opt/suntax
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              run --rm --no-deps backend \
+              alembic upgrade head
+          ENDSSH
+
+      - name: Rolling restart services
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            cd /opt/suntax
+
+            # Restart backend services with zero-downtime strategy
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+              up -d --no-deps --remove-orphans \
+              backend worker beat frontend nginx
+          ENDSSH
+
+      - name: Health check (wait up to 120s)
+        run: |
+          echo "Waiting for health check..."
+          for i in $(seq 1 24); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              https://${{ secrets.DEPLOY_HOST }}/api/v1/health || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "⏳ Attempt $i/24: status=$STATUS — waiting 5s..."
+            sleep 5
+          done
+          echo "❌ Health check failed after 120s"
+          exit 1
+
+      - name: Clean up old Docker images
+        run: |
+          ssh ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} << 'ENDSSH'
+            docker image prune -f --filter "until=48h"
+          ENDSSH
+
+      - name: Notify on success
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "✅ SunTax deployed successfully to production.\nCommit: ${{ github.sha }}\nBy: ${{ github.actor }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify on failure
+        if: failure()
+        uses: slackapi/slack-github-action@v1.26.0
+        with:
+          payload: |
+            {
+              "text": "❌ SunTax production deployment FAILED.\nCommit: ${{ github.sha }}\nBy: ${{ github.actor }}\nCheck: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

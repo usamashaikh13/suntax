@@ -1,0 +1,216 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────
+#  SunTax – Production Docker Compose Override
+#  Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# ─────────────────────────────────────────────────────────────
+
+networks:
+  suntax_net:
+    driver: bridge
+
+services:
+  # ── PostgreSQL (production hardening) ────────────────────────
+  postgres:
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── Redis (production hardening) ─────────────────────────────
+  redis:
+    restart: always
+    command: >
+      redis-server
+      --save 60 1
+      --requirepass ${REDIS_PASSWORD}
+      --loglevel warning
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ── MinIO (production hardening) ─────────────────────────────
+  minio:
+    restart: always
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  # ── FastAPI Backend (no hot reload, multi-worker) ─────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    restart: always
+    command: >
+      uvicorn app.main:app
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --log-level info
+      --access-log
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: production
+    volumes: []   # No source mount in production
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+
+  # ── Celery Worker (production) ────────────────────────────────
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    restart: always
+    command: >
+      celery -A app.worker.celery_app worker
+      --loglevel=info
+      --concurrency=8
+      --queues=celery,ai_tasks,document_processing
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: production
+    volumes: []
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── Celery Beat (production) ──────────────────────────────────
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    restart: always
+    command: >
+      celery -A app.worker.celery_app beat
+      --loglevel=info
+      --scheduler redbeat.RedBeatScheduler
+    env_file:
+      - .env
+    environment:
+      ENVIRONMENT: production
+    volumes: []
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+
+  # ── Next.js Frontend (standalone build, production) ───────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: runner
+    restart: always
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    volumes: []
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ── Nginx Reverse Proxy ───────────────────────────────────────
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: suntax_nginx
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/nginx/conf.d:/etc/nginx/conf.d:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./infrastructure/nginx/dhparam.pem:/etc/nginx/dhparam.pem:ro
+    networks:
+      - suntax_net
+    depends_on:
+      - backend
+      - frontend
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
