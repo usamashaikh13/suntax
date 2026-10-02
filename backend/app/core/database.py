@@ -31,12 +31,19 @@ logger = logging.getLogger(__name__)
 
 # ── Engine ────────────────────────────────────────────────────────────────────
 
-_is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+_database_url = settings.DATABASE_URL
+# Render exposes PostgreSQL URLs with the synchronous ``postgresql://`` scheme.
+# This application uses SQLAlchemy's async engine, so transparently select the
+# installed asyncpg driver when an unqualified Render URL is supplied.
+if _database_url.startswith("postgresql://"):
+    _database_url = _database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+_is_sqlite = _database_url.startswith("sqlite")
 
 if _is_sqlite:
     # SQLite — used for local dev without PostgreSQL
     engine = create_async_engine(
-        settings.DATABASE_URL,
+        _database_url,
         echo=settings.DEBUG,
         connect_args={"check_same_thread": False},
     )
@@ -52,7 +59,7 @@ else:
     else:
         _engine_kwargs["pool_size"] = settings.DB_POOL_SIZE
         _engine_kwargs["max_overflow"] = settings.DB_MAX_OVERFLOW
-    engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
+    engine = create_async_engine(_database_url, **_engine_kwargs)
 
 # ── Session factory ───────────────────────────────────────────────────────────
 
