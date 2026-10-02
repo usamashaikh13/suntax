@@ -61,7 +61,7 @@ class Settings(BaseSettings):
 
     # ── Google Gemini ─────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = "your-gemini-api-key"
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3.8-flash"
 
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: Optional[str] = None
