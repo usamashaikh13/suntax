@@ -424,3 +424,89 @@ async def confirm_tax_return(
     await db.commit()
 
     return {"message": "Tax return confirmed successfully.", "status": "confirmed"}
+
+
+# ── Tax Tools & Extensions (Commuting, ICTax, Crypto) ─────────────────────────
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/tools/commuting",
+    tags=["Tax Tools"],
+)
+async def calculate_commuting_deduction(
+    tax_return_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Calculate Swiss commuting deduction according to federal and cantonal statutory caps."""
+    from app.services.commuting_service import CommutingService
+
+    tr = await _get_tax_return(tax_return_id, db, current_user)
+    service = CommutingService()
+
+    home_addr = payload.get("home_address", "Home")
+    work_addr = payload.get("work_address", "Work")
+    transport_method = payload.get("transport_method", "public_transport")
+    distance_km = float(payload.get("distance_km") or service.estimate_distance_km(home_addr, work_addr, tr.canton_code))
+    working_days = int(payload.get("working_days", 220))
+    home_office_days = int(payload.get("home_office_days", 40))
+    actual_sub_chf = float(payload["public_transport_subscription_chf"]) if payload.get("public_transport_subscription_chf") else None
+
+    result = service.calculate_deduction(
+        canton_code=tr.canton_code,
+        transport_method=transport_method,
+        distance_km_one_way=distance_km,
+        working_days=working_days,
+        home_office_days=home_office_days,
+        public_transport_subscription_chf=actual_sub_chf,
+        home_address=home_addr,
+        work_address=work_addr,
+    )
+    return result.__dict__
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/tools/ictax",
+    tags=["Tax Tools"],
+)
+async def lookup_securities_tax_value(
+    tax_return_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lookup official ESTV ICTax benchmark tax valuation and dividend income."""
+    from app.services.ictax_service import ICTaxService
+
+    tr = await _get_tax_return(tax_return_id, db, current_user)
+    service = ICTaxService()
+
+    identifier = payload.get("identifier", "").strip()
+    quantity = float(payload.get("quantity", 1.0))
+    result = service.lookup_security(identifier, quantity, tr.tax_year)
+    return result.__dict__
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/tools/crypto",
+    tags=["Tax Tools"],
+)
+async def evaluate_crypto_tax(
+    tax_return_id: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Evaluate cryptocurrency holdings for Swiss wealth tax per official ESTV rates."""
+    from app.services.crypto_service import CryptoTaxService
+
+    tr = await _get_tax_return(tax_return_id, db, current_user)
+    service = CryptoTaxService()
+
+    symbol = payload.get("symbol", "BTC").strip()
+    quantity = float(payload.get("quantity", 1.0))
+    staking_rewards = float(payload.get("staking_rewards_quantity", 0.0))
+
+    result = service.evaluate_holding(symbol, quantity, staking_rewards, tr.tax_year)
+    return result.__dict__

@@ -1,0 +1,104 @@
+{
+  "canton": "GE",
+  "canton_name": "Gen\u00e8ve",
+  "tax_year": 2025,
+  "version": "1.0.0",
+  "source": "https://www.estv.admin.ch/estv/de/home/die-estv/steuern-kantone/ge.html",
+  "municipality_multipliers": {
+    "6621": {
+      "name": "Gen\u00e8ve",
+      "multiplier": 45
+    },
+    "6643": {
+      "name": "Vernier",
+      "multiplier": 49
+    },
+    "6628": {
+      "name": "Lancy",
+      "multiplier": 47
+    }
+  },
+  "income_tax_brackets_canton": [
+    {
+      "from": 0,
+      "to": 12000,
+      "rate": 0.0,
+      "base_tax": 0.0
+    },
+    {
+      "from": 12000,
+      "to": 25000,
+      "rate": 0.025,
+      "base_tax": 0.0
+    },
+    {
+      "from": 25000,
+      "to": 50000,
+      "rate": 0.045,
+      "base_tax": 325.0
+    },
+    {
+      "from": 50000,
+      "to": 80000,
+      "rate": 0.065,
+      "base_tax": 1450.0
+    },
+    {
+      "from": 80000,
+      "to": 120000,
+      "rate": 0.085,
+      "base_tax": 3400.0
+    },
+    {
+      "from": 120000,
+      "to": 200000,
+      "rate": 0.105,
+      "base_tax": 6800.0
+    },
+    {
+      "from": 200000,
+      "to": null,
+      "rate": 0.125,
+      "base_tax": 15200.0
+    }
+  ],
+  "wealth_tax_brackets": [
+    {
+      "from": 0,
+      "to": 100000,
+      "rate": 0.0
+    },
+    {
+      "from": 100000,
+      "to": 300000,
+      "rate": 0.00035
+    },
+    {
+      "from": 300000,
+      "to": null,
+      "rate": 0.00065
+    }
+  ],
+  "wealth_tax_social_deductions": {
+    "per_taxpayer": 80000,
+    "per_spouse": 80000,
+    "per_child": 20000
+  },
+  "deduction_limits": {
+    "commuting_max_chf": 4500,
+    "meal_deduction_annual": 3200,
+    "professional_expenses_flat_rate_pct": 0.03,
+    "professional_expenses_min": 2000,
+    "professional_expenses_max": 4000,
+    "health_insurance_deduction_single": 2800,
+    "health_insurance_deduction_married": 5600,
+    "health_insurance_deduction_per_child": 1300,
+    "medical_expense_threshold_pct": 0.05,
+    "pillar3a_employed_max": 7258,
+    "pillar3a_self_employed_max": 36288,
+    "childcare_max": 10100,
+    "child_deduction_per_child": 9000,
+    "donation_max_pct_of_income": 0.2,
+    "donation_min_chf": 100
+  }
+}

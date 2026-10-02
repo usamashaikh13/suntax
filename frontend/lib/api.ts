@@ -551,6 +551,21 @@ export const taxEngineApi = {
     );
     return response.data;
   },
+
+  async calculateCommuting(taxReturnId: string, payload: any): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${taxReturnId}/tools/commuting`, payload);
+    return response.data;
+  },
+
+  async lookupIctax(taxReturnId: string, payload: { identifier: string; quantity?: number }): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${taxReturnId}/tools/ictax`, payload);
+    return response.data;
+  },
+
+  async evaluateCrypto(taxReturnId: string, payload: { symbol: string; quantity: number }): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${taxReturnId}/tools/crypto`, payload);
+    return response.data;
+  },
 };
 
 // ─── AI Assistant API ─────────────────────────────────────────────────────────

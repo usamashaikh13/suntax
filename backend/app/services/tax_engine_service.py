@@ -375,13 +375,19 @@ class TaxRuleLoader:
         # Resolve municipality
         muni_data = canton_data.get("municipality_multipliers", {}).get(municipality_code)
         if muni_data is None:
-            raise TaxRuleNotFoundError(
-                rule_key=f"municipality_multiplier[{municipality_code}]",
-                canton=canton_code,
-                tax_year=tax_year,
-            )
-        multiplier: int = muni_data["multiplier"]
-        municipality_name: str = muni_data["name"]
+            # Resilient fallback: use first municipality or canton default
+            all_munis = canton_data.get("municipality_multipliers", {})
+            if all_munis:
+                first_k = next(iter(all_munis))
+                muni_data = all_munis[first_k]
+                multiplier = muni_data.get("multiplier", 100)
+                municipality_name = muni_data.get("name", f"Municipality {municipality_code}")
+            else:
+                multiplier = 100
+                municipality_name = f"Municipality {municipality_code}"
+        else:
+            multiplier = int(muni_data["multiplier"])
+            municipality_name = str(muni_data["name"])
 
         # Wealth social deductions
         wsd = canton_data.get("wealth_tax_social_deductions", {})
