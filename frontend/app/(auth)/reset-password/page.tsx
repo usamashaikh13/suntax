@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { CheckCircle, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { CheckCircle, Eye, EyeOff, Loader2, Lock, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -63,9 +63,9 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <Card className="w-full max-w-md text-center">
+      <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
         <CardContent className="pt-10 pb-8">
-          <p className="text-red-600">Invalid reset link. Please request a new one.</p>
+          <p className="text-red-400 text-sm">Invalid or missing reset token. Please request a new link.</p>
         </CardContent>
       </Card>
     )
@@ -73,87 +73,97 @@ function ResetPasswordForm() {
 
   if (done) {
     return (
-      <Card className="w-full max-w-md text-center">
+      <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
         <CardContent className="pt-10 pb-8 space-y-4">
-          <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-          <h2 className="text-xl font-bold">Password updated successfully</h2>
-          <p className="text-gray-500 text-sm">Redirecting you to sign in...</p>
+          <div className="h-16 w-16 rounded-2xl bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
+            <CheckCircle className="h-8 w-8" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Password Updated Successfully</h2>
+          <p className="text-slate-400 text-sm">Redirecting you to sign in...</p>
         </CardContent>
       </Card>
     )
   }
 
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <div className="flex justify-center mb-4">
-          <span className="text-3xl font-bold text-red-600">
-            Sun<span className="text-gray-900">Tax</span>
-          </span>
-        </div>
-        <CardTitle className="text-2xl text-center">Reset Password</CardTitle>
-        <CardDescription className="text-center">
+    <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl">
+      <CardHeader className="space-y-1.5 pb-6">
+        <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+          Reset Password
+        </CardTitle>
+        <CardDescription className="text-slate-400 text-xs sm:text-sm">
           Choose a new secure password for your account
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="new_password">New Password</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="new_password" className="text-xs font-semibold text-slate-300">
+              New Password
+            </Label>
             <div className="relative">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 id="new_password"
                 type={showPw ? 'text' : 'password'}
                 placeholder="At least 8 characters"
+                className="bg-slate-950 border-slate-800 text-slate-100 pl-10 pr-10 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm h-10"
                 {...register('new_password')}
               />
               <button
                 type="button"
                 onClick={() => setShowPw(!showPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
               >
                 {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {errors.new_password && (
-              <p className="text-sm text-red-600">{errors.new_password.message}</p>
+              <p className="text-xs text-red-400 mt-1">{errors.new_password.message}</p>
             )}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirm_password">Confirm New Password</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="confirm_password" className="text-xs font-semibold text-slate-300">
+              Confirm New Password
+            </Label>
             <div className="relative">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
                 id="confirm_password"
                 type={showConfirmPw ? 'text' : 'password'}
-                placeholder="Repeat your password"
+                placeholder="Repeat new password"
+                className="bg-slate-950 border-slate-800 text-slate-100 pl-10 pr-10 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm h-10"
                 {...register('confirm_password')}
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPw(!showConfirmPw)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
               >
                 {showConfirmPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
             {errors.confirm_password && (
-              <p className="text-sm text-red-600">{errors.confirm_password.message}</p>
+              <p className="text-xs text-red-400 mt-1">{errors.confirm_password.message}</p>
             )}
           </div>
 
           <Button
             type="submit"
-            className="w-full bg-red-600 hover:bg-red-700"
             disabled={isSubmitting}
+            className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold shadow-lg shadow-red-600/20 text-sm h-10 mt-2"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
+                Updating Password...
               </>
             ) : (
-              'Reset Password'
+              <>
+                Update Password
+                <ArrowRight className="h-4 w-4 ml-2" />
+              </>
             )}
           </Button>
         </form>
@@ -166,7 +176,7 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <Card className="w-full max-w-md text-center">
+        <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
           <CardContent className="pt-10 pb-8">
             <Loader2 className="h-8 w-8 animate-spin text-red-600 mx-auto" />
           </CardContent>

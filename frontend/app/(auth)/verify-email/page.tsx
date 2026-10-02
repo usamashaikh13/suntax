@@ -3,8 +3,9 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { CheckCircle, XCircle, Loader2, ArrowRight } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { api } from '@/lib/api'
 
 function VerifyEmailContent() {
@@ -24,44 +25,44 @@ function VerifyEmailContent() {
   }, [token])
 
   return (
-    <Card className="w-full max-w-md text-center">
+    <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
       <CardContent className="pt-10 pb-8 space-y-4">
         {status === 'loading' && (
           <>
-            <Loader2 className="h-12 w-12 animate-spin text-red-600 mx-auto" />
-            <p className="text-gray-600">Verifying your email address...</p>
+            <Loader2 className="h-12 w-12 animate-spin text-red-500 mx-auto" />
+            <p className="text-slate-300 font-medium">Verifying your email address...</p>
           </>
         )}
 
         {status === 'success' && (
           <>
-            <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-            <h2 className="text-xl font-bold text-gray-900">Email verified!</h2>
-            <p className="text-gray-600 text-sm">
-              Your account is now active. You can sign in.
+            <div className="h-16 w-16 rounded-2xl bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
+              <CheckCircle className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Email Verified!</h2>
+            <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
+              Your account is now active and ready. You can sign in to begin your Swiss tax declaration.
             </p>
-            <Link
-              href="/login"
-              className="inline-block bg-red-600 hover:bg-red-700 text-white font-medium px-6 py-2 rounded-lg transition-colors"
-            >
-              Go to Sign In
-            </Link>
+            <Button asChild className="mt-2 bg-red-600 hover:bg-red-700 text-white font-semibold">
+              <Link href="/login">
+                Go to Sign In <ArrowRight className="h-4 w-4 ml-1.5" />
+              </Link>
+            </Button>
           </>
         )}
 
         {status === 'error' && (
           <>
-            <XCircle className="h-16 w-16 text-red-500 mx-auto" />
-            <h2 className="text-xl font-bold text-gray-900">Verification failed</h2>
-            <p className="text-gray-600 text-sm">
-              The link may have expired. Please request a new one.
+            <div className="h-16 w-16 rounded-2xl bg-red-950/60 border border-red-800/40 text-red-400 flex items-center justify-center mx-auto shadow-sm">
+              <XCircle className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-bold text-white">Verification Failed</h2>
+            <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
+              The verification link may have expired or is invalid. Please request a new link or try registering again.
             </p>
-            <Link
-              href="/register"
-              className="inline-block border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium px-6 py-2 rounded-lg transition-colors"
-            >
-              Back to Sign Up
-            </Link>
+            <Button asChild variant="outline" className="mt-2 border-slate-700 text-slate-200 hover:bg-slate-800">
+              <Link href="/register">Back to Registration</Link>
+            </Button>
           </>
         )}
       </CardContent>
@@ -73,10 +74,10 @@ export default function VerifyEmailPage() {
   return (
     <Suspense
       fallback={
-        <Card className="w-full max-w-md text-center">
+        <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
           <CardContent className="pt-10 pb-8 space-y-4">
-            <Loader2 className="h-12 w-12 animate-spin text-red-600 mx-auto" />
-            <p className="text-gray-600">Loading...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-red-500 mx-auto" />
+            <p className="text-slate-400 text-sm">Verifying...</p>
           </CardContent>
         </Card>
       }

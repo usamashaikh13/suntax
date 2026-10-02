@@ -1,0 +1,5 @@
+node_modules
+.next
+.next.pre-e2e-backup
+tsconfig.tsbuildinfo
+.env.local

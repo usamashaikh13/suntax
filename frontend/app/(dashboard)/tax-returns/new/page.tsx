@@ -1,39 +1,43 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Check, ChevronRight, Loader2 } from 'lucide-react'
+import {
+  Check, ChevronRight, Loader2, Search, ArrowLeft,
+  Building2, Calendar, ShieldCheck, Sparkles, MapPin
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { Canton, Municipality } from '@/types'
+import { cn } from '@/lib/utils'
 
-const STEPS = ['Select Canton', 'Select Municipality', 'Select Tax Year', 'Confirm']
+const STEPS = ['Select Canton', 'Select Municipality', 'Select Tax Year', 'Review & Start']
 
-const CANTON_COLORS: Record<string, string> = {
-  ZH: 'bg-blue-100 text-blue-800 border-blue-200',
-  ZG: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  SZ: 'bg-red-100 text-red-800 border-red-200',
-  SG: 'bg-green-100 text-green-800 border-green-200',
-  AG: 'bg-purple-100 text-purple-800 border-purple-200',
-  BE: 'bg-orange-100 text-orange-800 border-orange-200',
-  BS: 'bg-teal-100 text-teal-800 border-teal-200',
-  LU: 'bg-sky-100 text-sky-800 border-sky-200',
-  GE: 'bg-rose-100 text-rose-800 border-rose-200',
-  VD: 'bg-lime-100 text-lime-800 border-lime-200',
+const CANTON_LANGUAGES: Record<string, string> = {
+  ZH: 'de', BE: 'de/fr', LU: 'de', UR: 'de', SZ: 'de', OW: 'de', NW: 'de',
+  GL: 'de', ZG: 'de', FR: 'fr/de', SO: 'de', BS: 'de', BL: 'de', SH: 'de',
+  AR: 'de', AI: 'de', SG: 'de', GR: 'de/rm/it', AG: 'de', TG: 'de', TI: 'it',
+  VD: 'fr', VS: 'fr/de', NE: 'fr', GE: 'fr', JU: 'fr',
 }
+
+const LOW_TAX_CANTONS = new Set(['ZG', 'SZ', 'NW', 'OW', 'UR'])
 
 export default function NewTaxReturnPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [step, setStep] = useState(0)
   const [cantons, setCantons] = useState<Canton[]>([])
+  const [cantonSearch, setCantonSearch] = useState('')
+  const [cantonFilter, setCantonFilter] = useState<'all' | 'low_tax' | 'de' | 'fr'>('all')
+
   const [municipalities, setMunicipalities] = useState<Municipality[]>([])
   const [municipalitySearch, setMunicipalitySearch] = useState('')
   const [selectedCanton, setSelectedCanton] = useState<Canton | null>(null)
   const [selectedMunicipality, setSelectedMunicipality] = useState<Municipality | null>(null)
-  const [selectedYear, setSelectedYear] = useState<number | null>(null)
+  const [selectedYear, setSelectedYear] = useState<number>(2025)
   const [submitting, setSubmitting] = useState(false)
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(false)
 
@@ -54,9 +58,25 @@ export default function NewTaxReturnPage() {
     }
   }, [selectedCanton])
 
-  const filteredMunicipalities = municipalities.filter(m =>
-    m.name.toLowerCase().includes(municipalitySearch.toLowerCase())
-  )
+  const filteredCantons = useMemo(() => {
+    return cantons.filter(c => {
+      const matchesSearch = c.name.toLowerCase().includes(cantonSearch.toLowerCase()) ||
+                            c.code.toLowerCase().includes(cantonSearch.toLowerCase())
+      if (!matchesSearch) return false
+
+      if (cantonFilter === 'low_tax') return LOW_TAX_CANTONS.has(c.code)
+      if (cantonFilter === 'de') return (CANTON_LANGUAGES[c.code] || '').includes('de')
+      if (cantonFilter === 'fr') return (CANTON_LANGUAGES[c.code] || '').includes('fr')
+      return true
+    })
+  }, [cantons, cantonSearch, cantonFilter])
+
+  const filteredMunicipalities = useMemo(() => {
+    return municipalities.filter(m =>
+      m.name.toLowerCase().includes(municipalitySearch.toLowerCase()) ||
+      m.code.includes(municipalitySearch)
+    )
+  }, [municipalities, municipalitySearch])
 
   const handleCreate = async () => {
     if (!selectedCanton || !selectedMunicipality || !selectedYear) return
@@ -69,14 +89,14 @@ export default function NewTaxReturnPage() {
         tax_year: selectedYear,
       })
       toast({
-        title: 'Tax return created',
-        description: 'You can now upload your documents.',
+        title: 'Tax return initialized!',
+        description: `Created for ${selectedCanton.name} (${selectedMunicipality.name}) – ${selectedYear}.`,
       })
       router.push(`/tax-returns/${tr.id}`)
     } catch (error: any) {
       toast({
         title: 'Failed to create tax return',
-        description: error?.response?.data?.detail || 'Please try again.',
+        description: error?.response?.data?.detail || 'Please check your inputs and try again.',
         variant: 'destructive',
       })
     } finally {
@@ -84,191 +104,348 @@ export default function NewTaxReturnPage() {
     }
   }
 
-  const progressPercent = ((step + 1) / STEPS.length) * 100
-
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-8 pb-12">
+      {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">New Tax Return</h2>
-        <p className="text-gray-500 text-sm mt-1">
-          Step {step + 1} of {STEPS.length}: {STEPS[step]}
+        <div className="flex items-center gap-2 mb-1">
+          <Badge variant="outline" className="text-red-600 border-red-200 text-xs">
+            Official ESTV Engine
+          </Badge>
+          <span className="text-xs text-slate-400">•</span>
+          <span className="text-xs text-slate-500 font-medium">All 26 Swiss Cantons Supported</span>
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          Create New Tax Declaration
+        </h2>
+        <p className="text-sm text-slate-500 mt-1">
+          Configure your cantonal and municipal tax residency to load deterministic statutory rules.
         </p>
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div
-          className="bg-red-600 h-2 rounded-full transition-all duration-300"
-          style={{ width: `${progressPercent}%` }}
-        />
-      </div>
+      {/* Stepper Navigation */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
+        <div className="flex items-center justify-between">
+          {STEPS.map((stepName, i) => {
+            const isCompleted = i < step
+            const isCurrent = i === step
 
-      {/* Step indicator */}
-      <div className="flex items-center gap-2">
-        {STEPS.map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className={`flex items-center justify-center h-7 w-7 rounded-full text-xs font-bold
-                ${i < step ? 'bg-green-500 text-white' : i === step ? 'bg-red-600 text-white' : 'bg-gray-200 text-gray-500'}`}
-            >
-              {i < step ? <Check className="h-4 w-4" /> : i + 1}
-            </div>
-            <span
-              className={`text-sm hidden sm:block ${i === step ? 'font-medium text-gray-900' : 'text-gray-400'}`}
-            >
-              {s}
-            </span>
-            {i < STEPS.length - 1 && <ChevronRight className="h-4 w-4 text-gray-300" />}
-          </div>
-        ))}
-      </div>
-
-      {/* Step 0: Canton */}
-      {step === 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Select Canton</CardTitle>
-            <p className="text-sm text-gray-500">Choose the canton where you are tax-resident.</p>
-          </CardHeader>
-          <CardContent>
-            {cantons.length === 0 ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-red-600" />
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {cantons.map(canton => (
-                  <button
-                    key={canton.code}
-                    onClick={() => { setSelectedCanton(canton); setStep(1) }}
-                    className={`p-4 rounded-lg border-2 text-left transition-all hover:shadow-md
-                      ${selectedCanton?.code === canton.code
-                        ? 'border-red-600 bg-red-50'
-                        : 'border-gray-200 hover:border-red-200'}`}
+            return (
+              <div key={stepName} className="flex items-center flex-1 last:flex-none">
+                <div className="flex items-center gap-2.5">
+                  <div
+                    className={cn(
+                      'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-all',
+                      isCompleted
+                        ? 'bg-emerald-600 text-white'
+                        : isCurrent
+                        ? 'bg-red-600 text-white ring-4 ring-red-100 shadow-sm'
+                        : 'bg-slate-100 text-slate-400'
+                    )}
                   >
-                    <div
-                      className={`inline-block px-2 py-1 rounded text-xs font-bold mb-2 border
-                        ${CANTON_COLORS[canton.code] ?? 'bg-gray-100 text-gray-700 border-gray-200'}`}
-                    >
-                      {canton.code}
-                    </div>
-                    <p className="font-medium text-sm">{canton.name}</p>
+                    {isCompleted ? <Check className="h-4 w-4" /> : i + 1}
+                  </div>
+                  <span
+                    className={cn(
+                      'text-xs hidden md:block font-medium',
+                      isCurrent ? 'text-slate-900 font-bold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
+                    )}
+                  >
+                    {stepName}
+                  </span>
+                </div>
+                {i < STEPS.length - 1 && (
+                  <div className="flex-1 mx-3 h-0.5 bg-slate-200 hidden sm:block" />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* STEP 0: CANTON SELECTION */}
+      {step === 0 && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Select Your Tax Residence Canton</CardTitle>
+            <CardDescription>
+              Select the canton where you had your main tax residence on December 31st.
+            </CardDescription>
+
+            {/* Search and Filters */}
+            <div className="pt-3 flex flex-col sm:flex-row gap-2.5">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search canton name or code (e.g. Zurich, ZG, Geneva)..."
+                  value={cantonSearch}
+                  onChange={e => setCantonSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-600"
+                />
+              </div>
+
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg flex-shrink-0">
+                {[
+                  { id: 'all', label: 'All (26)' },
+                  { id: 'low_tax', label: 'Low-Tax' },
+                  { id: 'de', label: 'German' },
+                  { id: 'fr', label: 'French' },
+                ].map(filter => (
+                  <button
+                    key={filter.id}
+                    onClick={() => setCantonFilter(filter.id as any)}
+                    className={cn(
+                      'px-2.5 py-1 text-xs font-semibold rounded-md transition-all',
+                      cantonFilter === filter.id
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    )}
+                  >
+                    {filter.label}
                   </button>
                 ))}
               </div>
+            </div>
+          </CardHeader>
+
+          <CardContent>
+            {cantons.length === 0 ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-7 w-7 animate-spin text-red-600" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {filteredCantons.map(canton => {
+                  const isLowTax = LOW_TAX_CANTONS.has(canton.code)
+                  const isSelected = selectedCanton?.code === canton.code
+
+                  return (
+                    <button
+                      key={canton.code}
+                      onClick={() => {
+                        setSelectedCanton(canton)
+                        setStep(1)
+                      }}
+                      className={cn(
+                        'p-3.5 rounded-xl border text-left transition-all duration-150 flex flex-col justify-between h-24 hover:scale-[1.02]',
+                        isSelected
+                          ? 'border-red-600 bg-red-50/70 shadow-sm ring-1 ring-red-600'
+                          : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs'
+                      )}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="h-7 w-8 rounded bg-slate-100 border border-slate-200/70 text-slate-900 font-extrabold text-xs flex items-center justify-center">
+                          {canton.code}
+                        </span>
+                        {isLowTax && (
+                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
+                            Low Tax
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                        {canton.name}
+                      </p>
+                    </button>
+                  )
+                })}
+              </div>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Step 1: Municipality */}
+      {/* STEP 1: MUNICIPALITY SELECTION */}
       {step === 1 && (
-        <Card>
+        <Card className="border-slate-200 shadow-sm">
           <CardHeader>
-            <CardTitle>Select Municipality</CardTitle>
-            <p className="text-sm text-gray-500">
-              Canton: <strong>{selectedCanton?.name}</strong>
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Select Municipality (Commune)</CardTitle>
+                <CardDescription>
+                  Canton: <strong className="text-slate-900">{selectedCanton?.name} ({selectedCanton?.code})</strong>
+                </CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setStep(0)} className="text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Change Canton
+              </Button>
+            </div>
+
+            <div className="relative pt-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 mt-1" />
+              <input
+                type="text"
+                placeholder="Search municipality or BFS code (e.g. Zurich, 261)..."
+                value={municipalitySearch}
+                onChange={e => setMunicipalitySearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-600 mt-2"
+                autoFocus
+              />
+            </div>
           </CardHeader>
+
           <CardContent className="space-y-4">
-            <input
-              type="text"
-              placeholder="Search municipality..."
-              value={municipalitySearch}
-              onChange={e => setMunicipalitySearch(e.target.value)}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-            />
             {loadingMunicipalities ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-red-600" />
+              <div className="flex flex-col items-center justify-center py-12 space-y-2">
+                <Loader2 className="h-7 w-7 animate-spin text-red-600" />
+                <p className="text-xs text-slate-500">Loading official BFS municipalities for {selectedCanton?.name}...</p>
               </div>
             ) : (
-              <div className="max-h-64 overflow-y-auto space-y-1">
+              <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
                 {filteredMunicipalities.length === 0 ? (
-                  <p className="text-center text-gray-400 py-4 text-sm">No municipalities found.</p>
+                  <p className="text-center text-slate-400 py-8 text-xs">
+                    No municipalities found matching &quot;{municipalitySearch}&quot;.
+                  </p>
                 ) : (
-                  filteredMunicipalities.map(m => (
-                    <button
-                      key={m.code}
-                      onClick={() => { setSelectedMunicipality(m); setStep(2) }}
-                      className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors
-                        ${selectedMunicipality?.code === m.code
-                          ? 'bg-red-50 text-red-700 font-medium'
-                          : 'hover:bg-gray-100'}`}
-                    >
-                      {m.name}
-                    </button>
-                  ))
+                  filteredMunicipalities.map(m => {
+                    const isSelected = selectedMunicipality?.code === m.code
+
+                    return (
+                      <button
+                        key={m.code}
+                        onClick={() => {
+                          setSelectedMunicipality(m)
+                          setStep(2)
+                        }}
+                        className={cn(
+                          'w-full text-left px-3.5 py-2.5 rounded-lg border text-xs sm:text-sm transition-all flex items-center justify-between',
+                          isSelected
+                            ? 'bg-red-50 text-red-700 border-red-300 font-bold'
+                            : 'bg-white border-slate-200/80 text-slate-800 hover:bg-slate-50 hover:border-slate-300'
+                        )}
+                      >
+                        <span className="font-medium">{m.name}</span>
+                        <span className="text-[11px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                          BFS #{m.code}
+                        </span>
+                      </button>
+                    )
+                  })
                 )}
               </div>
             )}
-            <Button variant="outline" onClick={() => setStep(0)}>Back</Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 2: Tax Year */}
+      {/* STEP 2: TAX YEAR SELECTION */}
       {step === 2 && (
-        <Card>
+        <Card className="border-slate-200 shadow-sm">
           <CardHeader>
-            <CardTitle>Select Tax Year</CardTitle>
-            <p className="text-sm text-gray-500">
-              {selectedCanton?.name} – {selectedMunicipality?.name}
-            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">Select Tax Assessment Year</CardTitle>
+                <CardDescription>
+                  {selectedCanton?.name} – {selectedMunicipality?.name}
+                </CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setStep(1)} className="text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+              </Button>
+            </div>
           </CardHeader>
+
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              {[2025, 2026].map(year => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[
+                {
+                  year: 2025,
+                  title: 'Tax Year 2025 (Active Filing)',
+                  desc: 'Standard filing season. Max Pillar 3a deduction CHF 7,258. Full inflation indexation brackets.',
+                  activeTag: 'Recommended'
+                },
+                {
+                  year: 2026,
+                  title: 'Tax Year 2026 (Provisional)',
+                  desc: 'Advance planning and withholding tax reconciliation for calendar year 2026.',
+                  activeTag: 'Advance'
+                },
+              ].map(item => (
                 <button
-                  key={year}
-                  onClick={() => { setSelectedYear(year); setStep(3) }}
-                  className={`p-6 rounded-lg border-2 text-center text-2xl font-bold transition-all hover:shadow-md
-                    ${selectedYear === year
-                      ? 'border-red-600 bg-red-50 text-red-700'
-                      : 'border-gray-200 hover:border-red-200 text-gray-800'}`}
+                  key={item.year}
+                  onClick={() => {
+                    setSelectedYear(item.year)
+                    setStep(3)
+                  }}
+                  className={cn(
+                    'p-5 rounded-xl border-2 text-left transition-all duration-150 flex flex-col justify-between space-y-3',
+                    selectedYear === item.year
+                      ? 'border-red-600 bg-red-50/70 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-slate-300'
+                  )}
                 >
-                  {year}
+                  <div className="flex items-center justify-between">
+                    <span className="text-2xl font-black text-slate-900">{item.year}</span>
+                    <Badge variant="outline" className="text-xs border-slate-300">
+                      {item.activeTag}
+                    </Badge>
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-900">{item.title}</p>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{item.desc}</p>
+                  </div>
                 </button>
               ))}
             </div>
-            <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 3: Confirm */}
+      {/* STEP 3: REVIEW & CREATE */}
       {step === 3 && (
-        <Card>
+        <Card className="border-slate-200 shadow-sm">
           <CardHeader>
-            <CardTitle>Confirm Details</CardTitle>
-            <p className="text-sm text-gray-500">Review your selections before creating.</p>
+            <CardTitle className="text-lg">Review Tax Declaration Parameters</CardTitle>
+            <CardDescription>
+              Please verify your selected residency and tax year before initializing your file.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Canton</span>
-                <strong>{selectedCanton?.name} ({selectedCanton?.code})</strong>
+
+          <CardContent className="space-y-6">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-3">
+              <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">Canton of Residence</span>
+                <span className="font-bold text-slate-900">
+                  {selectedCanton?.name} ({selectedCanton?.code})
+                </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Municipality</span>
-                <strong>{selectedMunicipality?.name}</strong>
+              <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">Municipality (Commune)</span>
+                <span className="font-bold text-slate-900">
+                  {selectedMunicipality?.name} (BFS #{selectedMunicipality?.code})
+                </span>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Tax Year</span>
-                <strong>{selectedYear}</strong>
+              <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-slate-200/60">
+                <span className="text-slate-500">Tax Assessment Year</span>
+                <span className="font-bold text-red-600">{selectedYear}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs sm:text-sm py-1">
+                <span className="text-slate-500">Tax Engine Ruleset</span>
+                <span className="font-semibold text-emerald-700 flex items-center gap-1">
+                  <ShieldCheck className="h-4 w-4" /> ESTV Verified Deterministic
+                </span>
               </div>
             </div>
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep(2)} className="flex-1">
+
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setStep(2)}
+                className="flex-1 text-xs"
+              >
                 Back
               </Button>
               <Button
                 onClick={handleCreate}
-                className="flex-1 bg-red-600 hover:bg-red-700"
                 disabled={submitting}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs h-10 shadow-md shadow-red-600/20"
               >
                 {submitting ? (
-                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Creating...</>
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Initializing Tax File...
+                  </>
                 ) : (
                   'Create Tax Return'
                 )}

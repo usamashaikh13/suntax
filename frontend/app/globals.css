@@ -5,62 +5,60 @@
 /* ─── CSS Custom Properties ─────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 0 0% 100%;
+    --background: 210 20% 99%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    /* Swiss red primary */
-    --primary: 0 100% 40%;
+    /* Premium Swiss Crimson Primary */
+    --primary: 350 89% 46%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
+    --secondary: 215 25% 95%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 210 40% 96.1%;
+    --muted: 210 30% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 40% 96.1%;
+    --accent: 210 30% 96%;
     --accent-foreground: 222.2 47.4% 11.2%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 0 100% 40%;
+    --border: 214.3 25% 90%;
+    --input: 214.3 25% 90%;
+    --ring: 350 89% 46%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
-    /* SunTax custom */
-    --swiss-red: #CC0000;
-    --swiss-red-hover: #a80000;
-    --sidebar-width: 260px;
-    --header-height: 64px;
+    /* Swiss red brand */
+    --swiss-red: #D32F2F;
+    --swiss-red-hover: #B71C1C;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 0 100% 50%;
+    --background: 224 71% 4%;
+    --foreground: 213 31% 91%;
+    --card: 224 71% 5%;
+    --card-foreground: 213 31% 91%;
+    --popover: 224 71% 5%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 350 89% 52%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217.2 32.6% 17.5%;
+    --secondary: 222 47% 11%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+    --accent: 216 34% 17%;
     --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 0 100% 50%;
+    --border: 216 34% 17%;
+    --input: 216 34% 17%;
+    --ring: 350 89% 52%;
   }
 }
 
@@ -71,14 +69,14 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased selection:bg-red-500 selection:text-white;
     font-feature-settings: 'rlig' 1, 'calt' 1;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    @apply font-sans font-semibold tracking-tight;
+    @apply font-sans font-bold tracking-tight text-slate-900;
   }
 
   /* Custom scrollbar */
@@ -87,106 +85,83 @@
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-muted rounded-full;
+    background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-border rounded-full;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-muted-foreground;
+    @apply bg-slate-200 rounded-full hover:bg-slate-300;
   }
 }
 
-/* ─── Component Utilities ────────────────────────────────────────────────────── */
+/* ─── Premium Glassmorphism & Micro-Interactions ───────────────────────────────── */
 @layer components {
-  /* Swiss cross icon used in logo */
-  .swiss-cross {
+  /* Frosted Glass Surface */
+  .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.03);
+  }
+
+  .dark .glass-card {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Luxury Card Hover */
+  .card-luxury {
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+  }
+
+  .card-luxury:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.06), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+    border-color: rgba(220, 38, 38, 0.2);
+  }
+
+  /* Subtle Radial Background Glow */
+  .bg-radial-subtle {
+    background-image: radial-gradient(at 0% 0%, rgba(239, 68, 68, 0.04) 0px, transparent 50%),
+                      radial-gradient(at 100% 100%, rgba(220, 38, 38, 0.03) 0px, transparent 50%);
+  }
+
+  /* Swiss Cross Brand Symbol */
+  .swiss-cross-badge {
     position: relative;
-    width: 28px;
-    height: 28px;
-    background-color: #CC0000;
-    border-radius: 4px;
+    width: 24px;
+    height: 24px;
+    background: #D32F2F;
+    border-radius: 6px;
+    box-shadow: 0 2px 6px rgba(211, 47, 47, 0.25);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
-  .swiss-cross::before {
+  .swiss-cross-badge::before {
     content: '';
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 6px;
-    height: 18px;
+    width: 5px;
+    height: 14px;
     background: white;
     border-radius: 1px;
   }
-  .swiss-cross::after {
+  .swiss-cross-badge::after {
     content: '';
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 18px;
-    height: 6px;
+    width: 14px;
+    height: 5px;
     background: white;
     border-radius: 1px;
-  }
-
-  /* Dashboard sidebar */
-  .sidebar-nav-item {
-    @apply flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 transition-all hover:bg-slate-100 hover:text-slate-900;
-  }
-  .sidebar-nav-item.active {
-    @apply bg-red-50 text-primary-600 font-semibold;
-  }
-
-  /* Status badge */
-  .status-badge {
-    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
-  }
-
-  /* Form field error */
-  .field-error {
-    @apply text-sm text-red-600 mt-1;
-  }
-
-  /* Confidence dot */
-  .confidence-dot {
-    @apply inline-block w-2 h-2 rounded-full;
-  }
-  .confidence-dot.high {
-    @apply bg-green-500;
-  }
-  .confidence-dot.medium {
-    @apply bg-yellow-500;
-  }
-  .confidence-dot.low {
-    @apply bg-red-500;
   }
 }
 
-/* ─── Animation Utilities ────────────────────────────────────────────────────── */
-@layer utilities {
-  .animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  .text-balance {
-    text-wrap: balance;
-  }
-
-  .gradient-swiss {
-    background: linear-gradient(135deg, #CC0000 0%, #8a0000 100%);
-  }
-
-  .gradient-hero {
-    background: linear-gradient(
-      135deg,
-      #fff0f0 0%,
-      #ffffff 40%,
-      #f8fafc 100%
-    );
+/* Subtle Shimmer for Highlighting */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
   }
 }
