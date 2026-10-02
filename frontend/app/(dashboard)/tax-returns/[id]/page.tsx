@@ -15,6 +15,7 @@ import { DocumentList } from '@/components/document-upload/DocumentList'
 import { TaxProfileViewer } from '@/components/tax-profile/TaxProfileViewer'
 import { TaxQuestions } from '@/components/tax-profile/TaxQuestions'
 import { TaxCalculationDisplay } from '@/components/calculation/TaxCalculationDisplay'
+import { TaxOpportunities } from '@/components/calculation/TaxOpportunities'
 import { FinalReview } from '@/components/review/FinalReview'
 import { TaxAssistant } from '@/components/tax-assistant/TaxAssistant'
 import { AiSubmissionGuide } from '@/components/tax-assistant/AiSubmissionGuide'
@@ -220,7 +221,7 @@ export default function TaxReturnDetailPage() {
 
       {/* ── Tabs Navigation & Content ───────────────────────────────────── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid grid-cols-3 sm:grid-cols-6 w-full bg-slate-100 p-1 rounded-xl h-auto gap-1">
+        <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full bg-slate-100 p-1 rounded-xl h-auto gap-1">
           <TabsTrigger value="guide" className="flex items-center gap-1.5 text-xs font-semibold py-2">
             <Sparkles className="h-3.5 w-3.5 text-red-600" />
             AI Guide
@@ -238,6 +239,9 @@ export default function TaxReturnDetailPage() {
                 {unansweredQuestions}
               </span>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="opportunities" className="text-xs font-semibold py-2">
+            Opportunities
           </TabsTrigger>
           <TabsTrigger value="calculation" className="text-xs font-semibold py-2">
             Calculation
@@ -258,8 +262,12 @@ export default function TaxReturnDetailPage() {
 
         {/* Tab 2: Documents */}
         <TabsContent value="documents" className="space-y-4">
-          <DocumentUploader taxReturnId={id} onUploadComplete={loadData} />
-          <DocumentList documents={documents} onDelete={loadData} />
+          <DocumentUploader
+            taxReturnId={id}
+            onUploadComplete={loadData}
+            uploadedCategories={documents.map(d => d.document_type || '').filter(Boolean)}
+          />
+          <DocumentList documents={documents} onDelete={loadData} onRefresh={loadData} />
         </TabsContent>
 
         {/* Tab 3: Tax Profile */}
@@ -299,7 +307,15 @@ export default function TaxReturnDetailPage() {
           )}
         </TabsContent>
 
-        {/* Tab 5: Calculation */}
+        {/* Tab 5: Opportunities */}
+        <TabsContent value="opportunities" className="space-y-4">
+          <TaxOpportunities
+            taxReturnId={id}
+            onNavigateTab={setActiveTab}
+          />
+        </TabsContent>
+
+        {/* Tab 6: Calculation */}
         <TabsContent value="calculation">
           <TaxCalculationDisplay
             taxReturnId={id}
@@ -308,13 +324,14 @@ export default function TaxReturnDetailPage() {
           />
         </TabsContent>
 
-        {/* Tab 6: Review & Submit */}
+        {/* Tab 7: Review & Confirm */}
         <TabsContent value="review">
           <FinalReview
             taxReturn={taxReturn}
             profile={profile}
             calculation={calculation}
             onConfirm={loadData}
+            onNavigateTab={setActiveTab}
           />
         </TabsContent>
       </Tabs>

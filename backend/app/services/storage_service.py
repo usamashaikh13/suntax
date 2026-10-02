@@ -85,7 +85,7 @@ class _S3StorageService:
                 signature_version="s3v4",
                 retries={"max_attempts": 3, "mode": "adaptive"},
             ),
-            region_name="us-east-1",
+            region_name=settings.STORAGE_REGION,
         )
         self._bucket = settings.MINIO_BUCKET_NAME
         self._ensure_bucket()
@@ -106,12 +106,19 @@ class _S3StorageService:
         return await loop.run_in_executor(None, partial(fn, *args, **kwargs))
 
     async def upload_file(self, file_bytes: bytes, key: str, content_type: str = "application/octet-stream") -> str:
+        extra_args: dict[str, str] = {"ContentType": content_type}
+        # Enable AES-256 server-side encryption for production compliance
+        if getattr(settings, "STORAGE_SERVER_SIDE_ENCRYPTION", None):
+            extra_args["ServerSideEncryption"] = settings.STORAGE_SERVER_SIDE_ENCRYPTION
+            if getattr(settings, "STORAGE_ENCRYPTION_KEY_ID", None):
+                extra_args["SSEKMSKeyId"] = settings.STORAGE_ENCRYPTION_KEY_ID
+
         await self._run_sync(
             self._client.upload_fileobj,
             io.BytesIO(file_bytes),
             self._bucket,
             key,
-            ExtraArgs={"ContentType": content_type},
+            ExtraArgs=extra_args,
         )
         return key
 

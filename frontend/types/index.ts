@@ -5,22 +5,55 @@
 // ─── Enums ───────────────────────────────────────────────────────────────────
 
 export enum DocumentType {
-  SALARY_STATEMENT = 'salary_statement',
+  SALARY_CERTIFICATE = 'salary_certificate',
+  SALARY_STATEMENT = 'salary_certificate',
   BANK_STATEMENT = 'bank_statement',
   SECURITIES_STATEMENT = 'securities_statement',
-  REAL_ESTATE_DOCUMENT = 'real_estate_document',
-  INSURANCE_CERTIFICATE = 'insurance_certificate',
+  PILLAR3A = 'pillar3a',
+  INSURANCE = 'insurance',
+  INSURANCE_CERTIFICATE = 'insurance',
+  MORTGAGE = 'mortgage',
+  MORTGAGE_STATEMENT = 'mortgage',
+  DONATION = 'donation',
+  CHARITABLE_DONATION = 'donation',
+  MEDICAL = 'medical',
+  MEDICAL_EXPENSES = 'medical',
+  COMMUTING = 'commuting',
+  EDUCATION = 'education',
+  CHILDCARE = 'childcare',
+  PROPERTY = 'property',
+  REAL_ESTATE_DOCUMENT = 'property',
+  SELF_EMPLOYMENT = 'self_employment',
+  BUSINESS_INCOME = 'self_employment',
+  FOREIGN_INCOME = 'foreign_income',
+  PREVIOUS_TAX_RETURN = 'previous_tax_return',
+  TAX_ASSESSMENT = 'tax_assessment',
   PENSION_STATEMENT = 'pension_statement',
   DIVIDEND_STATEMENT = 'dividend_statement',
   INTEREST_STATEMENT = 'interest_statement',
   RENTAL_INCOME = 'rental_income',
-  BUSINESS_INCOME = 'business_income',
-  MEDICAL_EXPENSES = 'medical_expenses',
-  CHARITABLE_DONATION = 'charitable_donation',
-  MORTGAGE_STATEMENT = 'mortgage_statement',
-  TAX_ASSESSMENT = 'tax_assessment',
   OTHER = 'other',
 }
+
+export const DOCUMENT_CATEGORIES = [
+  { value: 'salary_certificate', label: 'Salary Certificate' },
+  { value: 'bank_statement', label: 'Bank Statement' },
+  { value: 'securities_statement', label: 'Securities Statement' },
+  { value: 'pillar3a', label: 'Pillar 3a Certificate' },
+  { value: 'insurance', label: 'Insurance Policy' },
+  { value: 'mortgage', label: 'Mortgage Statement' },
+  { value: 'donation', label: 'Donation Receipt' },
+  { value: 'medical', label: 'Medical Expenses' },
+  { value: 'commuting', label: 'Commuting / Travel' },
+  { value: 'education', label: 'Continuing Education' },
+  { value: 'childcare', label: 'Childcare Costs' },
+  { value: 'property', label: 'Real Estate / Property' },
+  { value: 'self_employment', label: 'Self-Employment' },
+  { value: 'foreign_income', label: 'Foreign Income' },
+  { value: 'previous_tax_return', label: 'Previous Tax Return' },
+  { value: 'tax_assessment', label: 'Tax Assessment' },
+  { value: 'other', label: 'Other Document' },
+] as const;
 
 export enum ProcessingStatus {
   PENDING = 'pending',
@@ -474,4 +507,44 @@ export interface AiTaxGuideResponse {
   deduction_opportunities: DeductionOpportunity[];
   official_submission_instructions: string;
   is_ready_to_submit: boolean;
+}
+
+// ─── Document Review & Retry ──────────────────────────────────────────────────
+
+export interface FieldReviewItem {
+  field_name: string;
+  value: any;
+  status: 'needs_review' | 'approved' | 'rejected' | 'edited';
+  confidence?: number | null;
+  source_document_id?: string;
+  source_document_name?: string;
+}
+
+export interface DocumentReviewRequest {
+  document_type?: string;
+  fields?: Record<string, any>;
+  field_statuses?: Record<string, string>;
+  apply_to_profile?: boolean;
+}
+
+export interface DocumentRetryResponse {
+  id: string;
+  processing_status: string;
+  message: string;
+}
+
+// ─── Tax Opportunities ────────────────────────────────────────────────────────
+
+export interface TaxOpportunity {
+  id: string;
+  area: string;
+  title: string;
+  description: string;
+  current_amount_chf: number;
+  max_allowed_chf: number | null;
+  estimated_tax_saving_chf: number;
+  missing_action: string;
+  status: 'available' | 'incomplete' | 'applied';
+  is_estimate: boolean;
+  legal_reference?: string;
 }

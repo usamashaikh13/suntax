@@ -56,8 +56,10 @@ class Settings(BaseSettings):
     MINIO_ENDPOINT: str = "localhost:9000"
     MINIO_ACCESS_KEY: str = "minioadmin"
     MINIO_SECRET_KEY: str = "minioadmin"
-    MINIO_BUCKET_NAME: str = "suntax-documents"
     MINIO_USE_SSL: bool = False
+    STORAGE_REGION: str = "eu-central-2"  # AWS Zurich region for Swiss data residency
+    STORAGE_SERVER_SIDE_ENCRYPTION: str = "AES256"  # AES256 or aws:kms
+    STORAGE_ENCRYPTION_KEY_ID: Optional[str] = None
 
     # ── Google Gemini ─────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = "your-gemini-api-key"

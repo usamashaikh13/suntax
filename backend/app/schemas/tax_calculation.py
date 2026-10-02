@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -170,6 +170,23 @@ class TaxCalculationResult(BaseModel):
                 f"total_tax {self.total_tax} does not match component sum {expected}"
             )
         return self
+
+    @property
+    def results_dict(self) -> dict[str, Any]:
+        return {
+            "taxable_income": self.taxable_income,
+            "taxable_wealth": self.taxable_wealth,
+            "federal_income_tax": self.federal_income_tax,
+            "cantonal_income_tax": self.cantonal_income_tax,
+            "municipal_income_tax": self.municipal_income_tax,
+            "wealth_tax_canton": self.wealth_tax_canton,
+            "wealth_tax_municipal": self.wealth_tax_municipal,
+            "total_tax": self.total_tax,
+        }
+
+    @property
+    def breakdown_list(self) -> list[TaxLineItem]:
+        return self.breakdown
 
     model_config = {"json_encoders": {Decimal: str}}
 

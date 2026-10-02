@@ -50,6 +50,14 @@ CANTON_NAMES: Dict[str, str] = {
 }
 
 
+def _val(v: Any, default: str = "–") -> str:
+    """Safely convert value to string without ever outputting 'None', 'null', or empty."""
+    if v is None:
+        return default
+    s = str(v).strip()
+    return default if s.lower() in ("none", "null", "") else s
+
+
 def _chf(value: Any) -> str:
     """Format numeric values as Swiss Francs with apostrophe thousands separator."""
     try:
@@ -57,6 +65,15 @@ def _chf(value: Any) -> str:
         return f"CHF {val:,.2f}".replace(",", "'")
     except (TypeError, ValueError):
         return "CHF 0.00"
+
+
+def _num_fmt(value: Any) -> str:
+    """Format numeric values with apostrophe thousands separator (no currency prefix)."""
+    try:
+        val = float(value or 0)
+        return f"{val:,.2f}".replace(",", "'")
+    except (TypeError, ValueError):
+        return "0.00"
 
 
 def _generate_reportlab_pdf(tax_return: Any, profile: Any, calculation: Any) -> bytes:
@@ -102,14 +119,24 @@ def _generate_reportlab_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
     municipality = getattr(tax_return, "municipality_name", "") or getattr(tax_return, "municipality_code", "") or "–"
     tr_id = str(getattr(tax_return, "id", "00000000"))
 
-    first_last = f"{pd.get('first_name', '')} {pd.get('last_name', '')}".strip()
-    name = first_last or pd.get("name", "–")
-    address = f"{pd.get('address_street', '')}, {pd.get('address_zip', '')} {pd.get('address_city', '')}".strip(" ,") or pd.get("address", "–")
-    dob = pd.get("date_of_birth", "–")
-    ahv = pd.get("ahv_number", "–")
-    civil = pd.get("civil_status", pd.get("marital_status", "Ledig"))
-    profession = pd.get("profession", "Angestellte/r")
-    activity_rate = pd.get("activity_rate", "100%")
+    first = _val(pd.get("first_name"), "")
+    last = _val(pd.get("last_name"), "")
+    first_last = f"{first} {last}".strip()
+    user = getattr(tax_return, "user", None)
+    user_name = _val(getattr(user, "full_name", None), "")
+    name = first_last or user_name or _val(pd.get("name"), "–")
+
+    street = _val(pd.get("address_street"), "")
+    zip_code = _val(pd.get("address_zip"), "")
+    city = _val(pd.get("address_city"), "")
+    addr_parts = [p for p in [street, f"{zip_code} {city}".strip()] if p]
+    address = ", ".join(addr_parts) if addr_parts else _val(pd.get("address"), f"{municipality}, Kanton {canton_name}")
+
+    dob = _val(pd.get("date_of_birth"), "–")
+    ahv = _val(pd.get("ahv_number"), "–")
+    civil = _val(pd.get("civil_status", pd.get("marital_status")), "Ledig")
+    profession = _val(pd.get("profession"), "Angestellte/r")
+    activity_rate = _val(pd.get("activity_rate"), "100%")
 
     output = io.BytesIO()
     doc = SimpleDocTemplate(
@@ -182,7 +209,7 @@ def _generate_reportlab_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
         [
             [
                 Paragraph(f"<b>KANTON {canton_name.upper()}</b><br/><font size=8>Kantonale Steuerverwaltung · {municipality}</font>", h1_style),
-                Paragraph(f"<font size=7 color='#718096'>OPTICAL CODE / FORMULAR-ID</font><br/><b>CH-{canton_code}-{tax_year}-{tr_id[:8].upper()}</b><br/><font size=7>Geprüftes Deklarationsformular</font>", badge_style),
+                Paragraph(f"<font size=7 color='#718096'>IDENTIFIER / REFERENZ-ID</font><br/><b>CH-{canton_code}-{tax_year}-{tr_id[:8].upper()}</b><br/><font size=7>Tax Return Summary PDF</font>", badge_style),
             ]
         ],
         colWidths=[11.5 * cm, 6.0 * cm],
@@ -194,8 +221,8 @@ def _generate_reportlab_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
     story.append(header_table)
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#A81D24"), spaceBefore=3, spaceAfter=6))
 
-    story.append(Paragraph(f"<b>STEUERERKLÄRUNG {tax_year} FÜR NATÜRLICHE PERSONEN</b>", h2_style))
-    story.append(Paragraph("Amtliches Hauptformular gemäss Art. 124 DBG und kantonalem Steuergesetz", sub_title))
+    story.append(Paragraph(f"<b>STEUERERKLÄRUNG {tax_year} – TAX RETURN SUMMARY</b>", h2_style))
+    story.append(Paragraph("Zusammenfassendes Deklarationsformular · SunTax Tax Return Summary PDF", sub_title))
     story.append(Spacer(1, 0.25 * cm))
 
     # A. Personalien
@@ -364,15 +391,19 @@ def _generate_reportlab_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
     # Transparency line items
     if breakdown:
         story.append(Paragraph("Angewandte Tarif- & Gesetzesreferenzen", h2_style))
-        b_rows = [[Paragraph("<b>Position</b>", body_bold), Paragraph("<b>Betrag</b>", body_bold), Paragraph("<b>Gesetzesreferenz</b>", body_bold)]]
+        b_rows = [[
+            Paragraph("<b>Position</b>", body_bold),
+            Paragraph("<b>Betrag</b>", body_bold),
+            Paragraph("<b>Gesetzesreferenz</b>", body_bold)
+        ]]
         for item in breakdown[:8]:
             if isinstance(item, dict):
                 b_rows.append([
-                    item.get("label", "–"),
-                    _chf(item.get("amount", 0)),
-                    item.get("rule_reference") or item.get("rule_key") or "ESTV",
+                    Paragraph(escape(str(item.get("label", "–"))), body_text),
+                    Paragraph(escape(str(_chf(item.get("amount", 0)))), body_bold),
+                    Paragraph(escape(str(item.get("rule_reference") or item.get("rule_key") or "ESTV")), body_text),
                 ])
-        b_tbl = Table(b_rows, colWidths=[7.0 * cm, 3.5 * cm, 7.0 * cm])
+        b_tbl = Table(b_rows, colWidths=[8.0 * cm, 3.5 * cm, 6.0 * cm])
         b_tbl.setStyle(TableStyle([
             ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
             ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F8FAFC")),
@@ -402,21 +433,26 @@ def _generate_reportlab_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
 
     bank_accounts = wealth.get("bank_accounts") or []
     w_rows = [
-        [Paragraph("<b>Nr.</b>", body_bold), Paragraph("<b>Finanzinstitut / IBAN</b>", body_bold), Paragraph("<b>Währung</b>", body_bold), Paragraph("<b>Steuerwert per 31.12.</b>", body_bold)],
+        [
+            Paragraph("<b>Nr.</b>", body_bold),
+            Paragraph("<b>Finanzinstitut / IBAN</b>", body_bold),
+            Paragraph("<b>Währung</b>", body_bold),
+            Paragraph("<b>Steuerwert per 31.12.</b>", body_bold)
+        ],
     ]
     if bank_accounts:
         for idx, acc in enumerate(bank_accounts, 1):
             if isinstance(acc, dict):
                 w_rows.append([
                     str(idx),
-                    f"{acc.get('bank_name', 'Bank')} · {acc.get('iban', '–')}",
-                    acc.get("currency", "CHF"),
-                    _chf(acc.get("balance_chf") or acc.get("balance", 0)),
+                    Paragraph(f"{escape(str(acc.get('bank_name', 'Bank')))} · {escape(str(acc.get('iban', '–')))}", body_text),
+                    str(acc.get("currency", "CHF") or "CHF"),
+                    _num_fmt(acc.get("balance_chf") or acc.get("balance", 0)),
                 ])
     else:
-        w_rows.append(["1", f"Lohnkonto · {municipality}", "CHF", _chf(0)])
+        w_rows.append(["1", Paragraph(f"Lohnkonto · {escape(municipality)}", body_text), "CHF", _num_fmt(0)])
 
-    w_tbl = Table(w_rows, colWidths=[1.0 * cm, 10.0 * cm, 2.5 * cm, 4.0 * cm])
+    w_tbl = Table(w_rows, colWidths=[1.0 * cm, 9.5 * cm, 2.5 * cm, 4.5 * cm])
     w_tbl.setStyle(TableStyle([
         ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#CBD5E1")),
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F1F5F9")),

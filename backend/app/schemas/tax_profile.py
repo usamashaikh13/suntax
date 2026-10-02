@@ -163,7 +163,9 @@ class TaxQuestion(BaseModel):
     question: str
     answer: Optional[str] = None
     is_answered: bool = False
+    is_required: bool = False
     field_hint: Optional[str] = None  # dotted path in the profile, e.g. "income.employment_income"
+    options: Optional[List[str]] = None
 
 
 # ── Top-level profile schemas ─────────────────────────────────────────────────

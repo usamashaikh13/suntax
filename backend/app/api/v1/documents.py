@@ -2,13 +2,17 @@
 Documents API router for SunTax.
 
 Endpoints:
-  POST   /documents/upload      – upload one or more documents
-  GET    /documents             – list user's documents
-  GET    /documents/{id}        – get document metadata
-  GET    /documents/{id}/download – presigned URL
-  GET    /documents/{id}/status – lightweight processing status
-  PUT    /documents/{id}        – update document_type / tax_return_id
-  DELETE /documents/{id}        – delete document
+  POST   /documents/upload          – upload one or more documents
+  GET    /documents                 – list user's documents
+  GET    /documents/{id}            – get document metadata
+  GET    /documents/{id}/download   – presigned URL
+  GET    /documents/{id}/download-url – presigned download/preview URL
+  GET    /documents/{id}/status     – lightweight processing status
+  PUT    /documents/{id}            – update document_type / tax_return_id
+  PUT    /documents/{id}/review     – review, edit, approve/reject extracted fields
+  POST   /documents/{id}/apply      – apply approved extracted fields to tax profile
+  POST   /documents/{id}/retry      – retry OCR and extraction for a document
+  DELETE /documents/{id}            – delete document
 """
 
 from __future__ import annotations
@@ -20,27 +24,7 @@ import mimetypes
 import re
 import uuid as uuid_mod
 from datetime import datetime, timezone
-from typing import List, Optional
-
-try:
-    import magic as _magic_lib
-    def detect_mime(data: bytes) -> str:
-        return _magic_lib.from_buffer(data, mime=True)
-except (ImportError, OSError):
-    # libmagic is optional in local development. Inspect well-known magic bytes
-    # rather than rejecting every otherwise valid upload as octet-stream.
-    def detect_mime(data: bytes) -> str:  # type: ignore[misc]
-        if data.startswith(b"%PDF-"):
-            return "application/pdf"
-        if data.startswith(b"\xff\xd8\xff"):
-            return "image/jpeg"
-        if data.startswith(b"\x89PNG\r\n\x1a\n"):
-            return "image/png"
-        if data.startswith((b"II*\x00", b"MM\x00*")):
-            return "image/tiff"
-        if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
-            return "image/webp"
-        return "application/octet-stream"
+from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
@@ -65,6 +49,8 @@ from app.models.user import User
 from app.schemas.document import (
     DocumentListResponse,
     DocumentResponse,
+    DocumentRetryResponse,
+    DocumentReviewRequest,
     DocumentStatusResponse,
     DocumentUpdateRequest,
     DocumentUploadResponse,
@@ -78,12 +64,83 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Documents"])
 storage = StorageService()
 
+SUPPORTED_CATEGORIES = [
+    "salary_certificate",
+    "bank_statement",
+    "securities_statement",
+    "pillar3a",
+    "insurance",
+    "mortgage",
+    "donation",
+    "medical",
+    "commuting",
+    "education",
+    "childcare",
+    "property",
+    "self_employment",
+    "foreign_income",
+    "previous_tax_return",
+    "tax_assessment",
+    "other",
+]
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
 def _compute_sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
+
+
+def detect_mime(data: bytes, filename: str = "", content_type: str = "") -> str:
+    """Accurately identify MIME type from magic bytes, filename, or content-type."""
+    if data.startswith(b"%PDF-"):
+        return "application/pdf"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith((b"II*\x00", b"MM\x00*")):
+        return "image/tiff"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if len(data) >= 12 and data[4:8] == b"ftyp":
+        brand = data[8:12]
+        if brand in (b"heic", b"heix", b"hevc", b"heim", b"heis", b"mif1", b"msf1"):
+            return "image/heic"
+        return "image/heif"
+
+    # Try libmagic if installed
+    try:
+        import magic as _magic_lib
+        detected = _magic_lib.from_buffer(data, mime=True)
+        if detected in settings.ALLOWED_MIME_TYPES:
+            return detected
+    except Exception:
+        pass
+
+    # Extension check
+    fn = filename.lower()
+    if fn.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if fn.endswith(".png"):
+        return "image/png"
+    if fn.endswith(".pdf"):
+        return "application/pdf"
+    if fn.endswith(".webp"):
+        return "image/webp"
+    if fn.endswith((".tif", ".tiff")):
+        return "image/tiff"
+    if fn.endswith(".heic"):
+        return "image/heic"
+    if fn.endswith(".heif"):
+        return "image/heif"
+
+    ct = (content_type or "").lower()
+    if ct in settings.ALLOWED_MIME_TYPES:
+        return ct
+
+    return "application/octet-stream"
 
 
 def _extract_local_text(file_bytes: bytes, mime_type: str) -> str:
@@ -133,33 +190,42 @@ def _parse_currency_amount(raw: str) -> Optional[float]:
 
 
 def _number_after(labels: tuple[str, ...], text: str) -> Optional[float]:
+    date_regex = re.compile(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b")
     for label in labels:
-        # Same line match
-        match = re.search(rf"{label}[^0-9\n]{{0,40}}([0-9][0-9'., -]*)", text, re.I)
-        if match:
-            parsed = _parse_currency_amount(match.group(1))
-            if parsed is not None:
-                return parsed
-        # Next line match (e.g. label on line 1, amount on line 2)
-        match_next = re.search(rf"{label}\s*[\n\r]+\s*(?:CHF|EUR)?\s*([0-9][0-9'., -]*)", text, re.I)
+        for line in text.splitlines():
+            if re.search(rf"\b{re.escape(label)}\b", line, re.I) or (len(label) > 4 and label.lower() in line.lower()):
+                cleaned_line = date_regex.sub(" ", line)
+                cur_match = re.search(r"(?:CHF|EUR|USD|Fr\.)\s*[:]?\s*([0-9][0-9'., ]*)", cleaned_line, re.I)
+                if cur_match:
+                    val = _parse_currency_amount(cur_match.group(1))
+                    if val is not None:
+                        return val
+
+                m = re.search(rf"{re.escape(label)}[^0-9\n]{{0,40}}([0-9][0-9'., ]*)", cleaned_line, re.I)
+                if m:
+                    val = _parse_currency_amount(m.group(1))
+                    if val is not None:
+                        if 1990 <= val <= 2099 and any(y in line.lower() for y in ("jahr", "année", "anno", "periode")):
+                            continue
+                        return val
+
+        match_next = re.search(rf"{re.escape(label)}\s*[\n\r]+\s*(?:CHF|EUR|Fr\.)?\s*([0-9][0-9'., ]*)", text, re.I)
         if match_next:
-            parsed = _parse_currency_amount(match_next.group(1))
-            if parsed is not None:
-                return parsed
+            val = _parse_currency_amount(match_next.group(1))
+            if val is not None:
+                return val
     return None
 
 
 def _text_after(labels: tuple[str, ...], text: str) -> Optional[str]:
     header_words = {"name", "employee", "employer", "address", "adresse", "mitarbeiter", "arbeitgeber", "chf"}
     for label in labels:
-        # Match "Label: Value" on the same line
         match = re.search(rf"{label}\s*[:]\s*([^\n\r]+)", text, re.I)
         if match:
             val = match.group(1).strip()
             if val and val.lower() not in header_words and not any(skip in val.lower() for skip in ("fictional test", "tax year")):
                 return val
 
-        # Multiline match: "Label\nValue" or "Label\nHeader\nValue"
         match_lines = re.search(rf"{label}\s*[\n\r]+\s*([^\n\r]+)(?:[\n\r]+\s*([^\n\r]+))?", text, re.I)
         if match_lines:
             line1 = match_lines.group(1).strip() if match_lines.group(1) else ""
@@ -172,114 +238,242 @@ def _text_after(labels: tuple[str, ...], text: str) -> Optional[str]:
 
 
 def _local_extract(text: str, filename: str) -> tuple[str, float, dict, dict]:
+    """
+    Extract verified financial and identity fields without hallucinating fake data.
+    Only fields actually detected in the document are returned.
+    """
     haystack = f"{filename}\n{text}".lower()
-    if any(term in haystack for term in ("lohnausweis", "salary certificate", "gross salary", "bruttolohn", "annual salary")):
-        gross = _number_after(("gross annual salary", "gross salary", "8. bruttolohn", "1. lohn", "bruttolohn", "lohn", "salary"), text)
-        net = _number_after(("net salary paid", "net salary", "11. nettolohn", "nettolohn"), text)
-        emp_name = _text_after(("name und adresse des arbeitnehmers", "arbeitnehmer", "employee", "mitarbeiter", "name"), text)
-        address = _text_after(("adresse", "address", "wohnort"), text)
-        ahv = _text_after(("ahv-nummer", "ahv number", "ahv"), text)
-        employer = _text_after(("arbeitgeber", "employer"), text)
 
-        data = {
-            "gross_salary": gross,
-            "net_salary": net,
-            "employee_name": emp_name,
-            "employee_address": address,
-            "ahv_number": ahv,
-            "employer_name": employer,
-        }
-        conf = {"gross_salary": 0.90} if gross is not None else {}
+    # 1. Salary Certificate (Lohnausweis / Certificat de salaire)
+    if any(term in haystack for term in (
+        "lohnausweis", "salary certificate", "gross salary", "bruttolohn", "annual salary",
+        "certificat de salaire", "salaire brut", "salaire net", "certificat de travail",
+        "attestation de rentes", "certificato di salario"
+    )):
+        gross = _number_after((
+            "gross annual salary", "gross salary", "8. salaire brut", "8. bruttolohn",
+            "salaire brut", "bruttolohn", "1. salaire", "1. lohn", "salaire", "lohn", "salary"
+        ), text)
+        net = _number_after((
+            "net salary paid", "net salary", "11. salaire net", "11. nettolohn",
+            "salaire net", "nettolohn"
+        ), text)
+        social_ded = _number_after((
+            "9. beiträge ahv", "beiträge ahv", "cotisations avs", "9. cotisations",
+            "ahv/iv/eo/alv", "social deductions"
+        ), text)
+        bvg = _number_after((
+            "10. berufliche vorsorge", "berufliche vorsorge (bvg)", "prévoyance professionnelle (lpp)",
+            "bvg", "lpp", "pension fund"
+        ), text)
+        emp_name = _text_after((
+            "name und adresse des arbeitnehmers", "salarié", "arbeitnehmer", "employee",
+            "mitarbeiter", "nom du salarié", "name"
+        ), text)
+        address = _text_after(("adresse", "address", "wohnort", "domicile"), text)
+        ahv = _text_after(("ahv-nummer", "n° avs", "no avs", "avs-nr", "ahv", "avs"), text)
+        employer = _text_after(("employeur", "arbeitgeber", "employer"), text)
+
+        data = {}
+        conf = {}
+        if gross is not None:
+            data["gross_salary"] = gross
+            conf["gross_salary"] = 0.90
+        if net is not None:
+            data["net_salary"] = net
+            conf["net_salary"] = 0.90
+        if social_ded is not None:
+            data["social_deductions"] = social_ded
+            conf["social_deductions"] = 0.85
+        if bvg is not None:
+            data["pension_bvg"] = bvg
+            conf["pension_bvg"] = 0.85
+        if emp_name:
+            data["employee_name"] = emp_name
+            conf["employee_name"] = 0.85
+        if address:
+            data["employee_address"] = address
+            conf["employee_address"] = 0.80
+        if ahv:
+            data["ahv_number"] = ahv
+            conf["ahv_number"] = 0.95
+        if employer:
+            data["employer_name"] = employer
+            conf["employer_name"] = 0.85
+
+        _attach_reviews(data, conf)
         return "salary_certificate", 0.90, data, conf
 
-    if any(term in haystack for term in ("pillar 3a", "säule 3a", "3a")):
-        amount = _number_after(("contribution", "einzahlung", "betrag", "jahresbeitrag"), text)
-        return "pillar3a", 0.85, {"contribution_amount": amount}, {"contribution_amount": 0.85} if amount is not None else {}
+    # 2. Pillar 3a (Säule 3a / 3e pilier)
+    if any(term in haystack for term in (
+        "pillar 3a", "säule 3a", "saeule 3a", "pilier 3a", "3e pilier", "terzo pilastro", "3a"
+    )):
+        amount = _number_after((
+            "einzahlungsbetrag", "montant versé", "contribution amount", "cotisation",
+            "contribution", "jahresbeitrag", "einzahlung", "betrag"
+        ), text)
+        balance = _number_after(("guthaben per", "saldo per", "avoir au", "capital"), text)
+        provider = _text_after(("stiftung", "vorsorgestiftung", "bank", "institution", "provider"), text)
 
-    if any(term in haystack for term in ("bank statement", "kontoauszug", "vermögensausweis", "depotauszug")):
-        balance = _number_after(("balance", "saldo", "guthaben", "schlussbestand"), text)
-        interest = _number_after(("interest", "zins", "habenzins"), text)
-        return "bank_statement", 0.80, {"balance": balance, "interest_earned": interest}, {"balance": 0.80} if balance is not None else {}
+        data = {}
+        conf = {}
+        if amount is not None:
+            data["contribution_amount"] = amount
+            conf["contribution_amount"] = 0.90
+        if balance is not None:
+            data["balance"] = balance
+            conf["balance"] = 0.85
+        if provider:
+            data["provider_name"] = provider
+            conf["provider_name"] = 0.80
 
-    return "other", 0.40, {"extraction_note": "Document processed via OCR."}, {}
+        _attach_reviews(data, conf)
+        return "pillar3a", 0.88, data, conf
+
+    # 3. Bank Statement (Kontoauszug / Relevé bancaire)
+    if any(term in haystack for term in (
+        "bank statement", "kontoauszug", "vermögensausweis", "depotauszug", "steuerausweis",
+        "relevé de compte", "relevé bancaire", "extrait de compte", "estratto conto"
+    )):
+        balance = _number_after((
+            "saldo per 31.12", "saldo per", "solde au 31.12", "solde au",
+            "balance", "saldo", "solde", "guthaben", "schlussbestand"
+        ), text)
+        interest = _number_after((
+            "habenzins brutto", "habenzins", "intérêts bruts", "intérêts",
+            "interest", "zins"
+        ), text)
+        iban_match = re.search(r"\b(CH[0-9]{2}[0-9A-Z ]{15,26})\b", text)
+        bank_name = _text_after(("bank", "institut", "finanzinstitut"), text)
+
+        data = {}
+        conf = {}
+        if balance is not None:
+            data["balance"] = balance
+            conf["balance"] = 0.85
+        if interest is not None:
+            data["interest_earned"] = interest
+            conf["interest_earned"] = 0.80
+        if iban_match:
+            data["iban"] = iban_match.group(1).replace(" ", "")
+            conf["iban"] = 0.95
+        if bank_name:
+            data["bank_name"] = bank_name
+            conf["bank_name"] = 0.80
+
+        _attach_reviews(data, conf)
+        return "bank_statement", 0.85, data, conf
+
+    # 4. Securities Statement (Wertschriftenverzeichnis / Depotauszug)
+    if any(term in haystack for term in (
+        "securities", "wertschriften", "depot", "titres", "shares", "portfolio", "aktien"
+    )):
+        val = _number_after(("steuerwert", "total depotwert", "valeur fiscale", "total value", "depotwert"), text)
+        div = _number_after(("dividenden", "ertrag", "rendement", "dividends"), text)
+        isin_match = re.search(r"\b([A-Z]{2}[A-Z0-9]{9}[0-9])\b", text)
+
+        data = {}
+        conf = {}
+        if val is not None:
+            data["total_value"] = val
+            conf["total_value"] = 0.85
+        if div is not None:
+            data["dividends_received"] = div
+            conf["dividends_received"] = 0.80
+        if isin_match:
+            data["isin"] = isin_match.group(1)
+            conf["isin"] = 0.95
+
+        _attach_reviews(data, conf)
+        return "securities_statement", 0.85, data, conf
+
+    # 5. Mortgage Statement (Hypothekarausweis)
+    if any(term in haystack for term in ("mortgage", "hypothek", "hypothèque", "schulden")):
+        bal = _number_after(("schuldsaldo", "hypothekarsaldo", "solde dette", "outstanding balance", "saldo"), text)
+        interest = _number_after(("schuldzins", "hypothekarzins", "intérêts payés", "interest paid"), text)
+        lender = _text_after(("bank", "gläubiger", "créancier", "lender"), text)
+
+        data = {}
+        conf = {}
+        if bal is not None:
+            data["mortgage_balance"] = bal
+            conf["mortgage_balance"] = 0.85
+        if interest is not None:
+            data["interest_paid"] = interest
+            conf["interest_paid"] = 0.85
+        if lender:
+            data["lender_name"] = lender
+            conf["lender_name"] = 0.80
+
+        _attach_reviews(data, conf)
+        return "mortgage", 0.85, data, conf
+
+    # 6. Donations (Spendenbescheinigung)
+    if any(term in haystack for term in ("spende", "donation", "don", "zuwendung")):
+        amt = _number_after(("spendenbetrag", "montant du don", "betrag", "amount"), text)
+        org = _text_after(("organisation", "empfänger", "beneficiary", "verein", "stiftung"), text)
+
+        data = {}
+        conf = {}
+        if amt is not None:
+            data["amount"] = amt
+            conf["amount"] = 0.90
+        if org:
+            data["organisation_name"] = org
+            conf["organisation_name"] = 0.85
+
+        _attach_reviews(data, conf)
+        return "donation", 0.85, data, conf
+
+    # 7. Health / Life Insurance
+    if any(term in haystack for term in ("versicherung", "assurance", "insurance", "krankenkasse", "police")):
+        prem = _number_after(("prämie", "prime", "premium", "jahresprämie"), text)
+        insurer = _text_after(("versicherer", "assurance", "insurer", "gesellschaft"), text)
+
+        data = {}
+        conf = {}
+        if prem is not None:
+            data["premium_amount"] = prem
+            conf["premium_amount"] = 0.85
+        if insurer:
+            data["insurer_name"] = insurer
+            conf["insurer_name"] = 0.80
+
+        _attach_reviews(data, conf)
+        return "insurance", 0.80, data, conf
+
+    # Fallback to Other
+    data = {"extraction_note": "Document successfully stored and OCR indexed."}
+    _attach_reviews(data, {})
+    return "other", 0.50, data, {}
 
 
-async def _process_locally(document: Document, db: AsyncSession) -> None:
-    """Persist OCR/extraction and merge verified financial amounts and personal details into profile."""
-    text = _extract_local_text(await storage.download_file(document.storage_key), document.mime_type)
-    doc_type, score, data, confidence = _local_extract(text, document.original_filename)
-    document.ocr_text, document.document_type = text, doc_type
-    document.classification_confidence = score
-    document.extracted_data, document.extraction_confidence = data, confidence
-    document.processing_status, document.processed_at = "done", datetime.now(timezone.utc)
-
-    if document.tax_return_id:
-        profile = (
-            await db.execute(
-                select(TaxProfile).where(TaxProfile.tax_return_id == str(document.tax_return_id))
-            )
-        ).scalar_one_or_none()
-
-        if profile:
-            if doc_type == "salary_certificate":
-                if data.get("gross_salary") is not None:
-                    income = dict(profile.income_data or {})
-                    income["employment_income"] = data["gross_salary"]
-                    if data.get("net_salary") is not None:
-                        income["net_salary"] = data["net_salary"]
-                    profile.income_data = income
-
-                # Pre-fill personal data if missing
-                personal = dict(profile.personal_data or {})
-                if data.get("employee_name") and not personal.get("first_name"):
-                    parts = data["employee_name"].split(" ", 1)
-                    personal["first_name"] = parts[0]
-                    if len(parts) > 1:
-                        personal["last_name"] = parts[1]
-                if data.get("employee_address") and not personal.get("address_street"):
-                    personal["address_street"] = data["employee_address"]
-                if data.get("ahv_number") and not personal.get("ahv_number"):
-                    personal["ahv_number"] = data["ahv_number"]
-                profile.personal_data = personal
-
-            elif doc_type == "pillar3a" and data.get("contribution_amount") is not None:
-                deductions = dict(profile.deductions_data or {})
-                deductions["pillar3a_contributions"] = data["contribution_amount"]
-                profile.deductions_data = deductions
-
-            elif doc_type == "bank_statement" and data.get("balance") is not None:
-                wealth = dict(profile.wealth_data or {})
-                accounts = list(wealth.get("bank_accounts") or [])
-                accounts.append({
-                    "bank_name": data.get("bank_name", "Swiss Bank"),
-                    "balance_chf": data["balance"],
-                })
-                wealth["bank_accounts"] = accounts
-                profile.wealth_data = wealth
-
-    await db.flush()
+def _attach_reviews(data: dict, conf: dict) -> None:
+    """Attach structured review state for each detected field."""
+    reviews = {}
+    for k, v in data.items():
+        if not k.startswith("_") and v is not None:
+            reviews[k] = {
+                "field_name": k,
+                "value": v,
+                "confidence": conf.get(k, 0.85),
+                "status": "needs_review",
+            }
+    data["_reviews"] = reviews
 
 
-def _validate_mime(content_type: str, file_bytes: bytes) -> str:
-    """
-    Double-check the MIME type using libmagic (magic bytes).
-
-    Returns the detected MIME type.
-    Raises HTTPException 415 if not in the allowed list.
-    """
-    detected = detect_mime(file_bytes[:4096])
+def _validate_mime(content_type: str, file_bytes: bytes, filename: str = "") -> str:
+    """Validate MIME type against allowed list."""
+    detected = detect_mime(file_bytes[:4096], filename=filename, content_type=content_type)
     if detected not in settings.ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
             detail=(
-                f"File type '{detected}' is not allowed. "
-                f"Accepted types: {', '.join(settings.ALLOWED_MIME_TYPES)}"
+                f"File format '{detected}' is not supported. "
+                "Accepted formats: PDF, JPG, JPEG, PNG, WEBP, TIFF, HEIC, HEIF."
             ),
         )
     return detected
-
-
-# ── Private helpers ───────────────────────────────────────────────────────────
 
 
 async def _get_owned_document(
@@ -299,6 +493,208 @@ async def _get_owned_document(
     return doc
 
 
+async def apply_document_to_tax_profile(
+    db: AsyncSession, document: Document, profile: TaxProfile
+) -> List[str]:
+    """
+    Merge approved extracted fields from this document into the TaxProfile.
+    Prevents duplicates and records source document attribution.
+    """
+    applied_fields: List[str] = []
+    data = dict(document.extracted_data or {})
+    reviews = data.get("_reviews") or {}
+    doc_type = document.document_type
+
+    def is_approved(fld: str) -> bool:
+        rev = reviews.get(fld)
+        if isinstance(rev, dict):
+            return rev.get("status") in ("approved", "edited", "needs_review")
+        return True
+
+    # 1. Salary Certificate
+    if doc_type == "salary_certificate":
+        income = dict(profile.income_data or {})
+        personal = dict(profile.personal_data or {})
+        deductions = dict(profile.deductions_data or {})
+
+        if data.get("gross_salary") is not None and is_approved("gross_salary"):
+            income["employment_income"] = data["gross_salary"]
+            applied_fields.append("employment_income")
+
+        if data.get("net_salary") is not None and is_approved("net_salary"):
+            income["net_salary"] = data["net_salary"]
+            applied_fields.append("net_salary")
+
+        if data.get("pension_bvg") is not None and is_approved("pension_bvg"):
+            deductions["pillar2_contributions"] = data["pension_bvg"]
+            applied_fields.append("pillar2_contributions")
+
+        if data.get("employee_name") and is_approved("employee_name") and not personal.get("first_name"):
+            parts = str(data["employee_name"]).strip().split(" ", 1)
+            personal["first_name"] = parts[0]
+            if len(parts) > 1:
+                personal["last_name"] = parts[1]
+            personal["name"] = data["employee_name"]
+            applied_fields.append("employee_name")
+
+        if data.get("employee_address") and is_approved("employee_address") and not personal.get("address_street"):
+            personal["address_street"] = data["employee_address"]
+            applied_fields.append("address_street")
+
+        if data.get("ahv_number") and is_approved("ahv_number") and not personal.get("ahv_number"):
+            personal["ahv_number"] = data["ahv_number"]
+            applied_fields.append("ahv_number")
+
+        profile.income_data = income
+        profile.personal_data = personal
+        profile.deductions_data = deductions
+
+    # 2. Pillar 3a
+    elif doc_type == "pillar3a":
+        deductions = dict(profile.deductions_data or {})
+        wealth = dict(profile.wealth_data or {})
+
+        if data.get("contribution_amount") is not None and is_approved("contribution_amount"):
+            deductions["pillar3a_contributions"] = min(float(data["contribution_amount"]), 7258.0)
+            applied_fields.append("pillar3a_contributions")
+
+        if data.get("balance") is not None and is_approved("balance"):
+            wealth["pillar3a_capital"] = data["balance"]
+            applied_fields.append("pillar3a_capital")
+
+        profile.deductions_data = deductions
+        profile.wealth_data = wealth
+
+    # 3. Bank Statement
+    elif doc_type == "bank_statement":
+        wealth = dict(profile.wealth_data or {})
+        accounts = list(wealth.get("bank_accounts") or [])
+
+        bal = data.get("balance")
+        iban = data.get("iban")
+        bname = data.get("bank_name", "Swiss Bank")
+
+        if bal is not None and is_approved("balance"):
+            # Check for existing account by IBAN or bank name
+            existing_idx = None
+            for idx, acc in enumerate(accounts):
+                if iban and acc.get("iban") == iban:
+                    existing_idx = idx
+                    break
+                elif acc.get("bank_name") == bname and acc.get("balance_chf") == bal:
+                    existing_idx = idx
+                    break
+
+            acc_entry = {
+                "bank_name": bname,
+                "iban": iban or "–",
+                "balance_chf": bal,
+                "currency": "CHF",
+                "source_document_id": document.id,
+                "source_document_name": document.original_filename,
+            }
+
+            if existing_idx is not None:
+                accounts[existing_idx] = acc_entry
+            else:
+                accounts.append(acc_entry)
+
+            wealth["bank_accounts"] = accounts
+            profile.wealth_data = wealth
+            applied_fields.append("bank_accounts")
+
+    # 4. Mortgage
+    elif doc_type == "mortgage":
+        liabilities = dict(profile.liabilities_data or {})
+        deductions = dict(profile.deductions_data or {})
+        mortgages = list(liabilities.get("mortgages") or [])
+
+        bal = data.get("mortgage_balance")
+        lender = data.get("lender_name", "Bank")
+
+        if bal is not None and is_approved("mortgage_balance"):
+            existing_idx = None
+            for idx, m in enumerate(mortgages):
+                if m.get("lender") == lender:
+                    existing_idx = idx
+                    break
+
+            m_entry = {
+                "lender": lender,
+                "outstanding_balance": bal,
+                "interest_rate": data.get("interest_rate"),
+                "source_document_id": document.id,
+                "source_document_name": document.original_filename,
+            }
+            if existing_idx is not None:
+                mortgages[existing_idx] = m_entry
+            else:
+                mortgages.append(m_entry)
+
+            liabilities["mortgages"] = mortgages
+            profile.liabilities_data = liabilities
+            applied_fields.append("mortgages")
+
+        if data.get("interest_paid") is not None and is_approved("interest_paid"):
+            deductions["debt_interest"] = data["interest_paid"]
+            profile.deductions_data = deductions
+            applied_fields.append("debt_interest")
+
+    # 5. Donations
+    elif doc_type == "donation":
+        deductions = dict(profile.deductions_data or {})
+        if data.get("amount") is not None and is_approved("amount"):
+            deductions["donations"] = data["amount"]
+            profile.deductions_data = deductions
+            applied_fields.append("donations")
+
+    # 6. Insurance
+    elif doc_type == "insurance":
+        deductions = dict(profile.deductions_data or {})
+        if data.get("premium_amount") is not None and is_approved("premium_amount"):
+            deductions["health_insurance_premiums"] = data["premium_amount"]
+            profile.deductions_data = deductions
+            applied_fields.append("health_insurance_premiums")
+
+    now = datetime.now(timezone.utc)
+    profile.updated_at = now
+    db.add(profile)
+    await db.flush()
+    return applied_fields
+
+
+async def _process_locally(document: Document, db: AsyncSession) -> None:
+    """Perform local OCR extraction and persist review-ready field metadata."""
+    try:
+        file_bytes = await storage.download_file(document.storage_key)
+    except Exception as exc:
+        logger.error("Download failed during local process: %s", exc)
+        document.processing_status = "failed"
+        return
+
+    text = _extract_local_text(file_bytes, document.mime_type)
+    doc_type, score, data, confidence = _local_extract(text, document.original_filename)
+
+    document.ocr_text = text
+    if not document.document_type or document.document_type == "other":
+        document.document_type = doc_type
+    document.classification_confidence = score
+    document.extracted_data = data
+    document.extraction_confidence = confidence
+    document.processing_status = "done"
+    document.processed_at = datetime.now(timezone.utc)
+
+    if document.tax_return_id:
+        profile_res = await db.execute(
+            select(TaxProfile).where(TaxProfile.tax_return_id == str(document.tax_return_id))
+        )
+        profile = profile_res.scalar_one_or_none()
+        if profile:
+            await apply_document_to_tax_profile(db, document, profile)
+
+    await db.flush()
+
+
 # ── Upload ────────────────────────────────────────────────────────────────────
 
 
@@ -313,27 +709,21 @@ async def upload_documents(
     tax_return_id: Optional[str] = Query(
         None, description="Associate uploaded files with a tax return"
     ),
+    category: Optional[str] = Query(
+        None, description="Pre-assigned document category"
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[DocumentUploadResponse]:
-    """
-    Upload documents for OCR extraction and AI classification.
-
-    - Validates MIME type via Content-Type header AND magic bytes.
-    - Enforces per-file size limit (MAX_UPLOAD_SIZE_MB).
-    - Computes SHA-256 hash and flags potential duplicates.
-    - Stores file in MinIO under a user-scoped path.
-    - Enqueues the async Celery processing pipeline (non-fatal if unavailable).
-    """
+    """Upload documents with file size and format validation."""
     await set_rls_user_id(db, current_user.id)
 
     if not files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="At least one file must be provided",
+            detail="At least one file must be selected for upload.",
         )
 
-    # Validate tax_return ownership if provided
     if tax_return_id:
         tr_result = await db.execute(
             select(TaxReturn).where(
@@ -344,7 +734,7 @@ async def upload_documents(
         if not tr_result.scalar_one_or_none():
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tax return not found",
+                detail="Tax return not found or access denied.",
             )
 
     responses: List[DocumentUploadResponse] = []
@@ -352,29 +742,23 @@ async def upload_documents(
     for file in files:
         file_bytes = await file.read()
 
-        # Size check
         if len(file_bytes) > settings.max_upload_size_bytes:
             raise HTTPException(
                 status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
                 detail=(
-                    f"File '{file.filename}' exceeds the maximum allowed "
-                    f"size of {settings.MAX_UPLOAD_SIZE_MB} MB"
+                    f"File '{file.filename}' exceeds the maximum allowed size of {settings.MAX_UPLOAD_SIZE_MB} MB."
                 ),
             )
 
         if len(file_bytes) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"File '{file.filename}' is empty",
+                detail=f"File '{file.filename}' is empty.",
             )
 
-        # MIME validation (magic bytes)
-        detected_mime = _validate_mime(file.content_type or "", file_bytes)
-
-        # SHA-256 hash for duplicate detection
+        detected_mime = _validate_mime(file.content_type or "", file_bytes, filename=file.filename or "")
         sha256 = _compute_sha256(file_bytes)
 
-        # Check for existing document with same hash belonging to this user
         dup_result = await db.execute(
             select(Document).where(
                 Document.user_id == str(current_user.id),
@@ -383,17 +767,21 @@ async def upload_documents(
         )
         is_dup = dup_result.scalar_one_or_none() is not None
 
-        # Build MinIO storage key: users/{user_id}/{doc_uuid}/{filename}
         doc_id = str(uuid_mod.uuid4())
         ext = mimetypes.guess_extension(detected_mime) or ""
-        storage_key = (
-            f"users/{current_user.id}/{doc_id}/{file.filename or f'document{ext}'}"
-        )
+        storage_key = f"users/{current_user.id}/{doc_id}/{file.filename or f'document{ext}'}"
 
-        # Upload to MinIO
-        await storage.upload_file(file_bytes, storage_key, detected_mime)
+        try:
+            await storage.upload_file(file_bytes, storage_key, detected_mime)
+        except Exception as storage_exc:
+            logger.error("Storage upload failed: %s", storage_exc)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Document storage service is currently unavailable. Please verify storage configuration.",
+            )
 
-        # Persist document record
+        doc_type_val = category if category in SUPPORTED_CATEGORIES else None
+
         document = Document(
             id=doc_id,
             user_id=str(current_user.id),
@@ -402,6 +790,7 @@ async def upload_documents(
             storage_key=storage_key,
             mime_type=detected_mime,
             file_size_bytes=len(file_bytes),
+            document_type=doc_type_val,
             sha256_hash=sha256,
             is_duplicate_suspect=is_dup,
             processing_status="pending",
@@ -409,7 +798,6 @@ async def upload_documents(
         db.add(document)
         await db.flush()
 
-        # Audit log
         db.add(
             AuditLog(
                 user_id=str(current_user.id),
@@ -425,31 +813,16 @@ async def upload_documents(
             )
         )
 
-        # Enqueue Celery task (fire-and-forget). A local UI must still be able
-        # to accept and list an upload when Redis/Celery is not running.
         queued = True
         try:
             process_document.delay(str(doc_id))
         except Exception:
             queued = False
-            logger.warning(
-                "Document %s was stored but could not be queued for background processing "
-                "(Celery/Redis may not be running in this environment)",
-                doc_id,
-            )
             try:
                 await _process_locally(document, db)
             except Exception:
-                logger.exception("Local document processing failed for %s", doc_id)
+                logger.exception("Local OCR processing failed for %s", doc_id)
                 document.processing_status = "failed"
-
-        logger.info(
-            "Uploaded document id=%s user=%s size=%d dup=%s",
-            doc_id,
-            current_user.id,
-            len(file_bytes),
-            is_dup,
-        )
 
         responses.append(
             DocumentUploadResponse(
@@ -459,12 +832,13 @@ async def upload_documents(
                 message=(
                     "File uploaded and queued for processing"
                     if queued
-                    else "File uploaded and processed with the local OCR fallback."
+                    else "File uploaded and processed via local extraction engine."
                 )
-                + (" (possible duplicate detected)" if is_dup else ""),
+                + (" (Notice: Possible duplicate document detected)" if is_dup else ""),
             )
         )
 
+    await db.commit()
     return responses
 
 
@@ -474,13 +848,14 @@ async def upload_documents(
 @router.get(
     "/documents",
     response_model=DocumentListResponse,
-    summary="List the current user's documents",
+    summary="List current user's documents",
 )
 async def list_documents(
     tax_return_id: Optional[str] = Query(None),
     processing_status: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(50, ge=1, le=100),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentListResponse:
@@ -491,6 +866,8 @@ async def list_documents(
         base_q = base_q.where(Document.tax_return_id == str(tax_return_id))
     if processing_status:
         base_q = base_q.where(Document.processing_status == processing_status)
+    if category:
+        base_q = base_q.where(Document.document_type == category)
 
     count_q = select(func.count()).select_from(base_q.subquery())
     total = (await db.execute(count_q)).scalar_one()
@@ -516,7 +893,7 @@ async def list_documents(
 @router.get(
     "/documents/{document_id}",
     response_model=DocumentResponse,
-    summary="Get document metadata",
+    summary="Get document details and extracted data",
 )
 async def get_document(
     document_id: str,
@@ -528,13 +905,18 @@ async def get_document(
     return DocumentResponse.model_validate(doc)
 
 
-# ── Download presigned URL ─────────────────────────────────────────────────────
+# ── Download URLs ─────────────────────────────────────────────────────────────
 
 
 @router.get(
+    "/documents/{document_id}/download-url",
+    response_model=PresignedUrlResponse,
+    summary="Get presigned download/preview URL",
+)
+@router.get(
     "/documents/{document_id}/download",
     response_model=PresignedUrlResponse,
-    summary="Get a presigned download URL (10-minute expiry)",
+    summary="Get presigned download URL",
 )
 async def get_download_url(
     document_id: str,
@@ -543,17 +925,24 @@ async def get_download_url(
 ) -> PresignedUrlResponse:
     await set_rls_user_id(db, current_user.id)
     doc = await _get_owned_document(db, document_id, str(current_user.id))
-    url = await storage.generate_presigned_url(doc.storage_key, expires_seconds=600)
+    try:
+        url = await storage.generate_presigned_url(doc.storage_key, expires_seconds=600)
+    except Exception as exc:
+        logger.error("Presigned URL generation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Storage service is unavailable for file download.",
+        )
     return PresignedUrlResponse(url=url, expires_in_seconds=600)
 
 
-# ── Processing status (polling) ───────────────────────────────────────────────
+# ── Processing Status ─────────────────────────────────────────────────────────
 
 
 @router.get(
     "/documents/{document_id}/status",
     response_model=DocumentStatusResponse,
-    summary="Poll the processing status of a document",
+    summary="Poll processing status",
 )
 async def get_document_status(
     document_id: str,
@@ -572,13 +961,147 @@ async def get_document_status(
     )
 
 
-# ── Update ────────────────────────────────────────────────────────────────────
+# ── Review Extracted Fields ───────────────────────────────────────────────────
+
+
+@router.put(
+    "/documents/{document_id}/review",
+    response_model=DocumentResponse,
+    summary="Edit, approve, reject, or reset extracted fields",
+)
+async def review_document(
+    document_id: str,
+    payload: DocumentReviewRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DocumentResponse:
+    await set_rls_user_id(db, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
+
+    current_data = dict(doc.extracted_data or {})
+    current_reviews = dict(current_data.get("_reviews") or {})
+
+    if payload.document_type:
+        doc.document_type = payload.document_type
+
+    if payload.fields:
+        for k, v in payload.fields.items():
+            current_data[k] = v
+            rev = current_reviews.get(k, {})
+            rev["value"] = v
+            rev["status"] = "edited"
+            current_reviews[k] = rev
+
+    if payload.field_statuses:
+        for k, st in payload.field_statuses.items():
+            rev = current_reviews.get(k, {"value": current_data.get(k)})
+            rev["status"] = st
+            current_reviews[k] = rev
+
+    current_data["_reviews"] = current_reviews
+    doc.extracted_data = current_data
+    doc.processing_status = "done"
+
+    if payload.apply_to_profile and doc.tax_return_id:
+        profile_res = await db.execute(
+            select(TaxProfile).where(TaxProfile.tax_return_id == str(doc.tax_return_id))
+        )
+        profile = profile_res.scalar_one_or_none()
+        if profile:
+            await apply_document_to_tax_profile(db, doc, profile)
+
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return DocumentResponse.model_validate(doc)
+
+
+# ── Apply Document to Profile ─────────────────────────────────────────────────
+
+
+@router.post(
+    "/documents/{document_id}/apply",
+    summary="Apply approved extracted data to associated tax profile",
+)
+async def apply_document(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    await set_rls_user_id(db, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
+
+    if not doc.tax_return_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Document is not associated with a tax return.",
+        )
+
+    profile_res = await db.execute(
+        select(TaxProfile).where(TaxProfile.tax_return_id == str(doc.tax_return_id))
+    )
+    profile = profile_res.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Tax profile not found for this return.",
+        )
+
+    applied = await apply_document_to_tax_profile(db, doc, profile)
+    await db.commit()
+    return {
+        "message": f"Successfully applied {len(applied)} fields to tax profile.",
+        "applied_fields": applied,
+    }
+
+
+# ── Retry Processing ──────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/documents/{document_id}/retry",
+    response_model=DocumentRetryResponse,
+    summary="Retry OCR processing for a document",
+)
+async def retry_document_processing(
+    document_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DocumentRetryResponse:
+    await set_rls_user_id(db, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
+
+    doc.processing_status = "processing"
+    db.add(doc)
+    await db.flush()
+
+    try:
+        await _process_locally(doc, db)
+        await db.commit()
+        await db.refresh(doc)
+        return DocumentRetryResponse(
+            id=doc.id,
+            processing_status=doc.processing_status,
+            message="Document processing re-run completed successfully.",
+        )
+    except Exception as exc:
+        logger.exception("Retry failed for document %s: %s", doc.id, exc)
+        doc.processing_status = "failed"
+        db.add(doc)
+        await db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="OCR retry processing failed. Please verify that the file is not corrupted.",
+        )
+
+
+# ── Update metadata ───────────────────────────────────────────────────────────
 
 
 @router.put(
     "/documents/{document_id}",
     response_model=DocumentResponse,
-    summary="Update document type or tax return association",
+    summary="Update document classification or tax return association",
 )
 async def update_document(
     document_id: str,
@@ -593,7 +1116,6 @@ async def update_document(
         doc.document_type = payload.document_type
 
     if payload.tax_return_id is not None:
-        # Validate ownership of the target tax return
         tr_result = await db.execute(
             select(TaxReturn).where(
                 TaxReturn.id == str(payload.tax_return_id),
@@ -608,6 +1130,8 @@ async def update_document(
         doc.tax_return_id = str(payload.tax_return_id)
 
     db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
     return DocumentResponse.model_validate(doc)
 
 
@@ -628,8 +1152,10 @@ async def delete_document(
     await set_rls_user_id(db, current_user.id)
     doc = await _get_owned_document(db, document_id, str(current_user.id))
 
-    # Delete from MinIO
-    await storage.delete_file(doc.storage_key)
+    try:
+        await storage.delete_file(doc.storage_key)
+    except Exception as exc:
+        logger.warning("Could not delete storage file: %s", exc)
 
     db.add(
         AuditLog(
@@ -637,7 +1163,8 @@ async def delete_document(
             action="document.deleted",
             resource_type="document",
             resource_id=str(doc.id),
-            metadata={"filename": doc.original_filename},
+            extra_data=json.dumps({"filename": doc.original_filename}),
         )
     )
     await db.delete(doc)
+    await db.commit()

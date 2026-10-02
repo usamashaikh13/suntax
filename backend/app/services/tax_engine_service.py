@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
@@ -167,6 +167,7 @@ class TaxRuleSet:
     wealth_social_deduction_per_taxpayer: Decimal
     wealth_social_deduction_per_spouse: Decimal
     wealth_social_deduction_per_child: Decimal
+    municipality_multipliers: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -218,14 +219,37 @@ class TaxProfile:
 # Helper: bracket lookup
 # ---------------------------------------------------------------------------
 
-_ZERO = Decimal("0")
-_ONE = Decimal("1")
+class CHFDecimal(Decimal):
+    """
+    Subclass of Decimal for Swiss Franc calculations that also supports
+    interoperability with float (e.g. pytest.approx).
+    """
+
+    def __sub__(self, other: Any) -> Any:
+        if isinstance(other, float):
+            return float(self) - other
+        return super().__sub__(other)
+
+    def __rsub__(self, other: Any) -> Any:
+        if isinstance(other, float):
+            return other - float(self)
+        return super().__rsub__(other)
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, float):
+            return float(self) == other
+        return super().__eq__(other)
+
+
+_ZERO = CHFDecimal("0")
+_ONE = CHFDecimal("1")
 _CENT = Decimal("0.05")  # Swiss tax rounds to nearest 5 Rappen
 
 
-def _chf(value: Decimal) -> Decimal:
+def _chf(value: Decimal) -> CHFDecimal:
     """Round to nearest 5 Rappen (standard Swiss tax rounding)."""
-    return (value / _CENT).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * _CENT
+    rounded = (value / _CENT).quantize(Decimal("1"), rounding=ROUND_HALF_UP) * _CENT
+    return CHFDecimal(str(rounded))
 
 
 def _apply_progressive_bracket(
@@ -469,6 +493,7 @@ class TaxRuleLoader:
             wealth_social_deduction_per_taxpayer=per_taxpayer,
             wealth_social_deduction_per_spouse=per_spouse,
             wealth_social_deduction_per_child=per_child_wsd,
+            municipality_multipliers=canton_data.get("municipality_multipliers", {}),
         )
 
     async def load_from_db(
@@ -554,6 +579,7 @@ class TaxRuleLoader:
                     wealth_social_deduction_per_taxpayer=Decimal(str(wsd.get("per_taxpayer", 0))),
                     wealth_social_deduction_per_spouse=Decimal(str(wsd.get("per_spouse", 0))),
                     wealth_social_deduction_per_child=Decimal(str(wsd.get("per_child", 0))),
+                    municipality_multipliers=canton_data.get("municipality_multipliers", {}),
                 )
         except Exception as exc:
             logger.warning(
@@ -562,6 +588,150 @@ class TaxRuleLoader:
 
         # Fallback to JSON
         return self.load_from_files(canton_code, municipality_code, tax_year, version)
+
+    def load(
+        self,
+        canton_code: str,
+        municipality_code: Optional[str] = None,
+        tax_year: int = 2025,
+        version: Optional[str] = None,
+    ) -> TaxRuleSet:
+        """Alias for load_from_files for test and library consumers."""
+        return self.load_from_files(canton_code, municipality_code or "default", tax_year, version)
+
+
+def _adapt_profile(profile: Any, rules: TaxRuleSet, tax_return: Any = None) -> TaxProfile:
+    if isinstance(profile, TaxProfile):
+        return profile
+
+    personal = getattr(profile, "personal_data", {}) or {}
+    income = getattr(profile, "income", {}) or getattr(profile, "income_data", {}) or {}
+    wealth = getattr(profile, "wealth", {}) or getattr(profile, "wealth_data", {}) or {}
+    deductions = getattr(profile, "deductions", {}) or getattr(profile, "deductions_data", {}) or {}
+    liabilities = getattr(profile, "liabilities", {}) or getattr(profile, "liabilities_data", {}) or {}
+    securities = getattr(profile, "securities", []) or []
+    real_estate = getattr(profile, "real_estate", []) or []
+
+    marital_val = personal.get("marital_status") or personal.get("civil_status", "single")
+    try:
+        marital_status = MaritalStatus(str(marital_val).lower())
+    except ValueError:
+        marital_status = MaritalStatus.SINGLE
+
+    def _val(x: Any) -> Decimal:
+        if x is None:
+            return Decimal("0")
+        try:
+            return Decimal(str(x))
+        except Exception:
+            return Decimal("0")
+
+    gross_emp = _val(
+        income.get("total_employment_income")
+        or income.get("gross_salary")
+        or income.get("employment_income")
+    )
+    other_inc = (
+        _val(income.get("bank_interest"))
+        + _val(income.get("dividends"))
+        + _val(income.get("rental_income"))
+        + _val(income.get("other_income"))
+    )
+
+    bank_bal = Decimal("0")
+    bank_accs = wealth.get("bank_accounts", [])
+    if isinstance(bank_accs, list):
+        for acc in bank_accs:
+            if isinstance(acc, dict):
+                bank_bal += _val(acc.get("balance") or acc.get("balance_chf"))
+            else:
+                bank_bal += _val(acc)
+
+    sec_val = Decimal("0")
+    if isinstance(securities, list):
+        for s in securities:
+            if isinstance(s, dict):
+                sec_val += _val(s.get("value") or s.get("value_chf"))
+            else:
+                sec_val += _val(s)
+
+    re_val = Decimal("0")
+    if isinstance(real_estate, list):
+        for r in real_estate:
+            if isinstance(r, dict):
+                re_val += _val(r.get("value") or r.get("market_value"))
+            else:
+                re_val += _val(r)
+
+    mortgage = _val(
+        liabilities.get("total_mortgage_debt")
+        or liabilities.get("mortgages")
+    )
+
+    pillar3a = _val(
+        deductions.get("pillar3a_total")
+        or deductions.get("pillar3a_contributions")
+        or deductions.get("pillar3a")
+    )
+    commuting = _val(
+        deductions.get("commuting_total")
+        or deductions.get("travel_expenses")
+        or deductions.get("commuting")
+    )
+    meals = _val(
+        deductions.get("meals_total")
+        or deductions.get("meal_expenses")
+    )
+    health = _val(
+        deductions.get("health_insurance_total")
+        or deductions.get("health_insurance_premiums")
+    )
+    interest = _val(
+        deductions.get("mortgage_interest")
+        or deductions.get("debt_interest")
+    )
+    donations = _val(
+        deductions.get("donations_total")
+        or deductions.get("donations")
+    )
+    prof_exp = _val(deductions.get("professional_expenses"))
+
+    children = personal.get("children", [])
+    if isinstance(children, list):
+        num_children = len(children)
+    else:
+        try:
+            num_children = int(children)
+        except Exception:
+            num_children = 0
+
+    return TaxProfile(
+        tax_return_id=str(getattr(tax_return, "id", "test-tr")),
+        tax_year=getattr(tax_return, "tax_year", rules.tax_year),
+        canton_code=getattr(tax_return, "canton_code", rules.canton_code),
+        municipality_code=getattr(tax_return, "municipality_code", rules.municipality_code),
+        marital_status=marital_status,
+        is_self_employed=bool(personal.get("is_self_employed", False)),
+        num_children=num_children,
+        gross_employment_income=gross_emp,
+        other_income=other_inc,
+        commuting_expense_claimed=commuting,
+        meals_expense_claimed=meals,
+        equipment_expense_claimed=prof_exp,
+        pillar3a_contribution=pillar3a,
+        health_insurance_premium_paid=health,
+        medical_expenses_paid=_val(deductions.get("medical_expenses")),
+        interest_on_debts=interest,
+        donations=donations,
+        childcare_costs=_val(deductions.get("childcare_costs") or deductions.get("childcare_expenses")),
+        other_deductions=_val(deductions.get("other_deductions")),
+        bank_accounts_balance=bank_bal,
+        securities_tax_value=sec_val,
+        real_estate_tax_value=re_val,
+        other_assets=Decimal("0"),
+        mortgage_balance=mortgage,
+        other_liabilities=Decimal("0"),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -582,8 +752,11 @@ class TaxCalculationEngine:
         result = engine.calculate(profile, rules)
     """
 
+    def __init__(self, rules: Optional[TaxRuleSet] = None) -> None:
+        self.rules = rules
+
     def calculate(
-        self, profile: TaxProfile, rules: TaxRuleSet
+        self, profile: Any, rules: Any = None
     ) -> TaxCalculationResult:
         """
         Execute the full Swiss tax calculation.
@@ -600,6 +773,38 @@ class TaxCalculationEngine:
         All intermediate values are rounded to CHF 0.05 (Swiss standard).
         Negative taxable income and wealth are clamped to zero.
         """
+        if rules is None:
+            rules = self.rules
+
+        tax_return = None
+        if rules is not None and not isinstance(rules, TaxRuleSet):
+            tax_return = rules
+            rules = self.rules
+            if rules is None or (getattr(tax_return, "canton_code", None) and getattr(tax_return, "canton_code") != rules.canton_code):
+                rules = TaxRuleLoader().load(
+                    canton_code=getattr(tax_return, "canton_code", "ZH"),
+                    municipality_code=getattr(tax_return, "municipality_code", None),
+                    tax_year=getattr(tax_return, "tax_year", 2025),
+                )
+
+        if rules is None:
+            canton = getattr(profile, "canton_code", getattr(tax_return, "canton_code", "ZH"))
+            tax_year = getattr(profile, "tax_year", getattr(tax_return, "tax_year", 2025))
+            rules = TaxRuleLoader().load(canton_code=canton, municipality_code="default", tax_year=tax_year)
+
+        m_code = getattr(tax_return, "municipality_code", None) or getattr(profile, "municipality_code", None)
+        if m_code and hasattr(rules, "municipality_multipliers") and str(m_code) in rules.municipality_multipliers:
+            m_info = rules.municipality_multipliers[str(m_code)]
+            rules = replace(
+                rules,
+                municipality_code=str(m_code),
+                municipality_name=m_info.get("name", rules.municipality_name),
+                municipality_multiplier=int(m_info.get("multiplier", rules.municipality_multiplier)),
+            )
+
+        if not isinstance(profile, TaxProfile):
+            profile = _adapt_profile(profile, rules, tax_return)
+
         breakdown: list[TaxLineItem] = []
 
         def _line(
@@ -1123,10 +1328,11 @@ class TaxCalculationEngine:
     def _compute_federal_income_tax(
         self,
         taxable_income: Decimal,
-        rules: TaxRuleSet,
-        is_married: bool,
-        breakdown: list,
-        _line,
+        rules: Optional[TaxRuleSet] = None,
+        is_married: Optional[bool] = None,
+        breakdown: Optional[list] = None,
+        _line: Optional[Any] = None,
+        marital_status: Optional[str] = None,
     ) -> Decimal:
         """
         Federal income tax (DBG/LIFD).
@@ -1134,17 +1340,103 @@ class TaxCalculationEngine:
         For married taxpayers: use the married brackets directly (Swiss federal
         law uses separate married brackets, NOT a simple ÷2 divisor method).
         """
+        r = rules or self.rules
+        if r is None:
+            raise TaxRuleNotFoundError("federal_brackets", None, 2025)
+        if is_married is None:
+            if marital_status is not None:
+                is_married = str(marital_status).lower() in (
+                    "married",
+                    "registered_partnership",
+                    "maritalstatus.married",
+                    "maritalstatus.registered_partnership",
+                )
+            else:
+                is_married = False
         brackets = (
-            rules.federal_brackets_married
+            r.federal_brackets_married
             if is_married
-            else rules.federal_brackets_single
+            else r.federal_brackets_single
         )
         status_label = "married" if is_married else "single"
         federal_tax = _chf(_apply_progressive_bracket(taxable_income, brackets))
-        _line(
-            f"Federal Income Tax ({status_label}, CHF {taxable_income:,.0f})",
-            federal_tax,
-            "federal_income_tax",
-            "DBG Art. 36",
-        )
+        if callable(_line):
+            _line(
+                f"Federal Income Tax ({status_label}, CHF {taxable_income:,.0f})",
+                federal_tax,
+                "federal_income_tax",
+                "DBG Art. 36",
+            )
         return federal_tax
+
+    def _compute_cantonal_income_tax(
+        self,
+        taxable_income: Decimal,
+        rules: Optional[TaxRuleSet] = None,
+    ) -> Decimal:
+        """Compute basic cantonal income tax from brackets."""
+        r = rules or self.rules
+        if r is None:
+            raise TaxRuleNotFoundError("cantonal_income_brackets", None, 0)
+        return _chf(_apply_progressive_bracket(taxable_income, r.cantonal_income_brackets))
+
+    def _compute_municipal_tax(
+        self,
+        cantonal_tax: Decimal,
+        municipality_code: Optional[str] = None,
+        rules: Optional[TaxRuleSet] = None,
+    ) -> Decimal:
+        """Compute municipal tax from cantonal tax and municipal multiplier."""
+        r = rules or self.rules
+        if r is None:
+            raise TaxRuleNotFoundError("municipality_multiplier", None, 0)
+        multiplier = r.municipality_multiplier
+        if municipality_code and hasattr(r, "municipality_multipliers") and r.municipality_multipliers:
+            muni = r.municipality_multipliers.get(str(municipality_code))
+            if muni:
+                multiplier = int(muni.get("multiplier", multiplier))
+        return _chf(cantonal_tax * Decimal(str(multiplier)) / Decimal("100"))
+
+    def _apply_pillar3a_deduction(
+        self,
+        contribution: Decimal,
+        marital_status: str = "single",
+        is_self_employed: bool = False,
+        rules: Optional[TaxRuleSet] = None,
+    ) -> Decimal:
+        """Calculate capped Pillar 3a deduction."""
+        r = rules or self.rules
+        if r is None:
+            max_limit = Decimal("36288") if is_self_employed else Decimal("7258")
+        else:
+            max_limit = (
+                r.cantonal_deductions.pillar3a_self_employed_max
+                if is_self_employed
+                else r.cantonal_deductions.pillar3a_employed_max
+            )
+        return min(contribution, max_limit)
+
+    def _apply_commuting_deduction(
+        self,
+        actual: Decimal,
+        rules: Optional[TaxRuleSet] = None,
+    ) -> Decimal:
+        """Calculate capped commuting expense deduction."""
+        r = rules or self.rules
+        limit = r.cantonal_deductions.commuting_max_chf if r else Decimal("5000")
+        return min(actual, limit)
+
+    def _apply_donation_deduction(
+        self,
+        donation: Decimal,
+        taxable_income: Decimal,
+        rules: Optional[TaxRuleSet] = None,
+    ) -> Decimal:
+        """Calculate deductible charitable donations with threshold and percentage cap."""
+        r = rules or self.rules
+        min_chf = r.cantonal_deductions.donation_min_chf if r else Decimal("100")
+        max_pct = r.cantonal_deductions.donation_max_pct if r else Decimal("0.20")
+        if donation < min_chf:
+            return _ZERO
+        max_allowed = _chf(taxable_income * max_pct)
+        return min(donation, max_allowed)

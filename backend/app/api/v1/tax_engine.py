@@ -357,6 +357,8 @@ async def export_pdf(
             detail="Profile or calculation missing. Please run /calculate first.",
         )
 
+    if not getattr(tr, "user", None):
+        tr.user = current_user
     pdf_bytes = generate_tax_return_pdf(tr, profile, calc)
 
     filename = f"SunTax_{tr.canton_code}_{tr.tax_year}_{tr.municipality_code or 'all'}.pdf"
@@ -401,6 +403,8 @@ async def export_xml(
             detail="Profile or calculation missing. Please run /calculate first.",
         )
 
+    if not getattr(tr, "user", None):
+        tr.user = current_user
     xml_str = generate_ech_xml(tr, profile, calc)
     filename = f"SunTax_{tr.canton_code}_{tr.tax_year}_{tr.municipality_code or 'all'}.xml"
 
@@ -453,6 +457,38 @@ async def confirm_tax_return(
             detail="Tax return is already confirmed.",
         )
 
+    force = body.get("force", False)
+    if not force:
+        # Check required profile details and unanswered questions
+        profile_res = await db.execute(
+            select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
+        )
+        profile = profile_res.scalar_one_or_none()
+        p_data = profile.personal_data if profile and profile.personal_data else {}
+        first_name = p_data.get("first_name") or (current_user.full_name.split()[0] if current_user.full_name else None)
+        last_name = p_data.get("last_name") or (current_user.full_name.split()[-1] if current_user.full_name else None)
+
+        missing_items = []
+        if not first_name or not last_name:
+            missing_items.append("Taxpayer full name")
+        if not tr.canton_code:
+            missing_items.append("Canton code")
+
+        if profile and profile.tax_questions:
+            unanswered = [
+                q.get("question", q.get("id"))
+                for q in profile.tax_questions
+                if isinstance(q, dict) and q.get("is_required") and not q.get("is_answered")
+            ]
+            if unanswered:
+                missing_items.extend([f"Required Question: '{q}'" for q in unanswered])
+
+        if missing_items:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot confirm tax return draft: Incomplete required information ({', '.join(missing_items)}). Please complete these items before confirming.",
+            )
+
     # Mark latest calculation as final
     calc_result = await db.execute(
         select(TaxCalculation)
@@ -470,7 +506,7 @@ async def confirm_tax_return(
 
     await db.commit()
 
-    return {"message": "Tax return confirmed successfully.", "status": "confirmed"}
+    return {"message": "Tax return draft confirmed successfully.", "status": "confirmed"}
 
 
 # ── Tax Tools & Extensions (Commuting, ICTax, Crypto) ─────────────────────────

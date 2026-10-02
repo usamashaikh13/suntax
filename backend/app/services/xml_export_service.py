@@ -77,12 +77,11 @@ def generate_ech_xml(tax_return: Any, profile: Any, calculation: Any) -> str:
 
     # Root element
     root = ET.Element(
-        "suntaxDeclaration",
+        "suntaxDraftTaxData",
         attrib={
             "version": "1.0",
-            "schema": "suntax-etax-v1.0",
-            "documentType": "personal-tax-declaration-export",
-            "standardCompatibility": "eCH-0196,eCH-0119",
+            "schema": "suntax-draft-tax-data-v1.0",
+            "documentType": "draft-structured-tax-data-xml",
             "taxYear": tax_year,
             "canton": canton_code,
             "generatedAt": now,
@@ -90,18 +89,17 @@ def generate_ech_xml(tax_return: Any, profile: Any, calculation: Any) -> str:
     )
 
     # 1. Filing notice & legal status
-    notice = _sub(root, "submissionNotice")
-    _sub(notice, "status", "DRAFT_EXPORT")
-    _sub(notice, "standardReference", "eCH-0196 electronic statement interop / eCH-0119 e-tax declaration")
+    notice = _sub(root, "draftNotice")
+    _sub(notice, "status", "DRAFT_STRUCTURED_TAX_DATA")
+    _sub(notice, "documentLabel", "Draft Structured Tax Data XML")
     _sub(notice, "disclaimer", (
-        "In Switzerland, cantonal tax authorities require filing through their designated portal "
-        "(such as eTax.AI for Canton Appenzell Innerrhoden using your original declaration PID and access code) "
-        "or physical submission of the signed declaration form. "
-        "This XML represents your complete digital tax record."
+        "This XML file is a draft export of structured personal tax data for personal records and data portability. "
+        "It is not an officially validated cantonal filing and is not accepted as an electronic filing by Swiss tax portals. "
+        "Filing must be completed via your canton's official portal or by mailing the signed Tax Return Summary PDF."
     ))
-    if canton_code == "AI":
-        _sub(notice, "cantonPortal", "https://ai.ch/themen/steuern/etax")
-        _sub(notice, "instructions", "Submit via eTax.AI with PID & Access Code, or mail the signed PDF.")
+    _sub(notice, "standardCompatibilityNote", (
+        "Draft structured tax data export modeled for interoperability with Swiss electronic tax statement standards (eCH-0196 / eCH-0119 draft export)."
+    ))
 
     # 2. Header
     header = _sub(root, "declarationHeader")

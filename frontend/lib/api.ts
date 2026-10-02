@@ -28,6 +28,9 @@ import type {
   DocumentUploadResponse,
   PaginatedResponse,
   AiTaxGuideResponse,
+  DocumentReviewRequest,
+  DocumentRetryResponse,
+  TaxOpportunity,
 } from '@/types';
 
 // ─── Axios Instance ───────────────────────────────────────────────────────────
@@ -297,10 +300,44 @@ export const taxReturnsApi = {
   },
 
   /**
-   * Submits a tax return for official filing.
+   * Confirms the tax return draft.
+   */
+  async confirm(id: string, confirmationText?: string): Promise<{ message: string; status: string }> {
+    const response = await apiClient.post<{ message: string; status: string }>(
+      `/tax-returns/${id}/confirm`,
+      {
+        confirmation_text: confirmationText || "I have reviewed my tax return and confirm that all information provided is complete and accurate. I accept full responsibility for the information submitted.",
+        confirmed: true,
+      },
+    );
+    return response.data;
+  },
+
+  /**
+   * Submits a tax return draft confirmation.
    */
   async submit(id: string): Promise<TaxReturn> {
-    const response = await apiClient.post<TaxReturn>(`/tax-returns/${id}/submit`);
+    const res = await this.confirm(id);
+    return this.get(id);
+  },
+
+  /**
+   * Applies approved document data to the tax profile.
+   */
+  async applyAllDocuments(taxReturnId: string): Promise<{ message: string; applied_fields: string[] }> {
+    const response = await apiClient.post<{ message: string; applied_fields: string[] }>(
+      `/tax-returns/${taxReturnId}/apply-documents`,
+    );
+    return response.data;
+  },
+
+  /**
+   * Gets rule-based tax deduction opportunities.
+   */
+  async getOpportunities(taxReturnId: string): Promise<TaxOpportunity[]> {
+    const response = await apiClient.get<TaxOpportunity[]>(
+      `/tax-returns/${taxReturnId}/opportunities`,
+    );
     return response.data;
   },
 };
@@ -408,6 +445,40 @@ export const documentsApi = {
     );
     return response.data;
   },
+
+  /**
+   * Retries OCR processing on a document.
+   */
+  async retry(documentId: string): Promise<DocumentRetryResponse> {
+    const response = await apiClient.post<DocumentRetryResponse>(
+      `/documents/${documentId}/retry`,
+    );
+    return response.data;
+  },
+
+  /**
+   * Reviews and edits extracted fields for a document.
+   */
+  async review(
+    documentId: string,
+    payload: DocumentReviewRequest,
+  ): Promise<TaxDocument> {
+    const response = await apiClient.put<TaxDocument>(
+      `/documents/${documentId}/review`,
+      payload,
+    );
+    return response.data;
+  },
+
+  /**
+   * Merges approved extracted data from this document into the tax profile.
+   */
+  async apply(documentId: string): Promise<{ message: string; applied_fields: string[] }> {
+    const response = await apiClient.post<{ message: string; applied_fields: string[] }>(
+      `/documents/${documentId}/apply`,
+    );
+    return response.data;
+  },
 };
 
 // ─── Tax Profile API ──────────────────────────────────────────────────────────
@@ -498,6 +569,14 @@ export const taxProfileApi = {
 
   async answerQuestions(taxReturnId: string, answers: Record<string, string>): Promise<{ message: string }> {
     return this.submitAnswers(taxReturnId, answers);
+  },
+
+  async applyAllDocuments(taxReturnId: string): Promise<{ message: string; applied_fields: string[] }> {
+    return taxReturnsApi.applyAllDocuments(taxReturnId);
+  },
+
+  async getOpportunities(taxReturnId: string): Promise<TaxOpportunity[]> {
+    return taxReturnsApi.getOpportunities(taxReturnId);
   },
 };
 

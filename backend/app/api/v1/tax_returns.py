@@ -14,7 +14,8 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import List
+from typing import List, Optional
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -23,10 +24,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db, set_rls_user_id
 from app.core.security import get_current_user
 from app.models.audit_log import AuditLog
+from app.models.document import Document
 from app.models.tax_return import TaxReturn
 from app.models.tax_profile import TaxProfile
 from app.models.user import User
-from app.schemas.tax_profile import TaxProfileResponse, TaxProfileUpdateRequest
+from app.schemas.tax_profile import TaxProfileResponse, TaxProfileUpdateRequest, TaxQuestion
 from app.schemas.tax_return import (
     CantonResponse,
     MunicipalityResponse,
@@ -36,6 +38,12 @@ from app.schemas.tax_return import (
     TaxReturnUpdate,
 )
 from app.services.canton_service import CantonService
+from app.services.smart_questions_service import (
+    generate_smart_questions,
+    apply_answers_to_profile,
+)
+from app.services.tax_optimization_service import compute_tax_opportunities
+from app.api.v1.documents import apply_document_to_tax_profile
 
 logger = logging.getLogger(__name__)
 
@@ -68,14 +76,47 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
         select(TaxProfile).where(TaxProfile.tax_return_id == str(tax_return.id))
     )
     profile = result.scalar_one_or_none()
+
+    from app.models.user import User
+    u_res = await db.execute(select(User).where(User.id == str(tax_return.user_id)))
+    user = u_res.scalar_one_or_none()
+
     if profile:
+        # Enrich personal_data if fields are missing or 'None'
+        pd = dict(profile.personal_data or {})
+        changed = False
+        if user and user.full_name:
+            if not pd.get("first_name") or str(pd.get("first_name")).lower() in ("none", "null"):
+                parts = user.full_name.strip().split(" ", 1)
+                pd["first_name"] = parts[0]
+                pd["last_name"] = parts[1] if len(parts) > 1 else ""
+                pd["name"] = user.full_name
+                changed = True
+        if tax_return.municipality_name:
+            if not pd.get("address_city") or str(pd.get("address_city")).lower() in ("none", "null"):
+                pd["address_city"] = tax_return.municipality_name
+                changed = True
+        if changed:
+            profile.personal_data = pd
+            db.add(profile)
+            await db.commit()
+            await db.refresh(profile)
         return profile
 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
+    init_pd = {}
+    if user and user.full_name:
+        parts = user.full_name.strip().split(" ", 1)
+        init_pd["first_name"] = parts[0]
+        init_pd["last_name"] = parts[1] if len(parts) > 1 else ""
+        init_pd["name"] = user.full_name
+    if tax_return.municipality_name:
+        init_pd["address_city"] = tax_return.municipality_name
+
     profile = TaxProfile(
         tax_return_id=str(tax_return.id),
-        personal_data={},
+        personal_data=init_pd,
         income_data={},
         wealth_data={},
         deductions_data={},
@@ -347,3 +388,203 @@ async def delete_tax_return(
         )
     )
     await db.delete(tax_return)
+    await db.commit()
+
+
+# ── Smart Questions ───────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/tax-returns/{tax_return_id}/questions",
+    response_model=List[TaxQuestion],
+    summary="Get dynamic smart questions for missing tax data",
+)
+async def get_tax_return_questions(
+    tax_return_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[TaxQuestion]:
+    """Dynamically generate missing-data questions based on profile and document status."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    profile = await _get_or_create_profile(tax_return, db)
+    docs = (
+        await db.execute(
+            select(Document).where(Document.tax_return_id == str(tax_return.id))
+        )
+    ).scalars().all()
+
+    existing_ans = {}
+    for q in (profile.tax_questions or []):
+        if isinstance(q, dict) and q.get("answer"):
+            existing_ans[q["id"]] = q["answer"]
+
+    qs = generate_smart_questions(
+        personal_data=profile.personal_data or {},
+        income_data=profile.income_data or {},
+        wealth_data=profile.wealth_data or {},
+        deductions_data=profile.deductions_data or {},
+        liabilities_data=profile.liabilities_data or {},
+        documents=docs,
+        existing_answers=existing_ans,
+    )
+    profile.tax_questions = qs
+    db.add(profile)
+    await db.commit()
+    return [TaxQuestion.model_validate(q) for q in qs]
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/questions/{question_id}/answer",
+    response_model=TaxQuestion,
+    summary="Answer an individual smart question",
+)
+async def answer_single_question(
+    tax_return_id: str,
+    question_id: str,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TaxQuestion:
+    """Submit an answer to a single question and update the profile accordingly."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    profile = await _get_or_create_profile(tax_return, db)
+    answer = payload.get("answer", "")
+
+    p_data, inc_data, w_data, ded_data, liab_data = apply_answers_to_profile(
+        answers={question_id: answer},
+        personal_data=dict(profile.personal_data or {}),
+        income_data=dict(profile.income_data or {}),
+        wealth_data=dict(profile.wealth_data or {}),
+        deductions_data=dict(profile.deductions_data or {}),
+        liabilities_data=dict(profile.liabilities_data or {}),
+    )
+    profile.personal_data = p_data
+    profile.income_data = inc_data
+    profile.wealth_data = w_data
+    profile.deductions_data = ded_data
+    profile.liabilities_data = liab_data
+
+    qs = list(profile.tax_questions or [])
+    updated_q = None
+    for q in qs:
+        if isinstance(q, dict) and q.get("id") == question_id:
+            q["answer"] = answer
+            q["is_answered"] = bool(answer)
+            updated_q = q
+            break
+    if not updated_q:
+        updated_q = {
+            "id": question_id,
+            "category": "other",
+            "question": question_id,
+            "answer": answer,
+            "is_answered": bool(answer),
+        }
+        qs.append(updated_q)
+
+    profile.tax_questions = qs
+    profile.updated_at = datetime.now(timezone.utc)
+    db.add(profile)
+    await db.commit()
+    return TaxQuestion.model_validate(updated_q)
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/questions/submit",
+    summary="Submit batch answers to smart questions",
+)
+async def submit_questions(
+    tax_return_id: str,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Submit answers to multiple questions and refresh the profile."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    profile = await _get_or_create_profile(tax_return, db)
+    answers = payload.get("answers", {})
+
+    p_data, inc_data, w_data, ded_data, liab_data = apply_answers_to_profile(
+        answers=answers,
+        personal_data=dict(profile.personal_data or {}),
+        income_data=dict(profile.income_data or {}),
+        wealth_data=dict(profile.wealth_data or {}),
+        deductions_data=dict(profile.deductions_data or {}),
+        liabilities_data=dict(profile.liabilities_data or {}),
+    )
+    profile.personal_data = p_data
+    profile.income_data = inc_data
+    profile.wealth_data = w_data
+    profile.deductions_data = ded_data
+    profile.liabilities_data = liab_data
+
+    qs = list(profile.tax_questions or [])
+    for q in qs:
+        if isinstance(q, dict) and q.get("id") in answers:
+            q["answer"] = answers[q["id"]]
+            q["is_answered"] = bool(answers[q["id"]])
+    profile.tax_questions = qs
+    profile.updated_at = datetime.now(timezone.utc)
+    db.add(profile)
+    await db.commit()
+    return {"message": f"Successfully updated profile with {len(answers)} answers."}
+
+
+# ── Tax Profile Merge ─────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/apply-documents",
+    summary="Apply all approved documents to the profile",
+)
+async def apply_all_documents(
+    tax_return_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Merge approved fields from all documents into the tax profile."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    profile = await _get_or_create_profile(tax_return, db)
+    docs = (
+        await db.execute(
+            select(Document).where(Document.tax_return_id == str(tax_return.id))
+        )
+    ).scalars().all()
+
+    all_applied = []
+    for doc in docs:
+        applied = await apply_document_to_tax_profile(db, doc, profile)
+        all_applied.extend(applied)
+
+    await db.commit()
+    return {
+        "message": f"Applied {len(all_applied)} fields from {len(docs)} documents to tax profile.",
+        "applied_fields": all_applied,
+    }
+
+
+# ── Tax Optimisation Opportunities ────────────────────────────────────────────
+
+
+@router.get(
+    "/tax-returns/{tax_return_id}/opportunities",
+    summary="Get rule-based tax deduction opportunities and estimates",
+)
+async def get_tax_opportunities(
+    tax_return_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[dict]:
+    """Evaluate applicable Swiss tax deductions and optimization opportunities."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    profile = await _get_or_create_profile(tax_return, db)
+    return compute_tax_opportunities(
+        personal_data=profile.personal_data or {},
+        income_data=profile.income_data or {},
+        wealth_data=profile.wealth_data or {},
+        deductions_data=profile.deductions_data or {},
+        liabilities_data=profile.liabilities_data or {},
+        canton_code=tax_return.canton_code,
+        tax_year=tax_return.tax_year,
+    )
+
