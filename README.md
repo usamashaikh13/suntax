@@ -1,253 +1,236 @@
-# SunTax 🇨🇭
+# ☀️ SunTax — AI-Powered Swiss Tax Return Platform
 
-[![CI](https://github.com/your-org/suntax/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/suntax/actions/workflows/ci.yml)
-[![Deploy](https://github.com/your-org/suntax/actions/workflows/deploy.yml/badge.svg)](https://github.com/your-org/suntax/actions/workflows/deploy.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+> **AI-assisted Swiss tax preparation** — upload your salary certificates, bank statements, and other documents, and let SunTax extract, organise and calculate your tax return automatically.
 
-**SunTax** is an AI-powered Swiss tax return platform that guides individuals through their annual federal and cantonal tax filing. It extracts data from uploaded documents (salary certificates, bank statements, insurance policies) using Google Gemini, auto-populates tax forms, applies the correct cantonal rules, and produces a ready-to-submit return — all with a clean, bilingual (DE/EN) web interface.
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688?logo=fastapi)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=next.js)](https://nextjs.org)
+[![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python)](https://python.org)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
 
 ## Features
 
-- 📄 **AI Document Extraction** — upload PDFs/images; Gemini extracts structured data automatically
-- 🏔️ **All 26 Swiss Cantons** — canton-specific deduction rules and tax rates
-- 🔄 **Real-time Calculation** — instant federal and cantonal tax estimates as you fill in data
-- 🔒 **Privacy by Design** — Row-Level Security ensures users can only access their own data
-- 📦 **Secure Document Storage** — encrypted storage with MinIO (S3-compatible)
-- 🌍 **Multilingual** — German, French, Italian, English
-- 📧 **Email Notifications** — filing reminders, submission confirmations
+- 📄 **Document OCR** — Upload PDFs, images and salary slips; AI extracts tax-relevant data automatically
+- 🤖 **AI Tax Assistant** — Powered by Google Gemini 2.0 Flash; answers questions in German, English & French
+- 🏔️ **All 26 Swiss Cantons** — Deterministic tax calculations per canton and municipality
+- 🔒 **Security-first** — JWT with refresh-token rotation, bcrypt passwords, row-level security
+- 📑 **eCH XML Export** — Standards-compliant XML for submission to cantonal tax authorities
+- 🔍 **Audit Trail** — Every action logged for compliance
 
 ---
 
-## Architecture
+## Tech Stack
 
-```
-┌──────────────┐     HTTPS      ┌──────────────────────────────────────┐
-│   Browser    │◄──────────────►│           Nginx (TLS)                │
-└──────────────┘                └────────┬─────────────┬───────────────┘
-                                         │ /api/       │ /
-                               ┌─────────▼──────┐  ┌──▼──────────────┐
-                               │  FastAPI        │  │  Next.js 14     │
-                               │  (Python 3.12)  │  │  (App Router)   │
-                               └────────┬────────┘  └─────────────────┘
-                                        │
-                  ┌─────────────────────┼─────────────────────┐
-                  │                     │                       │
-          ┌───────▼───────┐   ┌─────────▼──────┐   ┌──────────▼─────┐
-          │  PostgreSQL16  │   │   Redis 7       │   │   MinIO         │
-          │  (+ RLS)       │   │  (Cache+Queue)  │   │  (Documents)    │
-          └───────────────┘   └────────┬────────┘   └────────────────┘
-                                        │
-                               ┌─────────▼──────┐
-                               │  Celery Worker  │
-                               │  (AI Tasks,     │
-                               │   OCR, Email)   │
-                               └─────────────────┘
-```
+| Layer | Technology |
+|---|---|
+| **Backend API** | FastAPI (Python 3.9+), SQLAlchemy async |
+| **Database** | SQLite (dev) · PostgreSQL via asyncpg (prod) |
+| **AI** | Google Gemini 2.0 Flash |
+| **Background jobs** | Celery + Redis (optional in dev) |
+| **Object storage** | MinIO / AWS S3 (local filesystem in dev) |
+| **Email** | Resend API (console output in dev) |
+| **Frontend** | Next.js 14, TypeScript, Tailwind CSS |
+| **Error tracking** | Sentry (optional) |
 
 ---
 
-## Supported Cantons
+## Quick Start
 
-| Canton | Code | Federal Tax | Cantonal Rules |
-|--------|------|-------------|----------------|
-| Zürich | ZH | ✅ | ✅ |
-| Bern | BE | ✅ | ✅ |
-| Luzern | LU | ✅ | ✅ |
-| Uri | UR | ✅ | ✅ |
-| Schwyz | SZ | ✅ | ✅ |
-| Obwalden | OW | ✅ | ✅ |
-| Nidwalden | NW | ✅ | ✅ |
-| Glarus | GL | ✅ | ✅ |
-| Zug | ZG | ✅ | ✅ |
-| Freiburg | FR | ✅ | ✅ |
-| Solothurn | SO | ✅ | ✅ |
-| Basel-Stadt | BS | ✅ | ✅ |
-| Basel-Landschaft | BL | ✅ | ✅ |
-| Schaffhausen | SH | ✅ | ✅ |
-| Appenzell Ausserrhoden | AR | ✅ | ✅ |
-| Appenzell Innerrhoden | AI | ✅ | ✅ |
-| St. Gallen | SG | ✅ | ✅ |
-| Graubünden | GR | ✅ | ✅ |
-| Aargau | AG | ✅ | ✅ |
-| Thurgau | TG | ✅ | ✅ |
-| Ticino | TI | ✅ | ✅ |
-| Vaud | VD | ✅ | ✅ |
-| Valais | VS | ✅ | ✅ |
-| Neuchâtel | NE | ✅ | ✅ |
-| Genève | GE | ✅ | ✅ |
-| Jura | JU | ✅ | ✅ |
-
----
-
-## Quick Start (Development)
-
-### Prerequisites
-
-- Docker Desktop ≥ 24
-- Docker Compose plugin ≥ 2.20
-- Node.js 20 (for local frontend dev without Docker)
-- Python 3.12 (for local backend dev without Docker)
-
-### 1. Clone and configure
-
-```bash
-git clone https://github.com/your-org/suntax.git
-cd suntax
-cp .env.example .env
-# Edit .env — at minimum set GEMINI_API_KEY
-```
-
-### 2. Start all services
-
-```bash
-docker compose up --build
-```
-
-This starts:
-- **Frontend** → http://localhost:3000
-- **Backend API** → http://localhost:8000
-- **API Docs** → http://localhost:8000/docs
-- **MinIO Console** → http://localhost:9001
-
-### 3. Run migrations (first time)
-
-```bash
-docker compose exec backend alembic upgrade head
-```
-
-### 4. Seed data
-
-```bash
-docker compose exec backend python -m app.scripts.seed_data
-```
-
-### 5. Create admin user
-
-```bash
-docker compose exec backend python -m app.scripts.create_admin
-```
-
----
-
-## Environment Setup
-
-All configuration is done via environment variables. See [`.env.example`](.env.example) for the full list.
-
-Key variables:
-
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | PostgreSQL async connection string |
-| `REDIS_URL` | Redis connection string |
-| `SECRET_KEY` | 64-char random string for JWT signing |
-| `GEMINI_API_KEY` | Google Gemini API key |
-| `MINIO_*` | MinIO object storage credentials |
-| `RESEND_API_KEY` | Transactional email via Resend |
-
----
-
-## Running Tests
-
-### Backend
+### 1 — Backend
 
 ```bash
 cd backend
-pip install -r requirements-dev.txt
-pytest tests/ -v --cov=app
+
+# Create and activate virtual environment
+python -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env — only GEMINI_API_KEY is required for full functionality
+
+# Start the development server (SQLite + fakeredis, no Docker needed)
+./start_dev.sh
 ```
 
-### Frontend
+API is available at **http://localhost:8000**
+Interactive docs at **http://localhost:8000/api/docs**
+
+### 2 — Frontend
 
 ```bash
 cd frontend
 npm install
-npm run test
-npm run lint
-npm run type-check
+npm run dev
 ```
 
-### Security tests
+Frontend is available at **http://localhost:3000**
+
+---
+
+## Environment Variables
+
+> Copy `backend/.env.example` to `backend/.env` and fill in the values.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `DATABASE_URL` | ✅ | `sqlite+aiosqlite:///./suntax_dev.db` | Database connection string |
+| `SECRET_KEY` | ✅ | — | 64-char random hex for JWT signing |
+| `GEMINI_API_KEY` | ✅ | — | Google AI Studio API key |
+| `ENVIRONMENT` | ✅ | `development` | `development` or `production` |
+| `BACKEND_CORS_ORIGINS` | ✅ | `["http://localhost:3000"]` | Allowed CORS origins (JSON array) |
+| `REDIS_URL` | ⬜ | `redis://localhost:6379/0` | fakeredis used in dev if Redis absent |
+| `MINIO_ENDPOINT` | ⬜ | `localhost:9000` | MinIO / S3 endpoint |
+| `MINIO_ACCESS_KEY` | ⬜ | `minioadmin` | S3 access key |
+| `MINIO_SECRET_KEY` | ⬜ | `minioadmin` | S3 secret key |
+| `MINIO_BUCKET_NAME` | ⬜ | `suntax-documents` | Storage bucket name |
+| `RESEND_API_KEY` | ⬜ | — | Resend API key (emails printed to console if blank) |
+| `EMAIL_FROM` | ⬜ | `noreply@suntax.ch` | From address for outgoing emails |
+| `SENTRY_DSN` | ⬜ | — | Sentry DSN for error tracking |
+| `FRONTEND_URL` | ⬜ | `http://localhost:3000` | Used in email verification links |
+
+> **Generate a SECRET_KEY:**
+> ```bash
+> python -c "import secrets; print(secrets.token_hex(32))"
+> ```
+
+---
+
+## API Endpoints
+
+### Authentication (`/api/v1/auth`)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/auth/register` | Create a new account |
+| `GET` | `/auth/verify-email?token=…` | Verify email address |
+| `POST` | `/auth/login` | Obtain JWT access + refresh tokens |
+| `POST` | `/auth/refresh` | Rotate refresh token |
+| `POST` | `/auth/logout` | Revoke token |
+| `POST` | `/auth/forgot-password` | Request password-reset email |
+| `POST` | `/auth/reset-password` | Confirm password reset |
+| `GET` | `/auth/me` | Get current user profile |
+| `PUT` | `/auth/me` | Update profile |
+| `POST` | `/auth/me/change-password` | Change password |
+
+### Tax Returns (`/api/v1`)
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/tax-returns` | List current user's returns |
+| `POST` | `/tax-returns` | Create a new tax return |
+| `GET` | `/tax-returns/{id}` | Get a specific return |
+| `PATCH` | `/tax-returns/{id}` | Update status |
+| `DELETE` | `/tax-returns/{id}` | Delete a draft return |
+| `GET` | `/tax-returns/{id}/profile` | Get editable taxpayer profile |
+| `PATCH` | `/tax-returns/{id}/profile` | Update taxpayer profile |
+| `GET` | `/cantons` | List all supported cantons |
+| `GET` | `/cantons/{code}/municipalities` | List municipalities |
+
+### Documents (`/api/v1`)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/documents/upload` | Upload documents (multipart) |
+| `GET` | `/documents` | List current user's documents |
+| `GET` | `/documents/{id}` | Get document metadata |
+| `GET` | `/documents/{id}/download` | Presigned download URL |
+| `GET` | `/documents/{id}/status` | Processing status |
+| `PUT` | `/documents/{id}` | Update type or association |
+| `DELETE` | `/documents/{id}` | Delete document |
+
+### Tax Engine (`/api/v1`)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/tax-returns/{id}/calculate` | Run deterministic calculation |
+| `GET` | `/tax-returns/{id}/calculation` | Get latest result |
+| `POST` | `/tax-returns/{id}/export/pdf` | Download PDF |
+| `POST` | `/tax-returns/{id}/export/xml` | Download eCH XML |
+| `POST` | `/tax-returns/{id}/confirm` | Finalize and confirm |
+
+### AI Assistant (`/api/v1`)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/tax-returns/{id}/chat` | Send message to AI assistant |
+| `GET` | `/tax-returns/{id}/chat/history` | Retrieve conversation |
+| `DELETE` | `/tax-returns/{id}/chat/history` | Clear conversation |
+
+### Admin (`/api/v1/admin`) — requires admin role
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/admin/users` | Paginated user list |
+| `GET` | `/admin/users/{id}` | User detail |
+| `PUT` | `/admin/users/{id}/activate` | Toggle user active status |
+| `GET` | `/admin/stats` | System-wide statistics |
+| `GET` | `/admin/audit-logs` | Paginated audit log |
+
+---
+
+## Supported Swiss Cantons
+
+All 26 cantons are supported:
+
+| | | | |
+|---|---|---|---|
+| AG — Aargau | AI — Appenzell Innerrhoden | AR — Appenzell Ausserrhoden | BE — Bern |
+| BL — Basel-Landschaft | BS — Basel-Stadt | FR — Fribourg | GE — Geneva |
+| GL — Glarus | GR — Graubünden | JU — Jura | LU — Lucerne |
+| NE — Neuchâtel | NW — Nidwalden | OW — Obwalden | SG — St. Gallen |
+| SH — Schaffhausen | SO — Solothurn | SZ — Schwyz | TG — Thurgau |
+| TI — Ticino | UR — Uri | VD — Vaud | VS — Valais |
+| ZG — Zug | ZH — Zurich | | |
+
+---
+
+## Development Notes
+
+### No external services required in dev
+
+The backend is designed to work without any external services in development:
+
+- **Database**: SQLite file (`suntax_dev.db`) — created automatically on first run
+- **Redis**: `fakeredis` is used automatically if Redis is not running
+- **Storage**: Local filesystem if MinIO is not configured
+- **Email**: Token and link printed to the console if no `RESEND_API_KEY` is set
+- **Celery**: Document upload succeeds even if workers are not running (processing skipped with a warning)
+
+### Running tests
 
 ```bash
 cd backend
-pytest tests/security/ -v
+.venv/bin/pytest tests/ -v
 ```
 
 ---
 
 ## Production Deployment
 
-See the full guide at [`docs/deployment.md`](docs/deployment.md).
+> [!IMPORTANT]
+> For production, set `ENVIRONMENT=production` and use a PostgreSQL database. Swagger UI is automatically disabled in production mode.
 
-Quick overview:
-1. Provision a server (min 4 GB RAM, 2 vCPU) — Hetzner CX21 recommended
-2. Install Docker
-3. Clone repo to `/opt/suntax`
-4. Configure `.env`
-5. Run `./infrastructure/scripts/setup_production.sh`
-6. Configure DNS + TLS with Certbot
+The recommended production setup uses **Docker Compose**:
 
----
-
-## Project Structure
-
-```
-suntax/
-├── backend/                  # FastAPI application
-│   ├── app/
-│   │   ├── api/             # Route handlers
-│   │   ├── core/            # Config, security, dependencies
-│   │   ├── models/          # SQLAlchemy ORM models
-│   │   ├── schemas/         # Pydantic v2 schemas
-│   │   ├── services/        # Business logic
-│   │   ├── worker/          # Celery tasks
-│   │   └── scripts/         # One-off admin scripts
-│   ├── alembic/             # Database migrations
-│   ├── tests/               # Pytest tests
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/                 # Next.js 14 application
-│   ├── app/                 # App Router pages
-│   ├── components/          # React components
-│   ├── lib/                 # Utilities, API client
-│   ├── Dockerfile
-│   └── Dockerfile.dev
-├── infrastructure/
-│   ├── nginx/               # Nginx configuration
-│   └── scripts/             # Operational scripts
-├── docs/                    # Documentation
-├── .github/
-│   └── workflows/           # CI/CD pipelines
-├── docker-compose.yml        # Development
-├── docker-compose.prod.yml   # Production override
-└── .env.example
+```bash
+# Build and start all services
+docker compose -f docker-compose.prod.yml up -d
 ```
 
----
+Services included:
+- `api` — FastAPI backend (uvicorn with multiple workers)
+- `worker` — Celery worker for OCR processing  
+- `db` — PostgreSQL 16
+- `redis` — Redis 7
+- `minio` — MinIO object storage
+- `nginx` — Reverse proxy with TLS termination
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feat/your-feature`
-3. Write tests for your changes
-4. Ensure all tests pass: `docker compose run --rm backend pytest`
-5. Run linting: `docker compose run --rm backend ruff check app/`
-6. Submit a pull request to `main`
-
-### Code Standards
-
-- **Python**: PEP 8, type annotations everywhere, docstrings for public functions
-- **TypeScript**: strict mode, no `any`, prefer functional components
-- **Commits**: Conventional Commits format (`feat:`, `fix:`, `docs:`, etc.)
+Refer to `docker-compose.prod.yml` (coming soon) for the full configuration.
 
 ---
 
 ## License
 
-MIT License — see [LICENSE](LICENSE)
-
----
-
-> ⚠️ **Tax Law Disclaimer**: SunTax is a tool to assist with tax preparation. Always verify the output against current official Swiss tax authority publications. Tax laws change annually. The developers are not liable for any errors in tax calculations.
+MIT © 2025 SunTax GmbH

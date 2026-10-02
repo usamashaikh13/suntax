@@ -4,8 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { TaxReturn, TaxProfile, Document } from '@/types'
@@ -21,11 +20,19 @@ import { Loader2, AlertCircle } from 'lucide-react'
 const CANTON_NAMES: Record<string, string> = {
   ZH: 'Zurich', ZG: 'Zug', SZ: 'Schwyz',
   SG: 'St. Gallen', AG: 'Aargau', BE: 'Bern', BS: 'Basel-Stadt',
+  LU: 'Lucerne', UR: 'Uri', OW: 'Obwalden', NW: 'Nidwalden',
+  GL: 'Glarus', FR: 'Fribourg', SO: 'Solothurn', BL: 'Basel-Landschaft',
+  SH: 'Schaffhausen', AR: 'Appenzell Ausserrhoden', AI: 'Appenzell Innerrhoden',
+  GR: 'Graubünden', TG: 'Thurgau', TI: 'Ticino', VD: 'Vaud',
+  VS: 'Valais', NE: 'Neuchâtel', GE: 'Geneva', JU: 'Jura',
 }
 
 const STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft', in_progress: 'In progress',
-  review: 'In review', confirmed: 'Confirmed', exported: 'Exported',
+  draft: 'Draft',
+  in_progress: 'In Progress',
+  review: 'Under Review',
+  confirmed: 'Confirmed',
+  exported: 'Exported',
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -63,7 +70,7 @@ export default function TaxReturnDetailPage() {
         const calc = await api.taxEngine.getCalculation(id)
         setCalculation(calc)
       } catch {}
-    } catch (e) {
+    } catch {
       toast({ title: 'Could not load tax return', variant: 'destructive' })
     } finally {
       setLoading(false)
@@ -83,7 +90,8 @@ export default function TaxReturnDetailPage() {
   if (!taxReturn) {
     return (
       <div className="flex items-center justify-center h-48 gap-2 text-red-600">
-        <AlertCircle className="h-6 w-6" /> Tax return not found.
+        <AlertCircle className="h-6 w-6" />
+        <span>Tax return not found.</span>
       </div>
     )
   }
@@ -95,12 +103,12 @@ export default function TaxReturnDetailPage() {
       {/* Header */}
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold">
-              {CANTON_NAMES[taxReturn.canton_code]} – {taxReturn.municipality_name}
+          <div className="flex items-center gap-3 flex-wrap">
+            <h2 className="text-2xl font-bold text-gray-900">
+              {CANTON_NAMES[taxReturn.canton_code] ?? taxReturn.canton_code} – {taxReturn.municipality_name}
             </h2>
             <Badge className={STATUS_COLORS[taxReturn.status]}>
-              {STATUS_LABELS[taxReturn.status]}
+              {STATUS_LABELS[taxReturn.status] ?? taxReturn.status}
             </Badge>
           </div>
           <p className="text-gray-500 mt-1">Tax year {taxReturn.tax_year}</p>
@@ -108,31 +116,57 @@ export default function TaxReturnDetailPage() {
         <TaxAssistant taxReturnId={id} />
       </div>
 
-      {/* Progress */}
+      {/* Progress overview */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Documents', value: `${documents.filter(d => d.processing_status === 'completed').length}/${documents.length}`, done: documents.length > 0 },
-          { label: 'Profile', value: profile ? 'Created' : 'Pending', done: !!profile },
-          { label: 'Questions', value: unansweredQuestions > 0 ? `${unansweredQuestions} open` : 'Answered', done: unansweredQuestions === 0 },
-          { label: 'Calculation', value: calculation ? 'Complete' : 'Pending', done: !!calculation },
+          {
+            label: 'Documents',
+            value: `${documents.filter(d => d.processing_status === 'completed').length}/${documents.length}`,
+            done: documents.length > 0,
+          },
+          {
+            label: 'Tax Profile',
+            value: profile ? 'Ready' : 'Pending',
+            done: !!profile,
+          },
+          {
+            label: 'Questions',
+            value: unansweredQuestions > 0 ? `${unansweredQuestions} open` : 'All answered',
+            done: unansweredQuestions === 0 && !!profile,
+          },
+          {
+            label: 'Calculation',
+            value: calculation ? 'Complete' : 'Pending',
+            done: !!calculation,
+          },
         ].map(item => (
-          <div key={item.label} className={`p-3 rounded-lg border text-center ${item.done ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+          <div
+            key={item.label}
+            className={`p-3 rounded-lg border text-center ${item.done ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
+          >
             <p className="text-xs text-gray-500">{item.label}</p>
-            <p className={`text-sm font-medium ${item.done ? 'text-green-700' : 'text-gray-600'}`}>{item.value}</p>
+            <p className={`text-sm font-medium ${item.done ? 'text-green-700' : 'text-gray-600'}`}>
+              {item.value}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* Main Tabs */}
+      {/* Tabs */}
       <Tabs defaultValue="documents" className="space-y-4">
         <TabsList className="grid grid-cols-5 w-full">
           <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="questions">
-            Questions {unansweredQuestions > 0 && <span className="ml-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 flex items-center justify-center">{unansweredQuestions}</span>}
+          <TabsTrigger value="profile">Tax Profile</TabsTrigger>
+          <TabsTrigger value="questions" className="relative">
+            Questions{' '}
+            {unansweredQuestions > 0 && (
+              <span className="ml-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 inline-flex items-center justify-center">
+                {unansweredQuestions}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="calculation">Calculation</TabsTrigger>
-          <TabsTrigger value="review">Review</TabsTrigger>
+          <TabsTrigger value="review">Review &amp; Submit</TabsTrigger>
         </TabsList>
 
         <TabsContent value="documents" className="space-y-4">
@@ -146,7 +180,7 @@ export default function TaxReturnDetailPage() {
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-gray-500">
-                <p>No profile yet. Upload documents first.</p>
+                <p>No tax profile yet. Upload your documents first to extract data automatically.</p>
               </CardContent>
             </Card>
           )}
@@ -158,7 +192,7 @@ export default function TaxReturnDetailPage() {
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-gray-500">
-                <p>Upload documents first to generate questions.</p>
+                <p>Upload your documents first to generate clarification questions.</p>
               </CardContent>
             </Card>
           )}

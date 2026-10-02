@@ -16,7 +16,7 @@ interface Props {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  personal: 'Personal details',
+  personal: 'Personal Details',
   income: 'Income',
   deductions: 'Deductions',
   wealth: 'Wealth',
@@ -39,7 +39,7 @@ export function TaxQuestions({ profile, taxReturnId, onUpdate }: Props) {
   const total = questions.length
   const progress = total > 0 ? (answered / total) * 100 : 100
 
-  // Group by category
+  // Group questions by category
   const grouped = questions.reduce((acc: Record<string, any[]>, q: any) => {
     const cat = q.category || 'other'
     acc[cat] = acc[cat] || []
@@ -51,7 +51,10 @@ export function TaxQuestions({ profile, taxReturnId, onUpdate }: Props) {
     setSaving(true)
     try {
       await api.taxProfile.answerQuestions(taxReturnId, answers)
-      toast({ title: 'Answers saved', description: 'Your tax profile is being updated.' })
+      toast({
+        title: 'Answers saved',
+        description: 'Your tax profile is being updated.',
+      })
       onUpdate?.()
     } catch {
       toast({ title: 'Could not save answers', variant: 'destructive' })
@@ -80,7 +83,9 @@ export function TaxQuestions({ profile, taxReturnId, onUpdate }: Props) {
       <Card>
         <CardContent className="pt-4">
           <div className="flex justify-between text-sm mb-2">
-            <span className="font-medium">{answered} of {total} questions answered</span>
+            <span className="font-medium">
+              {answered} of {total} questions answered
+            </span>
             <span className="text-gray-500">{Math.round(progress)}%</span>
           </div>
           <Progress value={progress} className="h-2" />
@@ -100,21 +105,30 @@ export function TaxQuestions({ profile, taxReturnId, onUpdate }: Props) {
             {(qs as any[]).map((q: any) => {
               const isAnswered = !!(answers[q.id] || q.is_answered)
               return (
-                <div key={q.id} className={`p-4 rounded-lg border transition-colors ${isAnswered ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
+                <div
+                  key={q.id}
+                  className={`p-4 rounded-lg border transition-colors ${
+                    isAnswered ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                  }`}
+                >
                   <div className="flex items-start gap-2 mb-2">
-                    {isAnswered
-                      ? <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                      : <HelpCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
-                    }
+                    {isAnswered ? (
+                      <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    ) : (
+                      <HelpCircle className="h-4 w-4 text-red-400 mt-0.5 flex-shrink-0" />
+                    )}
                     <p className="text-sm font-medium text-gray-800">{q.question}</p>
                   </div>
                   <input
                     type="text"
                     value={answers[q.id] || ''}
-                    onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                    onChange={e =>
+                      setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))
+                    }
                     placeholder="Your answer..."
-                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500
-                      ${isAnswered ? 'border-green-300 bg-white' : 'border-gray-300'}`}
+                    className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 ${
+                      isAnswered ? 'border-green-300 bg-white' : 'border-gray-300'
+                    }`}
                   />
                 </div>
               )
@@ -123,8 +137,19 @@ export function TaxQuestions({ profile, taxReturnId, onUpdate }: Props) {
         </Card>
       ))}
 
-      <Button onClick={handleSave} disabled={saving} className="w-full bg-red-600 hover:bg-red-700">
-        {saving ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</> : 'Save answers'}
+      <Button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full bg-red-600 hover:bg-red-700"
+      >
+        {saving ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Saving...
+          </>
+        ) : (
+          'Save Answers'
+        )}
       </Button>
     </div>
   )

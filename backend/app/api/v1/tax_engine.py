@@ -4,7 +4,7 @@ Tax Engine API router – calculation, export, confirmation.
 from __future__ import annotations
 
 import io
-import uuid
+import logging
 from decimal import Decimal
 from typing import Optional
 
@@ -28,6 +28,8 @@ from app.services.tax_engine_service import (
 from app.services.pdf_export_service import generate_tax_return_pdf
 from app.services.xml_export_service import generate_ech_xml
 from app.schemas.tax_calculation import TaxCalculationResult
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -103,16 +105,82 @@ async def _get_tax_return(
     await set_rls_user_id(db, str(current_user.id))
     result = await db.execute(
         select(TaxReturn).where(
-            and_(TaxReturn.id == str(tax_return_id), TaxReturn.user_id == current_user.id)
+            and_(
+                TaxReturn.id == str(tax_return_id),
+                TaxReturn.user_id == str(current_user.id),
+            )
         )
     )
     tr = result.scalar_one_or_none()
     if not tr:
-        raise HTTPException(status_code=404, detail="Tax return not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax return not found")
     return tr
 
 
-@router.post("/tax-returns/{tax_return_id}/calculate")
+async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> TaxProfile:
+    """Return existing tax profile or create an empty one on demand."""
+    result = await db.execute(
+        select(TaxProfile).where(TaxProfile.tax_return_id == str(tax_return.id))
+    )
+    profile = result.scalar_one_or_none()
+    if profile:
+        return profile
+
+    profile = TaxProfile(
+        tax_return_id=str(tax_return.id),
+        personal_data={},
+        income_data={},
+        wealth_data={},
+        deductions_data={},
+        liabilities_data={},
+        tax_questions=[],
+        tax_flags=[],
+        completeness_score=0,
+    )
+    db.add(profile)
+    await db.flush()
+    return profile
+
+
+# ── Profile endpoint (mirrors tax_returns.py for tax-engine consumers) ────────
+
+
+@router.get(
+    "/tax-returns/{tax_return_id}/profile",
+    summary="Get (or create) the taxpayer profile for this return",
+    tags=["Tax Engine"],
+)
+async def get_tax_profile(
+    tax_return_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Return the editable taxpayer profile associated with a tax return.
+    Creates an empty profile if one does not yet exist.
+    """
+    tr = await _get_tax_return(tax_return_id, db, current_user)
+    profile = await _get_or_create_profile(tr, db)
+    await db.commit()
+    await db.refresh(profile)
+    return {
+        "tax_return_id": str(tr.id),
+        "personal_data": profile.personal_data or {},
+        "income_data": profile.income_data or {},
+        "wealth_data": profile.wealth_data or {},
+        "deductions_data": profile.deductions_data or {},
+        "liabilities_data": profile.liabilities_data or {},
+        "completeness_score": profile.completeness_score,
+    }
+
+
+# ── Calculate ─────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/calculate",
+    tags=["Tax Engine"],
+)
 async def calculate_tax(
     tax_return_id: str,
     db: AsyncSession = Depends(get_db),
@@ -121,18 +189,10 @@ async def calculate_tax(
     """Run deterministic tax calculation for a tax return."""
     tr = await _get_tax_return(tax_return_id, db, current_user)
 
-    # Load profile
-    profile_result = await db.execute(
-        select(TaxProfile).where(TaxProfile.tax_return_id == tr.id)
-    )
-    profile = profile_result.scalar_one_or_none()
-    if not profile:
-        raise HTTPException(
-            status_code=400,
-            detail="No tax profile found. Please upload documents first."
-        )
+    # Load profile — auto-create if missing so calculation still runs
+    profile = await _get_or_create_profile(tr, db)
 
-    # Load rules
+    # Load tax rules — gracefully handle missing rules files
     try:
         loader = TaxRuleLoader()
         rules = loader.load_from_files(
@@ -141,7 +201,16 @@ async def calculate_tax(
             tax_year=tr.tax_year,
         )
     except FileNotFoundError as e:
-        raise HTTPException(status_code=422, detail=f"Tax rules not found: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Tax rules not found for {tr.canton_code}/{tr.tax_year}: {e}",
+        )
+    except Exception as e:
+        logger.exception("Error loading tax rules: %s", e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to load tax rules. Please try again.",
+        )
 
     # Run calculation
     engine = TaxCalculationEngine()
@@ -170,12 +239,18 @@ async def calculate_tax(
     return {
         "calculation_id": str(calc.id),
         "results": result_data,
-        "breakdown": result_data["breakdown"],
+        "breakdown": result_data.get("breakdown", []),
         "rule_version": rules.version,
     }
 
 
-@router.get("/tax-returns/{tax_return_id}/calculation")
+# ── Get latest calculation ────────────────────────────────────────────────────
+
+
+@router.get(
+    "/tax-returns/{tax_return_id}/calculation",
+    tags=["Tax Engine"],
+)
 async def get_calculation(
     tax_return_id: str,
     db: AsyncSession = Depends(get_db),
@@ -192,7 +267,10 @@ async def get_calculation(
     )
     calc = result.scalar_one_or_none()
     if not calc:
-        raise HTTPException(status_code=404, detail="No calculation found. Run /calculate first.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No calculation found. Run /calculate first.",
+        )
 
     return {
         "calculation_id": str(calc.id),
@@ -204,7 +282,13 @@ async def get_calculation(
     }
 
 
-@router.post("/tax-returns/{tax_return_id}/export/pdf")
+# ── PDF Export ────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/export/pdf",
+    tags=["Tax Engine"],
+)
 async def export_pdf(
     tax_return_id: str,
     db: AsyncSession = Depends(get_db),
@@ -214,24 +298,27 @@ async def export_pdf(
     tr = await _get_tax_return(tax_return_id, db, current_user)
 
     profile_result = await db.execute(
-        select(TaxProfile).where(TaxProfile.tax_return_id == tr.id)
+        select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
     )
     profile = profile_result.scalar_one_or_none()
 
     calc_result = await db.execute(
         select(TaxCalculation)
-        .where(TaxCalculation.tax_return_id == tr.id)
+        .where(TaxCalculation.tax_return_id == str(tr.id))
         .order_by(TaxCalculation.calculated_at.desc())
         .limit(1)
     )
     calc = calc_result.scalar_one_or_none()
 
     if not profile or not calc:
-        raise HTTPException(status_code=400, detail="Profile or calculation missing")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Profile or calculation missing. Please run /calculate first.",
+        )
 
     pdf_bytes = generate_tax_return_pdf(tr, profile, calc)
 
-    filename = f"SunTax_{tr.canton_code}_{tr.tax_year}_{tr.municipality_code}.pdf"
+    filename = f"SunTax_{tr.canton_code}_{tr.tax_year}_{tr.municipality_code or 'all'}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
@@ -239,7 +326,13 @@ async def export_pdf(
     )
 
 
-@router.post("/tax-returns/{tax_return_id}/export/xml")
+# ── XML Export ────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/export/xml",
+    tags=["Tax Engine"],
+)
 async def export_xml(
     tax_return_id: str,
     db: AsyncSession = Depends(get_db),
@@ -249,23 +342,26 @@ async def export_xml(
     tr = await _get_tax_return(tax_return_id, db, current_user)
 
     profile_result = await db.execute(
-        select(TaxProfile).where(TaxProfile.tax_return_id == tr.id)
+        select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
     )
     profile = profile_result.scalar_one_or_none()
 
     calc_result = await db.execute(
         select(TaxCalculation)
-        .where(TaxCalculation.tax_return_id == tr.id)
+        .where(TaxCalculation.tax_return_id == str(tr.id))
         .order_by(TaxCalculation.calculated_at.desc())
         .limit(1)
     )
     calc = calc_result.scalar_one_or_none()
 
     if not profile or not calc:
-        raise HTTPException(status_code=400, detail="Profile or calculation missing")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Profile or calculation missing. Please run /calculate first.",
+        )
 
     xml_str = generate_ech_xml(tr, profile, calc)
-    filename = f"SunTax_{tr.canton_code}_{tr.tax_year}_{tr.municipality_code}.xml"
+    filename = f"SunTax_{tr.canton_code}_{tr.tax_year}_{tr.municipality_code or 'all'}.xml"
 
     return StreamingResponse(
         io.BytesIO(xml_str.encode("utf-8")),
@@ -274,7 +370,13 @@ async def export_xml(
     )
 
 
-@router.post("/tax-returns/{tax_return_id}/confirm")
+# ── Confirm ───────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/confirm",
+    tags=["Tax Engine"],
+)
 async def confirm_tax_return(
     tax_return_id: str,
     body: dict,
@@ -292,19 +394,22 @@ async def confirm_tax_return(
     confirmation_text = body.get("confirmation_text", "").strip()
     if confirmation_text != REQUIRED_CONFIRMATION:
         raise HTTPException(
-            status_code=400,
-            detail="Invalid confirmation text. The exact confirmation statement must be provided."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid confirmation text. The exact confirmation statement must be provided.",
         )
 
     tr = await _get_tax_return(tax_return_id, db, current_user)
 
     if tr.status == "confirmed":
-        raise HTTPException(status_code=400, detail="Tax return is already confirmed.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tax return is already confirmed.",
+        )
 
     # Mark latest calculation as final
     calc_result = await db.execute(
         select(TaxCalculation)
-        .where(TaxCalculation.tax_return_id == tr.id)
+        .where(TaxCalculation.tax_return_id == str(tr.id))
         .order_by(TaxCalculation.calculated_at.desc())
         .limit(1)
     )

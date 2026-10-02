@@ -13,9 +13,11 @@ export MINIO_BUCKET_NAME="suntax-documents"
 export MINIO_USE_SSL="false"
 export RESEND_API_KEY=""
 export EMAIL_FROM="noreply@suntax.local"
+export FRONTEND_URL="http://localhost:3000"
 export PYTHONWARNINGS="ignore"
 
 echo "🚀 Starting SunTax backend on http://localhost:8000"
 echo "📖 API Docs: http://localhost:8000/api/docs"
+echo "⚠️  Dev mode: emails printed to console, fakeredis used if Redis absent"
 
-exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
+exec .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --log-level info

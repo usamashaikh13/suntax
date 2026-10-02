@@ -88,7 +88,7 @@ async def _write_audit(
     error_message: str | None = None,
 ) -> None:
     log = AuditLog(
-        user_id=user_id,
+        user_id=str(user_id) if user_id is not None else None,
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
@@ -118,7 +118,7 @@ async def register(
     Create a new user account.
 
     - Validates password strength and email uniqueness.
-    - Sends a verification email with a tokenised link.
+    - Sends a verification email with a tokenised link (non-fatal if email service unavailable).
     - Returns 201 regardless of whether the email already exists
       (to prevent user enumeration).
     """
@@ -153,11 +153,19 @@ async def register(
     token = create_email_token()
     await store_email_token("verify", token, str(user.id))
 
-    await email_service.send_verification_email(payload.email, token)
+    # Email sending is non-fatal — registration must succeed even without RESEND_API_KEY
+    try:
+        await email_service.send_verification_email(payload.email, token)
+    except Exception as exc:
+        logger.warning(
+            "Could not send verification email to %s (registration still succeeded): %s",
+            payload.email,
+            exc,
+        )
 
     await _write_audit(
         db,
-        user_id=user.id,
+        user_id=str(user.id),
         action="user.register",
         resource_type="user",
         resource_id=str(user.id),
@@ -188,7 +196,7 @@ async def verify_email(
             detail="Invalid or expired verification token",
         )
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == str(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -199,7 +207,7 @@ async def verify_email(
     user.is_verified = True
     await _write_audit(
         db,
-        user_id=user.id,
+        user_id=str(user.id),
         action="user.email_verified",
         resource_type="user",
         resource_id=str(user.id),
@@ -231,7 +239,7 @@ async def login(
     if user is None or not verify_password(payload.password, user.hashed_password):
         await _write_audit(
             db,
-            user_id=user.id if user else None,
+            user_id=str(user.id) if user else None,
             action="user.login.failed",
             ip_address=ip,
             user_agent=ua,
@@ -257,7 +265,7 @@ async def login(
 
     await _write_audit(
         db,
-        user_id=user.id,
+        user_id=str(user.id),
         action="user.login",
         resource_type="user",
         resource_id=str(user.id),
@@ -292,7 +300,7 @@ async def refresh_token(
         )
 
     user_id = token_payload["sub"]
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == str(user_id)))
     user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
@@ -302,7 +310,7 @@ async def refresh_token(
         )
 
     # Rotate: revoke old, issue new
-    await revoke_refresh_token(user_id, payload.refresh_token)
+    await revoke_refresh_token(str(user_id), payload.refresh_token)
     token_data = {"sub": str(user.id)}
     new_access = create_access_token(token_data)
     new_refresh = create_refresh_token(token_data)
@@ -322,8 +330,6 @@ async def logout(
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
     """Add the bearer token to the denylist and revoke all refresh tokens."""
-    from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.removeprefix("Bearer ").strip()
 
@@ -331,9 +337,7 @@ async def logout(
         # Calculate remaining TTL
         try:
             payload = decode_token(token)
-            from datetime import timezone
             import time
-
             exp = payload.get("exp", 0)
             remaining = max(0, int(exp - time.time()))
             await add_token_to_denylist(token, remaining or 1)
@@ -342,7 +346,7 @@ async def logout(
 
     await _write_audit(
         db,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         action="user.logout",
         resource_type="user",
         resource_id=str(current_user.id),
@@ -368,7 +372,12 @@ async def forgot_password(
     if user and user.is_active:
         token = create_email_token()
         await store_email_token("reset", token, str(user.id))
-        await email_service.send_password_reset_email(payload.email, token)
+        try:
+            await email_service.send_password_reset_email(payload.email, token)
+        except Exception as exc:
+            logger.warning(
+                "Could not send password-reset email to %s: %s", payload.email, exc
+            )
 
     return MessageResponse(
         message="If that email is registered, a password reset link has been sent."
@@ -392,7 +401,7 @@ async def reset_password(
             detail="Invalid or expired password reset token",
         )
 
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == str(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -400,7 +409,7 @@ async def reset_password(
     user.hashed_password = hash_password(payload.new_password)
     await _write_audit(
         db,
-        user_id=user.id,
+        user_id=str(user.id),
         action="user.password_reset",
         resource_type="user",
         resource_id=str(user.id),
@@ -452,7 +461,7 @@ async def change_password(
     if not verify_password(payload.current_password, current_user.hashed_password):
         await _write_audit(
             db,
-            user_id=current_user.id,
+            user_id=str(current_user.id),
             action="user.password_change.failed",
             ip_address=_client_ip(request),
             success=False,
@@ -467,7 +476,7 @@ async def change_password(
 
     await _write_audit(
         db,
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         action="user.password_changed",
         resource_type="user",
         resource_id=str(current_user.id),

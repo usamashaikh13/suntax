@@ -17,7 +17,7 @@ interface Props {
 }
 
 const CONFIRMATION_TEXT =
-  'I have reviewed my tax return and confirm that the information is complete and correct. I accept responsibility for the information provided.'
+  'I have reviewed my tax return and confirm that all information provided is complete and accurate. I accept full responsibility for the information submitted.'
 
 export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Props) {
   const { toast } = useToast()
@@ -30,15 +30,15 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
   const isAlreadyConfirmed = taxReturn.status === 'confirmed'
 
   const pd = (profile?.personal_data || {}) as any
-  const inc = (profile?.income || {}) as any
   const r = calculation?.results || {}
 
   const handleExport = async (type: 'pdf' | 'xml') => {
     setExporting(type)
     try {
-      const blob = type === 'pdf'
-        ? await api.taxEngine.exportPdf(taxReturn.id)
-        : await api.taxEngine.exportXml(taxReturn.id)
+      const blob =
+        type === 'pdf'
+          ? await api.taxEngine.exportPdf(taxReturn.id)
+          : await api.taxEngine.exportXml(taxReturn.id)
 
       const ext = type === 'pdf' ? 'pdf' : 'xml'
       const mime = type === 'pdf' ? 'application/pdf' : 'application/xml'
@@ -59,13 +59,16 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
     setSubmitting(true)
     try {
       await api.taxEngine.confirm(taxReturn.id, CONFIRMATION_TEXT)
-      toast({ title: 'Tax return confirmed', description: 'Your tax return has been completed successfully.' })
+      toast({
+        title: 'Tax return confirmed',
+        description: 'Your tax return has been completed successfully.',
+      })
       setShowConfirmDialog(false)
       onConfirm?.()
     } catch (error: any) {
       toast({
         title: 'Confirmation failed',
-        description: error?.response?.data?.detail,
+        description: error?.response?.data?.detail || 'Please try again.',
         variant: 'destructive',
       })
     } finally {
@@ -78,8 +81,10 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
       <Card>
         <CardContent className="py-12 text-center space-y-3">
           <AlertTriangle className="h-12 w-12 text-yellow-400 mx-auto" />
-          <p className="font-medium text-gray-900">Final review is not available yet</p>
-          <p className="text-sm text-gray-500">Upload documents and run the tax calculation first.</p>
+          <p className="font-medium text-gray-900">Review not available yet</p>
+          <p className="text-sm text-gray-500">
+            Please upload your documents and complete the tax calculation first.
+          </p>
         </CardContent>
       </Card>
     )
@@ -90,17 +95,33 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
       <Card>
         <CardContent className="py-12 text-center space-y-3">
           <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
-          <p className="text-2xl font-bold text-gray-900">Tax return completed</p>
+          <p className="text-2xl font-bold text-gray-900">Tax return confirmed</p>
           <p className="text-gray-500">
             Confirmed on {taxReturn.confirmed_at ? formatDate(taxReturn.confirmed_at) : '–'}
           </p>
           <div className="flex justify-center gap-3 pt-2">
-            <Button variant="outline" onClick={() => handleExport('pdf')} disabled={exporting === 'pdf'}>
-              {exporting === 'pdf' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            <Button
+              variant="outline"
+              onClick={() => handleExport('pdf')}
+              disabled={exporting === 'pdf'}
+            >
+              {exporting === 'pdf' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
               Download PDF
             </Button>
-            <Button variant="outline" onClick={() => handleExport('xml')} disabled={exporting === 'xml'}>
-              {exporting === 'xml' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
+            <Button
+              variant="outline"
+              onClick={() => handleExport('xml')}
+              disabled={exporting === 'xml'}
+            >
+              {exporting === 'xml' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4 mr-2" />
+              )}
               Export XML
             </Button>
           </div>
@@ -114,28 +135,52 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
       {/* Summary */}
       <Card>
         <CardHeader>
-          <CardTitle>Tax return summary</CardTitle>
+          <CardTitle>Tax Return Summary</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <div className="space-y-3">
-              <h4 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">Person</h4>
+              <h4 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">
+                Personal Details
+              </h4>
               <div className="space-y-1 text-sm">
-                <p><span className="text-gray-500">Name:</span> <strong>{pd.name || '–'}</strong></p>
-                <p><span className="text-gray-500">Address:</span> <strong>{pd.address || '–'}</strong></p>
-                <p><span className="text-gray-500">Marital status:</span> <strong>{pd.marital_status || '–'}</strong></p>
+                <p>
+                  <span className="text-gray-500">Name:</span>{' '}
+                  <strong>{pd.name || '–'}</strong>
+                </p>
+                <p>
+                  <span className="text-gray-500">Address:</span>{' '}
+                  <strong>{pd.address || '–'}</strong>
+                </p>
+                <p>
+                  <span className="text-gray-500">Marital status:</span>{' '}
+                  <strong>{pd.marital_status || '–'}</strong>
+                </p>
               </div>
 
-              <h4 className="font-semibold text-sm text-gray-500 uppercase tracking-wide pt-2">Tax return</h4>
+              <h4 className="font-semibold text-sm text-gray-500 uppercase tracking-wide pt-2">
+                Tax Return Details
+              </h4>
               <div className="space-y-1 text-sm">
-                <p><span className="text-gray-500">Canton:</span> <strong>{taxReturn.canton_code}</strong></p>
-                <p><span className="text-gray-500">Municipality:</span> <strong>{taxReturn.municipality_name}</strong></p>
-                <p><span className="text-gray-500">Tax year:</span> <strong>{taxReturn.tax_year}</strong></p>
+                <p>
+                  <span className="text-gray-500">Canton:</span>{' '}
+                  <strong>{taxReturn.canton_code}</strong>
+                </p>
+                <p>
+                  <span className="text-gray-500">Municipality:</span>{' '}
+                  <strong>{taxReturn.municipality_name}</strong>
+                </p>
+                <p>
+                  <span className="text-gray-500">Tax year:</span>{' '}
+                  <strong>{taxReturn.tax_year}</strong>
+                </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              <h4 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">Tax calculation</h4>
+              <h4 className="font-semibold text-sm text-gray-500 uppercase tracking-wide">
+                Tax Calculation
+              </h4>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between py-1 border-b">
                   <span className="text-gray-500">Taxable income</span>
@@ -174,15 +219,31 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
         </CardHeader>
         <CardContent>
           <p className="text-sm text-gray-500 mb-4">
-            Download your tax return as PDF or XML for submission to the relevant cantonal authority.
+            Download your tax return as PDF or XML for submission to the cantonal tax authority.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button variant="outline" onClick={() => handleExport('pdf')} disabled={!!exporting}>
-              {exporting === 'pdf' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Download className="h-4 w-4 mr-2" />}
+            <Button
+              variant="outline"
+              onClick={() => handleExport('pdf')}
+              disabled={!!exporting}
+            >
+              {exporting === 'pdf' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
               Download PDF
             </Button>
-            <Button variant="outline" onClick={() => handleExport('xml')} disabled={!!exporting}>
-              {exporting === 'xml' ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
+            <Button
+              variant="outline"
+              onClick={() => handleExport('xml')}
+              disabled={!!exporting}
+            >
+              {exporting === 'xml' ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4 mr-2" />
+              )}
               Export XML (eCH-0196)
             </Button>
           </div>
@@ -192,13 +253,13 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
       {/* Legal confirmation */}
       <Card className="border-red-200">
         <CardHeader>
-          <CardTitle className="text-base">Legal confirmation</CardTitle>
+          <CardTitle className="text-base">Legal Declaration</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 inline mr-2" />
-            By confirming, you declare that all information is complete and correct.
-            This return cannot be edited afterwards.
+            By confirming, you legally declare that all information provided is complete and
+            accurate. This tax return cannot be edited after confirmation.
           </div>
 
           <label className="flex items-start gap-3 cursor-pointer">
@@ -217,7 +278,7 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
             className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50"
           >
             <CheckCircle className="h-4 w-4 mr-2" />
-            Confirm tax return
+            Confirm &amp; Submit Tax Return
           </Button>
         </CardContent>
       </Card>
@@ -228,15 +289,23 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
             <h3 className="text-lg font-bold">Are you sure?</h3>
             <p className="text-sm text-gray-600">
-              Once confirmed, this tax return can no longer be edited.
-              Make sure that all information is correct.
+              Once confirmed, this tax return can no longer be edited. Please ensure all
+              information is correct before proceeding.
             </p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setShowConfirmDialog(false)}>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowConfirmDialog(false)}
+              >
                 Cancel
               </Button>
-              <Button className="flex-1 bg-red-600 hover:bg-red-700" onClick={handleConfirm} disabled={submitting}>
-                {submitting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+              <Button
+                className="flex-1 bg-red-600 hover:bg-red-700"
+                onClick={handleConfirm}
+                disabled={submitting}
+              >
+                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Yes, confirm tax return
               </Button>
             </div>

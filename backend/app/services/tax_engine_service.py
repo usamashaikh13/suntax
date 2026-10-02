@@ -580,7 +580,7 @@ class TaxCalculationEngine:
 
         gross_income = profile.gross_employment_income + profile.other_income
         _line(
-            "Bruttoeinkommen (Erwerbseinkommen + Sonstiges)",
+            "Gross Income (Employment + Other)",
             gross_income,
             "gross_income",
             "DBG Art. 16",
@@ -629,7 +629,7 @@ class TaxCalculationEngine:
         # 1k. Other deductions
         other_ded = min(profile.other_deductions, profile.other_deductions)  # no cap
         if other_ded > _ZERO:
-            _line("Übrige Abzüge", -other_ded, "other_deductions", "DBG Art. 33 ff.")
+            _line("Other Deductions", -other_ded, "other_deductions", "DBG Art. 33 ff.")
 
         total_deductions = (
             commuting_ded
@@ -647,7 +647,7 @@ class TaxCalculationEngine:
 
         taxable_income = max(_chf(gross_income - total_deductions), _ZERO)
         _line(
-            "Steuerbares Einkommen",
+            "Taxable Income",
             taxable_income,
             "taxable_income",
             "DBG Art. 25",
@@ -663,11 +663,11 @@ class TaxCalculationEngine:
             + profile.real_estate_tax_value
             + profile.other_assets
         )
-        _line("Bruttovermögen", gross_assets, "gross_wealth", "Cantonal StG")
+        _line("Gross Assets", gross_assets, "gross_wealth", "Cantonal StG")
 
         liabilities = profile.mortgage_balance + profile.other_liabilities
         if liabilities > _ZERO:
-            _line("Schulden (Hypotheken + Darlehen)", -liabilities, "liabilities", "Cantonal StG")
+            _line("Liabilities (Mortgages + Loans)", -liabilities, "liabilities", "Cantonal StG")
 
         net_wealth = gross_assets - liabilities
 
@@ -679,7 +679,7 @@ class TaxCalculationEngine:
         )
         if wealth_social_ded > _ZERO:
             _line(
-                f"Sozialabzug Vermögen ({n_persons} Pers. + {profile.num_children} Kind(er))",
+                f"Wealth Social Deduction ({n_persons} person(s) + {profile.num_children} child(ren))",
                 -wealth_social_ded,
                 "wealth_social_deduction",
                 "Cantonal StG",
@@ -688,7 +688,7 @@ class TaxCalculationEngine:
 
         taxable_wealth = max(_chf(net_wealth - wealth_social_ded), _ZERO)
         _line(
-            "Steuerbares Vermögen",
+            "Taxable Wealth",
             taxable_wealth,
             "taxable_wealth",
             "Cantonal StG",
@@ -710,7 +710,7 @@ class TaxCalculationEngine:
             _apply_progressive_bracket(taxable_income, rules.cantonal_income_brackets)
         )
         _line(
-            f"Kantonssteuer Einkommen ({rules.canton_code}) — einfache Steuer",
+            f"Cantonal Income Tax ({rules.canton_code}) — basic tax",
             cantonal_income_tax,
             "cantonal_income_tax_simple",
             f"StG {rules.canton_code}",
@@ -724,10 +724,10 @@ class TaxCalculationEngine:
         muni_multiplier = Decimal(str(rules.municipality_multiplier))
         municipal_income_tax = _chf(cantonal_income_tax * muni_multiplier / Decimal("100"))
         _line(
-            f"Gemeindesteuer Einkommen ({rules.municipality_name}, {rules.municipality_multiplier}%)",
+            f"Municipal Income Tax ({rules.municipality_name}, {rules.municipality_multiplier}%)",
             municipal_income_tax,
             "municipal_income_tax",
-            f"Gemeindesteuerfuss {rules.municipality_name}",
+            f"Municipal tax multiplier {rules.municipality_name}",
             canton=rules.canton_code,
         )
 
@@ -739,7 +739,7 @@ class TaxCalculationEngine:
             _apply_wealth_brackets(taxable_wealth, rules.cantonal_wealth_brackets)
         )
         _line(
-            f"Vermögenssteuer ({rules.canton_code}) — einfache Steuer",
+            f"Wealth Tax ({rules.canton_code}) — basic tax",
             cantonal_wealth_simple,
             "wealth_tax_simple",
             f"StG {rules.canton_code}",
@@ -748,7 +748,7 @@ class TaxCalculationEngine:
 
         wealth_tax_canton = _chf(cantonal_wealth_simple * muni_multiplier / Decimal("100"))
         _line(
-            f"Kantonssteuer Vermögen ({rules.canton_code})",
+            f"Cantonal Wealth Tax ({rules.canton_code})",
             wealth_tax_canton,
             "wealth_tax_canton",
             f"StG {rules.canton_code}",
@@ -765,10 +765,10 @@ class TaxCalculationEngine:
         wealth_tax_municipal = _chf(cantonal_wealth_simple * muni_multiplier / Decimal("100"))
 
         _line(
-            f"Gemeindesteuer Vermögen ({rules.municipality_name})",
+            f"Municipal Wealth Tax ({rules.municipality_name})",
             wealth_tax_municipal,
             "wealth_tax_municipal",
-            f"Gemeindesteuerfuss {rules.municipality_name}",
+            f"Municipal tax multiplier {rules.municipality_name}",
             canton=rules.canton_code,
         )
 
@@ -783,7 +783,7 @@ class TaxCalculationEngine:
             + wealth_tax_canton
             + wealth_tax_municipal
         )
-        _line("Total Steuern", total_tax, "total_tax", "Alle Ebenen")
+        _line("Total Tax", total_tax, "total_tax", "All levels")
 
         deductions_applied = TaxDeductionsApplied(
             commuting=commuting_ded,
@@ -857,14 +857,14 @@ class TaxCalculationEngine:
         # However we log both caps as separate line items for transparency
         if profile.commuting_expense_claimed > federal_cap:
             _line(
-                f"Fahrkosten — Bundessteuer-Limite angewendet (Max CHF {federal_cap:,.0f})",
+                f"Commuting — Federal cap applied (Max CHF {federal_cap:,.0f})",
                 -deducted,
                 "commuting_federal_cap",
                 "DBG Art. 26 Abs. 1 lit. a",
             )
         else:
             _line(
-                f"Fahrkosten (geltend gemacht CHF {profile.commuting_expense_claimed:,.0f})",
+                f"Commuting expenses (claimed CHF {profile.commuting_expense_claimed:,.0f})",
                 -deducted,
                 "commuting_deduction",
                 f"StG {rules.canton_code} / DBG Art. 26",
@@ -880,7 +880,7 @@ class TaxCalculationEngine:
         cap = rules.cantonal_deductions.meal_deduction_annual
         deducted = min(profile.meals_expense_claimed, cap)
         _line(
-            f"Mehrkosten Verpflegung (Max CHF {cap:,.0f}/Jahr)",
+            f"Meal expenses (Max CHF {cap:,.0f}/year)",
             -deducted,
             "meal_deduction",
             "DBG Art. 26 Abs. 1 lit. b",
@@ -908,7 +908,7 @@ class TaxCalculationEngine:
         deducted = min(max(actual, flat), lim.professional_expenses_max)
         if actual > flat:
             _line(
-                f"Berufskosten effektiv (CHF {actual:,.0f})",
+                f"Professional expenses actual (CHF {actual:,.0f})",
                 -deducted,
                 "professional_expenses_actual",
                 f"StG {rules.canton_code} / DBG Art. 26",
@@ -916,7 +916,7 @@ class TaxCalculationEngine:
             )
         else:
             _line(
-                f"Berufskosten Pauschalabzug ({lim.professional_expenses_flat_rate_pct*100:.0f}% von CHF {gross_income:,.0f})",
+                f"Professional expenses flat rate ({lim.professional_expenses_flat_rate_pct*100:.0f}% of CHF {gross_income:,.0f})",
                 -deducted,
                 "professional_expenses_flat",
                 f"StG {rules.canton_code} / DBG Art. 26",
@@ -936,7 +936,7 @@ class TaxCalculationEngine:
         )
         deducted = min(profile.pillar3a_contribution, limit)
         _line(
-            f"Säule 3a (Max CHF {limit:,.0f})",
+            f"Pillar 3a (Max CHF {limit:,.0f})",
             -deducted,
             "pillar3a_deduction",
             "BVG Art. 82 / BVV3",
@@ -961,7 +961,7 @@ class TaxCalculationEngine:
         deducted = min(profile.health_insurance_premium_paid, cap)
         if deducted > _ZERO:
             _line(
-                f"Krankenkassenprämien (Max CHF {cap:,.0f})",
+                f"Health insurance premiums (Max CHF {cap:,.0f})",
                 -deducted,
                 "health_insurance_deduction",
                 f"StG {rules.canton_code} § Krankenkasse",
@@ -985,7 +985,7 @@ class TaxCalculationEngine:
         deductible = _chf(deductible)
         if deductible > _ZERO:
             _line(
-                f"Krankheitskosten über {threshold_pct*100:.0f}%-Franchise (CHF {threshold:,.0f})",
+                f"Medical expenses above {threshold_pct*100:.0f}% threshold (CHF {threshold:,.0f})",
                 -deductible,
                 "medical_expense_deduction",
                 f"StG {rules.canton_code} / DBG Art. 33 lit. h",
@@ -1027,7 +1027,7 @@ class TaxCalculationEngine:
         max_donation = _chf(gross_income * lim.donation_max_pct)
         deducted = min(profile.donations, max_donation)
         _line(
-            f"Spenden (Min CHF {lim.donation_min_chf}, Max {lim.donation_max_pct*100:.0f}% v. Einkommen)",
+            f"Donations (Min CHF {lim.donation_min_chf}, Max {lim.donation_max_pct*100:.0f}% of income)",
             -deducted,
             "donation_deduction",
             f"StG {rules.canton_code} / DBG Art. 33a",
@@ -1045,7 +1045,7 @@ class TaxCalculationEngine:
         cap = rules.cantonal_deductions.childcare_max
         deducted = min(profile.childcare_costs, cap)
         _line(
-            f"Kinderbetreuungskosten (Max CHF {cap:,.0f})",
+            f"Childcare costs (Max CHF {cap:,.0f})",
             -deducted,
             "childcare_deduction",
             f"StG {rules.canton_code} / DBG Art. 33 Abs. 3",
@@ -1061,10 +1061,10 @@ class TaxCalculationEngine:
         per_child = rules.cantonal_deductions.child_deduction_per_child
         deducted = per_child * profile.num_children
         _line(
-            f"Kinderabzug ({profile.num_children} × CHF {per_child:,.0f})",
+            f"Child deduction ({profile.num_children} × CHF {per_child:,.0f})",
             -deducted,
             "child_deduction",
-            f"StG {rules.canton_code} Kinderabzug",
+            f"StG {rules.canton_code} child deduction",
             canton=rules.canton_code,
         )
         return deducted
@@ -1088,10 +1088,10 @@ class TaxCalculationEngine:
             if is_married
             else rules.federal_brackets_single
         )
-        status_label = "verheiratet" if is_married else "ledig"
+        status_label = "married" if is_married else "single"
         federal_tax = _chf(_apply_progressive_bracket(taxable_income, brackets))
         _line(
-            f"Direkte Bundessteuer ({status_label}, CHF {taxable_income:,.0f})",
+            f"Federal Income Tax ({status_label}, CHF {taxable_income:,.0f})",
             federal_tax,
             "federal_income_tax",
             "DBG Art. 36",

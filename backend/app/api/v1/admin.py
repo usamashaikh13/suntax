@@ -14,10 +14,11 @@ Endpoints:
 from __future__ import annotations
 
 import logging
-from typing import List, Optional
-from uuid import UUID
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,9 +29,6 @@ from app.models.document import Document
 from app.models.tax_return import TaxReturn
 from app.models.user import User
 from app.schemas.auth import UserResponse
-from pydantic import BaseModel, ConfigDict
-from datetime import datetime
-from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +59,8 @@ class SystemStats(BaseModel):
 class AuditLogResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
-    user_id: Optional[UUID]
+    id: str
+    user_id: Optional[str]
     action: str
     resource_type: Optional[str]
     resource_id: Optional[str]
@@ -132,7 +130,7 @@ async def admin_get_user(
     _admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == str(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -151,12 +149,12 @@ async def admin_toggle_user_activation(
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """Toggle user.is_active. Deactivating prevents future logins."""
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == str(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    if user.id == admin.id:
+    if str(user.id) == str(admin.id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Admins cannot deactivate themselves",
@@ -167,7 +165,7 @@ async def admin_toggle_user_activation(
 
     db.add(
         AuditLog(
-            user_id=admin.id,
+            user_id=str(admin.id),
             action="admin.user_deactivated" if not payload.is_active else "admin.user_activated",
             resource_type="user",
             resource_id=str(user.id),
@@ -227,7 +225,7 @@ async def admin_audit_logs(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     action: Optional[str] = Query(None),
-    user_id: Optional[UUID] = Query(None),
+    user_id: Optional[str] = Query(None),
     _admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedAuditLogs:
@@ -235,7 +233,7 @@ async def admin_audit_logs(
     if action:
         base_q = base_q.where(AuditLog.action.ilike(f"%{action}%"))
     if user_id:
-        base_q = base_q.where(AuditLog.user_id == user_id)
+        base_q = base_q.where(AuditLog.user_id == str(user_id))
 
     count_q = select(func.count()).select_from(base_q.subquery())
     total = (await db.execute(count_q)).scalar_one()
@@ -248,7 +246,7 @@ async def admin_audit_logs(
     logs = (await db.execute(items_q)).scalars().all()
 
     return PaginatedAuditLogs(
-        items=[AuditLogResponse.model_validate(l) for l in logs],
+        items=[AuditLogResponse.model_validate(log) for log in logs],
         total=total,
         page=page,
         page_size=page_size,

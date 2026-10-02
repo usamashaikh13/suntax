@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from typing import List
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -54,7 +53,7 @@ async def _get_owned_tax_return(
     result = await db.execute(
         select(TaxReturn).where(
             TaxReturn.id == str(tax_return_id),
-            TaxReturn.user_id == current_user.id,
+            TaxReturn.user_id == str(current_user.id),
         )
     )
     tax_return = result.scalar_one_or_none()
@@ -66,14 +65,14 @@ async def _get_owned_tax_return(
 async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> TaxProfile:
     """Every return has one editable profile, including returns created before this endpoint existed."""
     result = await db.execute(
-        select(TaxProfile).where(TaxProfile.tax_return_id == tax_return.id)
+        select(TaxProfile).where(TaxProfile.tax_return_id == str(tax_return.id))
     )
     profile = result.scalar_one_or_none()
     if profile:
         return profile
 
     profile = TaxProfile(
-        tax_return_id=tax_return.id,
+        tax_return_id=str(tax_return.id),
         personal_data={},
         income_data={},
         wealth_data={},
@@ -139,14 +138,14 @@ async def list_tax_returns(
     offset = (page - 1) * page_size
 
     count_q = select(func.count()).select_from(
-        select(TaxReturn).where(TaxReturn.user_id == current_user.id).subquery()
+        select(TaxReturn).where(TaxReturn.user_id == str(current_user.id)).subquery()
     )
     total_result = await db.execute(count_q)
     total = total_result.scalar_one()
 
     items_q = (
         select(TaxReturn)
-        .where(TaxReturn.user_id == current_user.id)
+        .where(TaxReturn.user_id == str(current_user.id))
         .order_by(TaxReturn.tax_year.desc(), TaxReturn.created_at.desc())
         .offset(offset)
         .limit(page_size)
@@ -189,7 +188,7 @@ async def create_tax_return(
 
     # Check for duplicate
     dup_q = select(TaxReturn).where(
-        TaxReturn.user_id == current_user.id,
+        TaxReturn.user_id == str(current_user.id),
         TaxReturn.canton_code == payload.canton_code.upper(),
         TaxReturn.tax_year == payload.tax_year,
     )
@@ -201,7 +200,7 @@ async def create_tax_return(
         )
 
     tax_return = TaxReturn(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         canton_code=payload.canton_code.upper(),
         municipality_code=payload.municipality_code,
         municipality_name=payload.municipality_name,
@@ -215,7 +214,7 @@ async def create_tax_return(
     # Audit
     db.add(
         AuditLog(
-            user_id=current_user.id,
+            user_id=str(current_user.id),
             action="tax_return.created",
             resource_type="tax_return",
             resource_id=str(tax_return.id),
@@ -236,6 +235,7 @@ async def get_tax_profile(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TaxProfileResponse:
+    """Return (or lazily create) the editable taxpayer profile for a tax return."""
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
     profile = await _get_or_create_profile(tax_return, db)
     return TaxProfileResponse.model_validate(profile)
@@ -281,18 +281,7 @@ async def get_tax_return(
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
     """Return a single tax return. Enforces ownership."""
-    await set_rls_user_id(db, current_user.id)
-
-    result = await db.execute(
-        select(TaxReturn).where(
-            TaxReturn.id == str(tax_return_id),
-            TaxReturn.user_id == current_user.id,
-        )
-    )
-    tax_return = result.scalar_one_or_none()
-    if not tax_return:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax return not found")
-
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
     return TaxReturnResponse.model_validate(tax_return)
 
 
@@ -308,17 +297,7 @@ async def update_tax_return(
     db: AsyncSession = Depends(get_db),
 ) -> TaxReturnResponse:
     """Update mutable fields on a tax return. Only status is permitted via this endpoint."""
-    await set_rls_user_id(db, current_user.id)
-
-    result = await db.execute(
-        select(TaxReturn).where(
-            TaxReturn.id == str(tax_return_id),
-            TaxReturn.user_id == current_user.id,
-        )
-    )
-    tax_return = result.scalar_one_or_none()
-    if not tax_return:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax return not found")
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
 
     if payload.status is not None:
         tax_return.status = payload.status
@@ -341,17 +320,7 @@ async def delete_tax_return(
     """
     Delete a tax return. Only returns in 'draft' status may be deleted.
     """
-    await set_rls_user_id(db, current_user.id)
-
-    result = await db.execute(
-        select(TaxReturn).where(
-            TaxReturn.id == str(tax_return_id),
-            TaxReturn.user_id == current_user.id,
-        )
-    )
-    tax_return = result.scalar_one_or_none()
-    if not tax_return:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tax return not found")
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
 
     if tax_return.status != "draft":
         raise HTTPException(
@@ -361,7 +330,7 @@ async def delete_tax_return(
 
     db.add(
         AuditLog(
-            user_id=current_user.id,
+            user_id=str(current_user.id),
             action="tax_return.deleted",
             resource_type="tax_return",
             resource_id=str(tax_return.id),

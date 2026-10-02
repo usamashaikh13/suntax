@@ -17,9 +17,10 @@ import hashlib
 import json
 import logging
 import mimetypes
+import re
 import uuid as uuid_mod
+from datetime import datetime, timezone
 from typing import List, Optional
-from uuid import UUID
 
 try:
     import magic as _magic_lib
@@ -40,6 +41,7 @@ except (ImportError, OSError):
         if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
             return "image/webp"
         return "application/octet-stream"
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -58,6 +60,7 @@ from app.core.security import get_current_user
 from app.models.audit_log import AuditLog
 from app.models.document import Document
 from app.models.tax_return import TaxReturn
+from app.models.tax_profile import TaxProfile
 from app.models.user import User
 from app.schemas.document import (
     DocumentListResponse,
@@ -83,6 +86,70 @@ def _compute_sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _extract_local_text(file_bytes: bytes, mime_type: str) -> str:
+    """Best-effort OCR for development and worker-less deployments."""
+    try:
+        if mime_type == "application/pdf":
+            import fitz
+            pdf = fitz.open(stream=file_bytes, filetype="pdf")
+            return "\n".join(page.get_text() for page in pdf)
+        from PIL import Image
+        import pytesseract
+        import io
+        return pytesseract.image_to_string(Image.open(io.BytesIO(file_bytes)), lang="deu+eng")
+    except Exception as exc:
+        logger.warning("Local OCR unavailable: %s", exc)
+        return ""
+
+
+def _number_after(labels: tuple[str, ...], text: str) -> float | None:
+    for label in labels:
+        match = re.search(rf"{label}[^0-9]{{0,40}}([0-9][0-9'., ]*)", text, re.I)
+        if match:
+            try:
+                return float(match.group(1).replace("'", "").replace(" ", "").replace(",", "."))
+            except ValueError:
+                continue
+    return None
+
+
+def _local_extract(text: str, filename: str) -> tuple[str, float, dict, dict]:
+    haystack = f"{filename}\n{text}".lower()
+    if any(term in haystack for term in ("lohnausweis", "salary certificate", "gross salary", "bruttolohn")):
+        gross = _number_after(("gross salary", "bruttolohn", "salary"), text)
+        data = {"gross_salary": gross}
+        return "salary_certificate", 0.85, data, {"gross_salary": 0.85} if gross is not None else {}
+    if any(term in haystack for term in ("pillar 3a", "säule 3a")):
+        amount = _number_after(("contribution", "einzahlung", "betrag"), text)
+        return "pillar3a", 0.75, {"contribution_amount": amount}, {"contribution_amount": 0.75} if amount is not None else {}
+    if any(term in haystack for term in ("bank statement", "kontoauszug", "vermögensausweis")):
+        balance = _number_after(("balance", "saldo", "guthaben"), text)
+        return "bank_statement", 0.70, {"balance": balance}, {"balance": 0.70} if balance is not None else {}
+    return "other", 0.35, {"extraction_note": "No deterministic document template matched. Review manually."}, {}
+
+
+async def _process_locally(document: Document, db: AsyncSession) -> None:
+    """Persist OCR/extraction and merge only high-confidence values into the profile."""
+    text = _extract_local_text(await storage.download_file(document.storage_key), document.mime_type)
+    doc_type, score, data, confidence = _local_extract(text, document.original_filename)
+    document.ocr_text, document.document_type = text, doc_type
+    document.classification_confidence = score
+    document.extracted_data, document.extraction_confidence = data, confidence
+    document.processing_status, document.processed_at = "done", datetime.now(timezone.utc)
+    if document.tax_return_id:
+        profile = (await db.execute(select(TaxProfile).where(TaxProfile.tax_return_id == str(document.tax_return_id)))).scalar_one_or_none()
+        if profile:
+            if doc_type == "salary_certificate" and data.get("gross_salary") is not None:
+                income = dict(profile.income_data or {})
+                income["employment_income"] = data["gross_salary"]
+                profile.income_data = income
+            if doc_type == "pillar3a" and data.get("contribution_amount") is not None:
+                deductions = dict(profile.deductions_data or {})
+                deductions["pillar3a_contributions"] = data["contribution_amount"]
+                profile.deductions_data = deductions
+    await db.flush()
+
+
 def _validate_mime(content_type: str, file_bytes: bytes) -> str:
     """
     Double-check the MIME type using libmagic (magic bytes).
@@ -102,6 +169,26 @@ def _validate_mime(content_type: str, file_bytes: bytes) -> str:
     return detected
 
 
+# ── Private helpers ───────────────────────────────────────────────────────────
+
+
+async def _get_owned_document(
+    db: AsyncSession, document_id: str, user_id: str
+) -> Document:
+    result = await db.execute(
+        select(Document).where(
+            Document.id == str(document_id),
+            Document.user_id == str(user_id),
+        )
+    )
+    doc = result.scalar_one_or_none()
+    if not doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
+    return doc
+
+
 # ── Upload ────────────────────────────────────────────────────────────────────
 
 
@@ -113,7 +200,7 @@ def _validate_mime(content_type: str, file_bytes: bytes) -> str:
 )
 async def upload_documents(
     files: List[UploadFile] = File(..., description="One or more files to upload"),
-    tax_return_id: Optional[UUID] = Query(
+    tax_return_id: Optional[str] = Query(
         None, description="Associate uploaded files with a tax return"
     ),
     current_user: User = Depends(get_current_user),
@@ -126,7 +213,7 @@ async def upload_documents(
     - Enforces per-file size limit (MAX_UPLOAD_SIZE_MB).
     - Computes SHA-256 hash and flags potential duplicates.
     - Stores file in MinIO under a user-scoped path.
-    - Enqueues the async Celery processing pipeline.
+    - Enqueues the async Celery processing pipeline (non-fatal if unavailable).
     """
     await set_rls_user_id(db, current_user.id)
 
@@ -141,7 +228,7 @@ async def upload_documents(
         tr_result = await db.execute(
             select(TaxReturn).where(
                 TaxReturn.id == str(tax_return_id),
-                TaxReturn.user_id == current_user.id,
+                TaxReturn.user_id == str(current_user.id),
             )
         )
         if not tr_result.scalar_one_or_none():
@@ -180,7 +267,7 @@ async def upload_documents(
         # Check for existing document with same hash belonging to this user
         dup_result = await db.execute(
             select(Document).where(
-                Document.user_id == current_user.id,
+                Document.user_id == str(current_user.id),
                 Document.sha256_hash == sha256,
             )
         )
@@ -199,7 +286,7 @@ async def upload_documents(
         # Persist document record
         document = Document(
             id=doc_id,
-            user_id=current_user.id,
+            user_id=str(current_user.id),
             tax_return_id=str(tax_return_id) if tax_return_id else None,
             original_filename=file.filename or f"document{ext}",
             storage_key=storage_key,
@@ -215,7 +302,7 @@ async def upload_documents(
         # Audit log
         db.add(
             AuditLog(
-                user_id=current_user.id,
+                user_id=str(current_user.id),
                 action="document.upload",
                 resource_type="document",
                 resource_id=str(doc_id),
@@ -235,10 +322,16 @@ async def upload_documents(
             process_document.delay(str(doc_id))
         except Exception:
             queued = False
-            logger.exception(
-                "Document %s was stored but could not be queued for background processing",
+            logger.warning(
+                "Document %s was stored but could not be queued for background processing "
+                "(Celery/Redis may not be running in this environment)",
                 doc_id,
             )
+            try:
+                await _process_locally(document, db)
+            except Exception:
+                logger.exception("Local document processing failed for %s", doc_id)
+                document.processing_status = "failed"
 
         logger.info(
             "Uploaded document id=%s user=%s size=%d dup=%s",
@@ -252,11 +345,11 @@ async def upload_documents(
             DocumentUploadResponse(
                 id=doc_id,
                 original_filename=document.original_filename,
-                processing_status="pending",
+                processing_status=document.processing_status,
                 message=(
                     "File uploaded and queued for processing"
                     if queued
-                    else "File uploaded. Background processing is unavailable in this environment."
+                    else "File uploaded and processed with the local OCR fallback."
                 )
                 + (" (possible duplicate detected)" if is_dup else ""),
             )
@@ -274,7 +367,7 @@ async def upload_documents(
     summary="List the current user's documents",
 )
 async def list_documents(
-    tax_return_id: Optional[UUID] = Query(None),
+    tax_return_id: Optional[str] = Query(None),
     processing_status: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -283,9 +376,9 @@ async def list_documents(
 ) -> DocumentListResponse:
     await set_rls_user_id(db, current_user.id)
 
-    base_q = select(Document).where(Document.user_id == current_user.id)
+    base_q = select(Document).where(Document.user_id == str(current_user.id))
     if tax_return_id:
-        base_q = base_q.where(Document.tax_return_id == tax_return_id)
+        base_q = base_q.where(Document.tax_return_id == str(tax_return_id))
     if processing_status:
         base_q = base_q.where(Document.processing_status == processing_status)
 
@@ -321,7 +414,7 @@ async def get_document(
     db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
     await set_rls_user_id(db, current_user.id)
-    doc = await _get_owned_document(db, document_id, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
     return DocumentResponse.model_validate(doc)
 
 
@@ -339,7 +432,7 @@ async def get_download_url(
     db: AsyncSession = Depends(get_db),
 ) -> PresignedUrlResponse:
     await set_rls_user_id(db, current_user.id)
-    doc = await _get_owned_document(db, document_id, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
     url = await storage.generate_presigned_url(doc.storage_key, expires_seconds=600)
     return PresignedUrlResponse(url=url, expires_in_seconds=600)
 
@@ -358,7 +451,7 @@ async def get_document_status(
     db: AsyncSession = Depends(get_db),
 ) -> DocumentStatusResponse:
     await set_rls_user_id(db, current_user.id)
-    doc = await _get_owned_document(db, document_id, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
     return DocumentStatusResponse(
         id=doc.id,
         processing_status=doc.processing_status,
@@ -384,7 +477,7 @@ async def update_document(
     db: AsyncSession = Depends(get_db),
 ) -> DocumentResponse:
     await set_rls_user_id(db, current_user.id)
-    doc = await _get_owned_document(db, document_id, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
 
     if payload.document_type is not None:
         doc.document_type = payload.document_type
@@ -393,8 +486,8 @@ async def update_document(
         # Validate ownership of the target tax return
         tr_result = await db.execute(
             select(TaxReturn).where(
-                TaxReturn.id == payload.tax_return_id,
-                TaxReturn.user_id == current_user.id,
+                TaxReturn.id == str(payload.tax_return_id),
+                TaxReturn.user_id == str(current_user.id),
             )
         )
         if not tr_result.scalar_one_or_none():
@@ -402,7 +495,7 @@ async def update_document(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tax return not found",
             )
-        doc.tax_return_id = payload.tax_return_id
+        doc.tax_return_id = str(payload.tax_return_id)
 
     db.add(doc)
     return DocumentResponse.model_validate(doc)
@@ -423,14 +516,14 @@ async def delete_document(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     await set_rls_user_id(db, current_user.id)
-    doc = await _get_owned_document(db, document_id, current_user.id)
+    doc = await _get_owned_document(db, document_id, str(current_user.id))
 
     # Delete from MinIO
     await storage.delete_file(doc.storage_key)
 
     db.add(
         AuditLog(
-            user_id=current_user.id,
+            user_id=str(current_user.id),
             action="document.deleted",
             resource_type="document",
             resource_id=str(doc.id),
@@ -438,23 +531,3 @@ async def delete_document(
         )
     )
     await db.delete(doc)
-
-
-# ── Private helpers ───────────────────────────────────────────────────────────
-
-
-async def _get_owned_document(
-    db: AsyncSession, document_id: str, user_id: UUID
-) -> Document:
-    result = await db.execute(
-        select(Document).where(
-            Document.id == str(document_id),
-            Document.user_id == user_id,
-        )
-    )
-    doc = result.scalar_one_or_none()
-    if not doc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
-        )
-    return doc

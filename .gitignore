@@ -1,163 +1,72 @@
-# ─────────────────────────────────────────────────────────────
-#  SunTax – .gitignore
-# ─────────────────────────────────────────────────────────────
-
-# ── Secrets & Environment (NEVER commit these) ────────────────
-.env
-.env.local
-.env.production
-.env.staging
-.env.*.local
-!.env.example
-
-# ── Python ───────────────────────────────────────────────────
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
-*.pyd
 .Python
-pip-log.txt
-pip-delete-this-directory.txt
-*.egg
+.venv/
+venv/
+env/
 *.egg-info/
 dist/
 build/
-eggs/
-parts/
-var/
-sdist/
-develop-eggs/
-.installed.cfg
-lib/
-lib64/
-.eggs/
-.cache/
-*.manifest
-*.spec
-
-# ── Python Virtual Environments ───────────────────────────────
-venv/
-.venv/
-env/
-.env_dir/
-ENV/
-env.bak/
-venv.bak/
-
-# ── Python Testing & Coverage ─────────────────────────────────
 .pytest_cache/
-.coverage
-.coverage.*
-coverage.xml
-coverage/
-htmlcov/
-.tox/
-.nox/
-nosetests.xml
-*.cover
-*.py,cover
-
-# ── Python Type Checking ──────────────────────────────────────
 .mypy_cache/
-.dmypy.json
-dmypy.json
-.pytype/
+.ruff_cache/
+*.db
+*.db-shm
+*.db-wal
+dev_storage/
+celerybeat-schedule
+celerybeat.pid
 
-# ── Alembic (keep versions/, ignore auto-generated) ──────────
-# backend/alembic/versions/*.py  ← keep these
-backend/alembic/__pycache__/
-
-# ── Node.js / Frontend ────────────────────────────────────────
+# Node / Next.js
 node_modules/
+.next/
+.next*/
+*.pre-e2e-backup/
+out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-.npm
-.yarn/
-
-# ── Next.js ───────────────────────────────────────────────────
-.next/
-.next.pre-e2e-backup/
-out/
-next-env.d.ts
+.eslintcache
 *.tsbuildinfo
 
-# ── JavaScript Build Outputs ──────────────────────────────────
-dist/
-build/
-.nuxt/
-.output/
-.vercel/
+# Temporary & Output
+tmp/
+output/
 
-# ── Frontend Testing ──────────────────────────────────────────
-coverage/
-.vitest/
-test-results/
+# Environment files (never commit secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.local.example
+!backend/.env.example
+!frontend/.env.example
+!frontend/.env.local.example
 
-# ── Docker ────────────────────────────────────────────────────
-# Local Docker volume data directories
-postgres_data/
-redis_data/
-minio_data/
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
 
-# ── IDE / Editor ──────────────────────────────────────────────
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-*.sublime-project
-*.sublime-workspace
-.editorconfig_local
+*.iml
 
-# ── macOS ─────────────────────────────────────────────────────
-.DS_Store
-.AppleDouble
-.LSOverride
-Icon
-._*
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# ── Linux ─────────────────────────────────────────────────────
-*~
-
-# ── Windows ───────────────────────────────────────────────────
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# ── Logs ─────────────────────────────────────────────────────
+# Logs
 logs/
 *.log
-*.log.*
+npm-debug.log
+yarn-debug.log
 
-# ── TLS / SSL Certificates (managed separately) ───────────────
-*.pem
-*.key
-*.crt
-*.p12
-!infrastructure/nginx/dhparam.pem.example
-
-# ── Backup files ──────────────────────────────────────────────
-backups/
-*.sql.gz
-*.dump
-
-# ── Miscellaneous ─────────────────────────────────────────────
-output/
-tmp/
-dev_storage/
-*.db
-*.bak
-*.tmp
-*.temp
-.terraform/
-*.tfstate
-*.tfstate.backup
+# Uploaded files & local storage
+uploads/
+media/

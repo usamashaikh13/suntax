@@ -3,6 +3,10 @@ Email service for SunTax using the Resend API.
 
 All emails are sent as HTML with inline templates. The service
 uses httpx for async HTTP requests to the Resend REST API.
+
+In development mode (ENVIRONMENT=development or ENVIRONMENT=test), or when
+no RESEND_API_KEY is configured, emails are printed to the console instead of
+being sent via the API, so the full application works without any email setup.
 """
 
 from __future__ import annotations
@@ -23,8 +27,8 @@ class EmailService:
     """
     Async email delivery via Resend (https://resend.com).
 
-    Falls back to logging in development/test environments when no
-    API key is configured.
+    Falls back to console output in development/test environments or when no
+    API key is configured, ensuring the app is fully functional without email.
     """
 
     def __init__(self) -> None:
@@ -32,17 +36,41 @@ class EmailService:
         self._from_address = settings.EMAIL_FROM
         self._is_dev = settings.ENVIRONMENT in ("development", "test")
 
+    def _should_use_console(self) -> bool:
+        """Return True when we should print to console instead of calling Resend."""
+        if self._is_dev:
+            return True
+        if not self._api_key or self._api_key.startswith("re_your_"):
+            return True
+        return False
+
     async def _send(self, to: str, subject: str, html: str) -> bool:
         """
         Send an email via the Resend API.
 
+        In development mode, or when no API key is configured, prints the
+        email details to the console and returns True immediately.
+
         Returns True on success, False on failure (non-raising).
         """
-        if self._is_dev or self._api_key.startswith("re_your_"):
+        if self._should_use_console():
+            # Extract a plain-text preview from HTML (very rough)
+            import re
+            plain = re.sub(r"<[^>]+>", "", html).strip()
+            plain_preview = " ".join(plain.split())[:300]
             logger.info(
-                "[DEV EMAIL] To: %s | Subject: %s\n--- (HTML omitted) ---",
+                "[DEV EMAIL] ─────────────────────────────────────────\n"
+                "  To:      %s\n"
+                "  Subject: %s\n"
+                "  Preview: %s…\n"
+                "─────────────────────────────────────────────────────",
                 to,
                 subject,
+                plain_preview,
+            )
+            print(
+                f"\n[DEV EMAIL] To: {to} | Subject: {subject}\n"
+                f"  Preview: {plain_preview[:120]}…\n"
             )
             return True
 
@@ -54,23 +82,27 @@ class EmailService:
         }
         headers = {"Authorization": f"Bearer {self._api_key}"}
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            try:
-                response = await client.post(RESEND_API_URL, json=payload, headers=headers)
-                response.raise_for_status()
-                logger.info("Email sent to %s (subject: %s)", to, subject)
-                return True
-            except httpx.HTTPStatusError as exc:
-                logger.error(
-                    "Resend API error %d for %s: %s",
-                    exc.response.status_code,
-                    to,
-                    exc.response.text,
-                )
-                return False
-            except Exception as exc:
-                logger.exception("Failed to send email to %s: %s", to, exc)
-                return False
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                try:
+                    response = await client.post(RESEND_API_URL, json=payload, headers=headers)
+                    response.raise_for_status()
+                    logger.info("Email sent to %s (subject: %s)", to, subject)
+                    return True
+                except httpx.HTTPStatusError as exc:
+                    logger.error(
+                        "Resend API error %d for %s: %s",
+                        exc.response.status_code,
+                        to,
+                        exc.response.text,
+                    )
+                    return False
+                except httpx.RequestError as exc:
+                    logger.error("Network error sending email to %s: %s", to, exc)
+                    return False
+        except Exception as exc:
+            logger.exception("Unexpected error in email delivery to %s: %s", to, exc)
+            return False
 
     # ── Email templates ───────────────────────────────────────────────────────
 

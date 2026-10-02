@@ -4,7 +4,7 @@ AI Tax Assistant API router.
 from __future__ import annotations
 
 import json
-import uuid
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -17,6 +17,8 @@ from app.core.config import settings
 from app.models.user import User
 from app.models.tax_return import TaxReturn
 from app.models.tax_profile import TaxProfile
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -54,9 +56,16 @@ class ChatResponse(BaseModel):
     conversation_id: str
 
 
-def _get_redis():
-    import redis as redis_lib
-    return redis_lib.from_url(settings.REDIS_URL, decode_responses=True)
+async def _get_redis():
+    """Return an async Redis client (fakeredis in dev, real Redis in prod)."""
+    try:
+        import fakeredis.aioredis as fakeredis_aio
+        if settings.ENVIRONMENT in ("development", "test"):
+            return fakeredis_aio.FakeRedis(decode_responses=True)
+    except ImportError:
+        pass
+    import redis.asyncio as aioredis
+    return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
 
 
 def _history_key(user_id: str, tax_return_id: str) -> str:
@@ -71,7 +80,10 @@ async def _get_tax_return_with_profile(
     await set_rls_user_id(db, str(current_user.id))
     tr_result = await db.execute(
         select(TaxReturn).where(
-            and_(TaxReturn.id == uuid.UUID(tax_return_id), TaxReturn.user_id == current_user.id)
+            and_(
+                TaxReturn.id == str(tax_return_id),
+                TaxReturn.user_id == str(current_user.id),
+            )
         )
     )
     tr = tr_result.scalar_one_or_none()
@@ -79,7 +91,7 @@ async def _get_tax_return_with_profile(
         raise HTTPException(status_code=404, detail="Tax return not found")
 
     profile_result = await db.execute(
-        select(TaxProfile).where(TaxProfile.tax_return_id == tr.id)
+        select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
     )
     profile = profile_result.scalar_one_or_none()
     return tr, profile
@@ -102,22 +114,21 @@ async def chat(
     profile_context = ""
     if profile:
         pd = profile.personal_data or {}
-        inc = profile.income or {}
-        ded = profile.deductions or {}
+        inc = profile.income_data or {}
+        ded = profile.deductions_data or {}
         profile_context = (
             f"\n\nAktuelles Steuerprofil des Benutzers:\n"
             f"Kanton: {tr.canton_code}, Gemeinde: {tr.municipality_name}, Steuerjahr: {tr.tax_year}\n"
             f"Name: {pd.get('name', 'nicht erfasst')}\n"
-            f"Zivilstand: {pd.get('marital_status', 'nicht erfasst')}\n"
-            f"Erwerbseinkommen: CHF {inc.get('total_employment_income', 'nicht erfasst')}\n"
-            f"Säule 3a: CHF {ded.get('pillar3a_total', 'nicht erfasst')}\n"
-            f"Offene Fragen: {len(profile.questions or [])}\n"
+            f"Zivilstand: {pd.get('civil_status', 'nicht erfasst')}\n"
+            f"Erwerbseinkommen: CHF {inc.get('employment_income', 'nicht erfasst')}\n"
+            f"Pillar 3a: CHF {ded.get('pillar3a_contributions', 'not recorded')}\n"
         )
 
-    # Load conversation history from Redis
-    r = _get_redis()
+    # Load conversation history from Redis (async)
+    r = await _get_redis()
     history_key = _history_key(str(current_user.id), tax_return_id)
-    raw_history = r.get(history_key)
+    raw_history = await r.get(history_key)
     history: list[dict] = json.loads(raw_history) if raw_history else []
 
     # Build Gemini conversation
@@ -148,7 +159,7 @@ async def chat(
     history.append({"role": "user", "content": body.message})
     history.append({"role": "model", "content": assistant_reply})
     history = history[-40:]
-    r.setex(history_key, 86400 * 7, json.dumps(history))  # 7 days TTL
+    await r.setex(history_key, 86400 * 7, json.dumps(history))  # 7 days TTL
 
     return ChatResponse(
         message=assistant_reply,
@@ -164,9 +175,9 @@ async def get_chat_history(
 ):
     """Retrieve conversation history."""
     await _get_tax_return_with_profile(tax_return_id, db, current_user)
-    r = _get_redis()
+    r = await _get_redis()
     history_key = _history_key(str(current_user.id), tax_return_id)
-    raw = r.get(history_key)
+    raw = await r.get(history_key)
     return {"history": json.loads(raw) if raw else []}
 
 
@@ -178,6 +189,6 @@ async def clear_chat_history(
 ):
     """Clear conversation history."""
     await _get_tax_return_with_profile(tax_return_id, db, current_user)
-    r = _get_redis()
-    r.delete(_history_key(str(current_user.id), tax_return_id))
+    r = await _get_redis()
+    await r.delete(_history_key(str(current_user.id), tax_return_id))
     return {"message": "History cleared"}
