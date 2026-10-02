@@ -140,7 +140,14 @@ async def websocket_endpoint(websocket: WebSocket, tax_return_id: str):
 # ---------------------------------------------------------------------------
 @app.exception_handler(ValidationError)
 async def validation_exception_handler(request: Request, exc: ValidationError):
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    try:
+        errors = [
+            {"loc": err.get("loc"), "msg": err.get("msg"), "type": err.get("type")}
+            for err in exc.errors()
+        ]
+        return JSONResponse(status_code=422, content={"detail": errors})
+    except Exception:
+        return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 @app.exception_handler(Exception)

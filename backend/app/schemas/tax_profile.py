@@ -4,7 +4,7 @@ Pydantic v2 schemas for TaxProfile and its nested structures.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 from datetime import datetime
 
@@ -174,8 +174,8 @@ class TaxProfileResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    id: UUID
-    tax_return_id: UUID
+    id: Union[UUID, str]
+    tax_return_id: Union[UUID, str]
     personal_data: Optional[PersonalData] = None
     income_data: Optional[IncomeData] = None
     wealth_data: Optional[WealthData] = None
@@ -185,8 +185,8 @@ class TaxProfileResponse(BaseModel):
     tax_flags: Optional[List[TaxFlag]] = None
     completeness_score: Optional[int] = None
     notes: Optional[str] = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
 
 
 class TaxProfileUpdateRequest(BaseModel):

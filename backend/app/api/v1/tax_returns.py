@@ -71,6 +71,8 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
     if profile:
         return profile
 
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     profile = TaxProfile(
         tax_return_id=str(tax_return.id),
         personal_data={},
@@ -81,9 +83,12 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
         tax_questions=[],
         tax_flags=[],
         completeness_score=0,
+        created_at=now,
+        updated_at=now,
     )
     db.add(profile)
-    await db.flush()
+    await db.commit()
+    await db.refresh(profile)
     return profile
 
 
@@ -265,8 +270,13 @@ async def update_tax_profile(
         value = getattr(payload, field)
         if value is not None:
             setattr(profile, field, value.model_dump() if hasattr(value, "model_dump") else value)
+    from datetime import datetime, timezone
+    profile.updated_at = datetime.now(timezone.utc)
+    if profile.created_at is None:
+        profile.created_at = datetime.now(timezone.utc)
     db.add(profile)
-    await db.flush()
+    await db.commit()
+    await db.refresh(profile)
     return TaxProfileResponse.model_validate(profile)
 
 

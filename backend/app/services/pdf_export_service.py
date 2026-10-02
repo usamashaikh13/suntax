@@ -15,34 +15,46 @@ except (OSError, ImportError):
 def generate_tax_return_pdf(tax_return, profile, calculation) -> bytes:
     """Generate a PDF from the tax return data."""
 
-    pd = profile.personal_data or {}
-    inc = profile.income or {}
-    wealth = profile.wealth or {}
-    ded = profile.deductions or {}
-    liab = profile.liabilities or {}
-    results = calculation.results or {}
-    breakdown = calculation.breakdown or []
+    pd = getattr(profile, "personal_data", {}) or {}
+    inc = getattr(profile, "income_data", {}) or getattr(profile, "income", {}) or {}
+    wealth = getattr(profile, "wealth_data", {}) or getattr(profile, "wealth", {}) or {}
+    ded = getattr(profile, "deductions_data", {}) or getattr(profile, "deductions", {}) or {}
+    liab = getattr(profile, "liabilities_data", {}) or getattr(profile, "liabilities", {}) or {}
 
-    name = pd.get("name", "–")
-    address = pd.get("address", "–")
+    details = getattr(calculation, "calculation_details", {}) or {}
+    if isinstance(details, str):
+        import json
+        try:
+            details = json.loads(details)
+        except Exception:
+            details = {}
+    elif not isinstance(details, dict):
+        details = {}
+
+    results = getattr(calculation, "results", None) or details.get("results") or details or {}
+    breakdown = getattr(calculation, "breakdown", None) or details.get("breakdown") or []
+
+    first_last = f"{pd.get('first_name', '')} {pd.get('last_name', '')}".strip()
+    name = first_last if first_last else pd.get("name", "–")
+    address = f"{pd.get('address_street', '')}, {pd.get('address_zip', '')} {pd.get('address_city', '')}".strip(" ,") or pd.get("address", "–")
     dob = pd.get("date_of_birth", "–")
-    marital = pd.get("marital_status", "–")
+    marital = pd.get("civil_status", pd.get("marital_status", "–"))
 
-    total_income = inc.get("total_employment_income", 0) or 0
+    total_income = inc.get("employment_income", 0) or inc.get("total_employment_income", 0) or 0
     total_wealth = sum(
-        (a.get("balance") or 0) for a in (wealth.get("bank_accounts") or [])
+        (a.get("balance_chf") or a.get("balance") or 0) for a in (wealth.get("bank_accounts") or [])
     )
-    pillar3a = ded.get("pillar3a_total", 0) or 0
-    donations = ded.get("donations_total", 0) or 0
-    mortgage_interest = ded.get("mortgage_interest", 0) or 0
+    pillar3a = ded.get("pillar3a_contributions", 0) or ded.get("pillar3a_total", 0) or 0
+    donations = ded.get("donations", 0) or ded.get("donations_total", 0) or 0
+    mortgage_interest = ded.get("debt_interest", 0) or ded.get("mortgage_interest", 0) or 0
 
-    federal_tax = results.get("federal_income_tax", 0) or 0
-    cantonal_tax = results.get("cantonal_income_tax", 0) or 0
-    municipal_tax = results.get("municipal_income_tax", 0) or 0
-    wealth_tax = results.get("wealth_tax", 0) or 0
-    total_tax = results.get("total_tax", 0) or 0
-    taxable_income = results.get("taxable_income", 0) or 0
-    taxable_wealth_val = results.get("taxable_wealth", 0) or 0
+    federal_tax = getattr(calculation, "federal_income_tax", None) or results.get("federal_income_tax", 0) or 0
+    cantonal_tax = getattr(calculation, "cantonal_income_tax", None) or results.get("cantonal_income_tax", 0) or 0
+    municipal_tax = getattr(calculation, "municipal_income_tax", None) or results.get("municipal_income_tax", 0) or 0
+    wealth_tax = getattr(calculation, "wealth_tax", None) or results.get("wealth_tax", 0) or 0
+    total_tax = getattr(calculation, "total_tax_due", None) or results.get("total_tax", 0) or 0
+    taxable_income = getattr(calculation, "taxable_income", None) or results.get("taxable_income", 0) or 0
+    taxable_wealth_val = getattr(calculation, "taxable_wealth", None) or results.get("taxable_wealth", 0) or 0
 
     def chf(val):
         try:
@@ -62,8 +74,8 @@ def generate_tax_return_pdf(tax_return, profile, calculation) -> bytes:
 
     canton_code = tax_return.canton_code
     tax_year = tax_return.tax_year
-    municipality = tax_return.municipality_name
-    rule_version = calculation.tax_rule_version
+    municipality = getattr(tax_return, "municipality_name", "") or getattr(tax_return, "municipality_code", "")
+    rule_version = getattr(calculation, "rule_version", getattr(calculation, "tax_rule_version", "1.0.0"))
     generated_at = datetime.now().strftime("%d.%m.%Y %H:%M")
 
     html_content = f"""<!DOCTYPE html>

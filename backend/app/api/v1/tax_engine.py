@@ -282,6 +282,32 @@ async def get_calculation(
     }
 
 
+@router.get(
+    "/tax-returns/{tax_return_id}/calculation/breakdown",
+    tags=["Tax Engine"],
+)
+async def get_calculation_breakdown(
+    tax_return_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get line-by-line statutory tax breakdown."""
+    tr = await _get_tax_return(tax_return_id, db, current_user)
+    result = await db.execute(
+        select(TaxCalculation)
+        .where(TaxCalculation.tax_return_id == str(tr.id))
+        .order_by(TaxCalculation.calculated_at.desc())
+        .limit(1)
+    )
+    calc = result.scalar_one_or_none()
+    if not calc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No calculation found. Run /calculate first.",
+        )
+    return (calc.calculation_details or {}).get("breakdown", [])
+
+
 # ── PDF Export ────────────────────────────────────────────────────────────────
 
 

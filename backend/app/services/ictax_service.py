@@ -30,6 +30,7 @@ _ICTAX_DIRECTORY: Dict[str, dict] = {
     # Nestlé SA
     "CH0038863350": {
         "valor": "3886335",
+        "ticker": "NESN",
         "name": "Nestlé SA (Reg. Shares)",
         "currency": "CHF",
         "tax_value_per_unit": 98.40,
@@ -39,6 +40,7 @@ _ICTAX_DIRECTORY: Dict[str, dict] = {
     # Novartis AG
     "CH0012005267": {
         "valor": "1200526",
+        "ticker": "NOVN",
         "name": "Novartis AG (Reg. Shares)",
         "currency": "CHF",
         "tax_value_per_unit": 94.20,
@@ -48,6 +50,7 @@ _ICTAX_DIRECTORY: Dict[str, dict] = {
     # Roche Holding AG
     "CH0012032048": {
         "valor": "1203204",
+        "ticker": "ROG",
         "name": "Roche Holding AG (Dividend-right Certificate)",
         "currency": "CHF",
         "tax_value_per_unit": 248.50,
@@ -57,6 +60,7 @@ _ICTAX_DIRECTORY: Dict[str, dict] = {
     # UBS Group AG
     "CH0244767585": {
         "valor": "24476758",
+        "ticker": "UBSG",
         "name": "UBS Group AG (Reg. Shares)",
         "currency": "CHF",
         "tax_value_per_unit": 26.80,
@@ -112,10 +116,15 @@ class ICTaxService:
         """
         cleaned_id = identifier.strip().upper()
 
-        # Find in directory by ISIN or Valor
+        # Find in directory by ISIN, Valor, Ticker, or Name
         sec_info = None
         for isin, info in _ICTAX_DIRECTORY.items():
-            if isin == cleaned_id or info["valor"] == cleaned_id:
+            if (
+                isin == cleaned_id
+                or info.get("valor") == cleaned_id
+                or info.get("ticker", "").upper() == cleaned_id
+                or cleaned_id in info.get("name", "").upper()
+            ):
                 sec_info = info
                 sec_isin = isin
                 break

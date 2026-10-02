@@ -18,13 +18,24 @@ def _sub(parent, tag, text=None, **attrs):
 def generate_ech_xml(tax_return, profile, calculation) -> str:
     """Generate eCH-0196 compatible XML from the tax return."""
 
-    pd = profile.personal_data or {}
-    inc = profile.income or {}
-    wealth = profile.wealth or {}
-    ded = profile.deductions or {}
-    liab = profile.liabilities or {}
-    secs = profile.securities or []
-    results = calculation.results or {}
+    pd = getattr(profile, "personal_data", {}) or {}
+    inc = getattr(profile, "income_data", {}) or getattr(profile, "income", {}) or {}
+    wealth = getattr(profile, "wealth_data", {}) or getattr(profile, "wealth", {}) or {}
+    ded = getattr(profile, "deductions_data", {}) or getattr(profile, "deductions", {}) or {}
+    liab = getattr(profile, "liabilities_data", {}) or getattr(profile, "liabilities", {}) or {}
+    secs = wealth.get("securities") or getattr(profile, "securities", []) or []
+
+    details = getattr(calculation, "calculation_details", {}) or {}
+    if isinstance(details, str):
+        import json
+        try:
+            details = json.loads(details)
+        except Exception:
+            details = {}
+    elif not isinstance(details, dict):
+        details = {}
+
+    results = getattr(calculation, "results", None) or details.get("results") or details or {}
 
     now = datetime.now().isoformat()
 
@@ -44,24 +55,28 @@ def generate_ech_xml(tax_return, profile, calculation) -> str:
     _sub(header, "generatedAt", now)
     _sub(header, "generator", "SunTax")
     _sub(header, "generatorVersion", "1.0.0")
-    _sub(header, "canton", tax_return.canton_code)
-    _sub(header, "municipality", tax_return.municipality_name)
-    _sub(header, "taxYear", tax_return.tax_year)
-    _sub(header, "ruleVersion", calculation.tax_rule_version)
+    _sub(header, "canton", getattr(tax_return, "canton_code", ""))
+    _sub(header, "municipality", getattr(tax_return, "municipality_name", "") or getattr(tax_return, "municipality_code", ""))
+    _sub(header, "taxYear", getattr(tax_return, "tax_year", ""))
+    _sub(header, "ruleVersion", getattr(calculation, "rule_version", getattr(calculation, "tax_rule_version", "1.0.0")))
 
     # Taxpayer
+    first_last = f"{pd.get('first_name', '')} {pd.get('last_name', '')}".strip()
+    taxpayer_name = first_last if first_last else pd.get("name", "")
+    address = f"{pd.get('address_street', '')}, {pd.get('address_zip', '')} {pd.get('address_city', '')}".strip(" ,") or pd.get("address", "")
     taxpayer = _sub(root, "taxpayer")
-    _sub(taxpayer, "name", pd.get("name", ""))
-    _sub(taxpayer, "address", pd.get("address", ""))
+    _sub(taxpayer, "name", taxpayer_name)
+    _sub(taxpayer, "address", address)
     _sub(taxpayer, "dateOfBirth", pd.get("date_of_birth", ""))
-    _sub(taxpayer, "maritalStatus", pd.get("marital_status", ""))
+    _sub(taxpayer, "maritalStatus", pd.get("civil_status", pd.get("marital_status", "")))
     _sub(taxpayer, "ahvNumber", pd.get("ahv_number", ""))
 
     # Income
     income_el = _sub(root, "income")
-    _sub(income_el, "totalEmploymentIncome", inc.get("total_employment_income", 0))
-    _sub(income_el, "bankInterest", inc.get("bank_interest", 0))
-    _sub(income_el, "dividends", inc.get("dividends", 0))
+    total_inc = inc.get("employment_income", 0) or inc.get("total_employment_income", 0)
+    _sub(income_el, "totalEmploymentIncome", total_inc)
+    _sub(income_el, "bankInterest", inc.get("interest_income", inc.get("bank_interest", 0)))
+    _sub(income_el, "dividends", inc.get("dividend_income", inc.get("dividends", 0)))
 
     # Employers
     employers_el = _sub(income_el, "employers")
@@ -78,7 +93,7 @@ def generate_ech_xml(tax_return, profile, calculation) -> str:
         acc_el = _sub(accounts_el, "account")
         _sub(acc_el, "bankName", acc.get("bank_name", ""))
         _sub(acc_el, "iban", acc.get("iban", ""))
-        _sub(acc_el, "balance", acc.get("balance", 0))
+        _sub(acc_el, "balance", acc.get("balance_chf", acc.get("balance", 0)))
         _sub(acc_el, "currency", acc.get("currency", "CHF"))
 
     # Securities
@@ -89,15 +104,15 @@ def generate_ech_xml(tax_return, profile, calculation) -> str:
         _sub(sec_el, "valor", sec.get("valor", ""))
         _sub(sec_el, "name", sec.get("name", ""))
         _sub(sec_el, "quantity", sec.get("quantity", 0))
-        _sub(sec_el, "value", sec.get("value", 0))
+        _sub(sec_el, "value", sec.get("value_chf", sec.get("value", 0)))
         _sub(sec_el, "currency", sec.get("currency", "CHF"))
-        _sub(sec_el, "dividend", sec.get("dividend", 0))
+        _sub(sec_el, "dividend", sec.get("dividend_chf", sec.get("dividend", 0)))
 
     # Deductions
     deductions_el = _sub(root, "deductions")
-    _sub(deductions_el, "pillar3aTotal", ded.get("pillar3a_total", 0))
-    _sub(deductions_el, "donationsTotal", ded.get("donations_total", 0))
-    _sub(deductions_el, "mortgageInterest", ded.get("mortgage_interest", 0))
+    _sub(deductions_el, "pillar3aTotal", ded.get("pillar3a_contributions", ded.get("pillar3a_total", 0)))
+    _sub(deductions_el, "donationsTotal", ded.get("donations", ded.get("donations_total", 0)))
+    _sub(deductions_el, "mortgageInterest", ded.get("debt_interest", ded.get("mortgage_interest", 0)))
 
     # Liabilities
     liab_el = _sub(root, "liabilities")
@@ -105,20 +120,20 @@ def generate_ech_xml(tax_return, profile, calculation) -> str:
     mortgages_el = _sub(liab_el, "mortgages")
     for m in (liab.get("mortgages") or []):
         m_el = _sub(mortgages_el, "mortgage")
-        _sub(m_el, "bank", m.get("bank", ""))
+        _sub(m_el, "bank", m.get("bank", m.get("lender", "")))
         _sub(m_el, "propertyAddress", m.get("property_address", ""))
-        _sub(m_el, "balance", m.get("balance", 0))
+        _sub(m_el, "balance", m.get("outstanding_balance", m.get("balance", 0)))
         _sub(m_el, "annualInterest", m.get("annual_interest", 0))
 
     # Calculation results
     calc_el = _sub(root, "taxCalculation")
-    _sub(calc_el, "taxableIncome", results.get("taxable_income", 0))
-    _sub(calc_el, "taxableWealth", results.get("taxable_wealth", 0))
-    _sub(calc_el, "federalIncomeTax", results.get("federal_income_tax", 0))
-    _sub(calc_el, "cantonalIncomeTax", results.get("cantonal_income_tax", 0))
-    _sub(calc_el, "municipalIncomeTax", results.get("municipal_income_tax", 0))
-    _sub(calc_el, "wealthTax", results.get("wealth_tax", 0))
-    _sub(calc_el, "totalTax", results.get("total_tax", 0))
+    _sub(calc_el, "taxableIncome", getattr(calculation, "taxable_income", None) or results.get("taxable_income", 0))
+    _sub(calc_el, "taxableWealth", getattr(calculation, "taxable_wealth", None) or results.get("taxable_wealth", 0))
+    _sub(calc_el, "federalIncomeTax", getattr(calculation, "federal_income_tax", None) or results.get("federal_income_tax", 0))
+    _sub(calc_el, "cantonalIncomeTax", getattr(calculation, "cantonal_income_tax", None) or results.get("cantonal_income_tax", 0))
+    _sub(calc_el, "municipalIncomeTax", getattr(calculation, "municipal_income_tax", None) or results.get("municipal_income_tax", 0))
+    _sub(calc_el, "wealthTax", getattr(calculation, "wealth_tax", None) or results.get("wealth_tax", 0))
+    _sub(calc_el, "totalTax", getattr(calculation, "total_tax_due", None) or results.get("total_tax", 0))
 
     ET.indent(root, space="  ")
     return ET.tostring(root, encoding="unicode", xml_declaration=True)
