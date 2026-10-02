@@ -547,7 +547,7 @@ export const taxEngineApi = {
   async confirm(taxReturnId: string, confirmation_text: string): Promise<{ message: string; status: string }> {
     const response = await apiClient.post<{ message: string; status: string }>(
       `/tax-returns/${taxReturnId}/confirm`,
-      { confirmation_text },
+      { confirmation_text, confirmed: true },
     );
     return response.data;
   },

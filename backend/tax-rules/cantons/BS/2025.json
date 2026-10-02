@@ -1,0 +1,62 @@
+{
+  "canton": "BS",
+  "canton_name": "Basel-Stadt",
+  "tax_year": 2025,
+  "version": "1.0.0",
+  "source": "https://www.steuerverwaltung.bs.ch/",
+  "notes": "Basel-Stadt is a city-canton. No municipal multiplier; the cantonal rate IS the total rate (municipality = 0%). Church tax separate.",
+  "municipality_multipliers": {
+    "2701": {"name": "Basel",         "multiplier": 100},
+    "2702": {"name": "Bettingen",     "multiplier": 100},
+    "2703": {"name": "Riehen",        "multiplier": 100}
+  },
+  "income_tax_brackets_canton": [
+    {"from": 0,      "to": 13600,  "rate": 0.0000, "base_tax": 0.00},
+    {"from": 13600,  "to": 24200,  "rate": 0.0490, "base_tax": 0.00},
+    {"from": 24200,  "to": 38000,  "rate": 0.0710, "base_tax": 519.40},
+    {"from": 38000,  "to": 56200,  "rate": 0.0900, "base_tax": 1499.20},
+    {"from": 56200,  "to": 79900,  "rate": 0.1060, "base_tax": 3137.20},
+    {"from": 79900,  "to": 111300, "rate": 0.1200, "base_tax": 5649.40},
+    {"from": 111300, "to": 147100, "rate": 0.1310, "base_tax": 9417.40},
+    {"from": 147100, "to": 214400, "rate": 0.1460, "base_tax": 14105.20},
+    {"from": 214400, "to": null,   "rate": 0.1570, "base_tax": 23929.40}
+  ],
+  "wealth_tax_brackets": [
+    {"from": 0,       "to": 80000,  "rate": 0.00000},
+    {"from": 80000,   "to": 250000, "rate": 0.00060},
+    {"from": 250000,  "to": 1000000,"rate": 0.00075},
+    {"from": 1000000, "to": null,   "rate": 0.00090}
+  ],
+  "wealth_tax_social_deductions": {
+    "per_taxpayer": 80000,
+    "per_spouse": 80000,
+    "per_child": 18000
+  },
+  "deduction_limits": {
+    "commuting_max_chf": 5000,
+    "commuting_reference": "StG BS § 27",
+    "meal_deduction_annual": 3200,
+    "professional_expenses_flat_rate_pct": 0.03,
+    "professional_expenses_min": 2000,
+    "professional_expenses_max": 4000,
+    "professional_expenses_reference": "StG BS § 27",
+    "health_insurance_deduction_single": 2700,
+    "health_insurance_deduction_married": 5400,
+    "health_insurance_deduction_per_child": 1400,
+    "health_insurance_reference": "StG BS § 33",
+    "medical_expense_threshold_pct": 0.05,
+    "medical_expense_reference": "StG BS § 33",
+    "pillar3a_employed_max": 7258,
+    "pillar3a_self_employed_max": 36288,
+    "pillar3a_reference": "BVG Art. 82",
+    "childcare_max": 12000,
+    "childcare_reference": "StG BS § 33",
+    "child_deduction_per_child": 10000,
+    "child_deduction_reference": "StG BS § 38",
+    "donation_max_pct_of_income": 0.20,
+    "donation_min_chf": 100,
+    "donation_reference": "StG BS § 33",
+    "interest_deduction_max": null,
+    "interest_deduction_reference": "StG BS § 33"
+  }
+}

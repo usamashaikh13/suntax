@@ -32,6 +32,16 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
   const pd = (profile?.personal_data || {}) as any
   const r = calculation?.results || {}
 
+  const fullName =
+    pd.name ||
+    [pd.first_name, pd.last_name].filter(Boolean).join(' ') ||
+    '–'
+  const fullAddress =
+    pd.address ||
+    [pd.address_street, pd.address_zip, pd.address_city].filter(Boolean).join(', ') ||
+    '–'
+  const civilStatus = pd.civil_status || pd.marital_status || '–'
+
   const handleExport = async (type: 'pdf' | 'xml') => {
     setExporting(type)
     try {
@@ -39,6 +49,18 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
         type === 'pdf'
           ? await api.taxEngine.exportPdf(taxReturn.id)
           : await api.taxEngine.exportXml(taxReturn.id)
+
+      // If backend returned error response in blob format
+      if (blob.type && blob.type.includes('json')) {
+        const text = await blob.text()
+        let detail = 'Export failed.'
+        try {
+          const parsed = JSON.parse(text)
+          if (parsed.detail) detail = parsed.detail
+        } catch {}
+        toast({ title: 'Export failed', description: detail, variant: 'destructive' })
+        return
+      }
 
       const ext = type === 'pdf' ? 'pdf' : 'xml'
       const mime = type === 'pdf' ? 'application/pdf' : 'application/xml'
@@ -48,8 +70,12 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
       a.download = `SunTax_${taxReturn.canton_code}_${taxReturn.tax_year}.${ext}`
       a.click()
       URL.revokeObjectURL(url)
-    } catch {
-      toast({ title: 'Export failed', variant: 'destructive' })
+    } catch (err: any) {
+      toast({
+        title: 'Export failed',
+        description: err?.message || 'Please ensure tax calculation has been completed.',
+        variant: 'destructive',
+      })
     } finally {
       setExporting(null)
     }
@@ -146,15 +172,15 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
               <div className="space-y-1 text-sm">
                 <p>
                   <span className="text-gray-500">Name:</span>{' '}
-                  <strong>{pd.name || '–'}</strong>
+                  <strong>{fullName}</strong>
                 </p>
                 <p>
                   <span className="text-gray-500">Address:</span>{' '}
-                  <strong>{pd.address || '–'}</strong>
+                  <strong>{fullAddress}</strong>
                 </p>
                 <p>
                   <span className="text-gray-500">Marital status:</span>{' '}
-                  <strong>{pd.marital_status || '–'}</strong>
+                  <strong>{civilStatus}</strong>
                 </p>
               </div>
 
@@ -215,24 +241,52 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
       {/* Export */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Export</CardTitle>
+          <CardTitle className="text-base">Export &amp; Official Filing Package</CardTitle>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-500 mb-4">
-            Download your tax return as PDF or XML for submission to the cantonal tax authority.
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Download your completed tax return package. The PDF is rendered in the official Swiss cantonal
+            tax return format (matching official forms / iqtax.ch), complete with Hauptformular, tax calculation,
+            and securities statements.
           </p>
-          <div className="flex flex-wrap gap-3">
+
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-900 space-y-1">
+            <strong>Filing instructions for Canton {taxReturn.canton_code}:</strong>
+            {taxReturn.canton_code === 'AI' ? (
+              <p>
+                In Canton Appenzell Innerrhoden, official e-filing is completed via{' '}
+                <a
+                  href="https://ai.ch/themen/steuern/etax"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline font-semibold"
+                >
+                  eTax.AI
+                </a>{' '}
+                using your declaration PID and access code, or by printing and mailing the signed declaration PDF
+                with your original Lohnausweis.
+              </p>
+            ) : (
+              <p>
+                Submit your return via the official cantonal portal or print and mail the signed PDF declaration
+                with your original salary certificate to your communal tax administration ({taxReturn.municipality_name}).
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-3 pt-1">
             <Button
               variant="outline"
               onClick={() => handleExport('pdf')}
               disabled={!!exporting}
+              className="border-red-300 text-red-700 hover:bg-red-50"
             >
               {exporting === 'pdf' ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Download className="h-4 w-4 mr-2" />
               )}
-              Download PDF
+              Download Official Declaration (PDF)
             </Button>
             <Button
               variant="outline"
@@ -244,7 +298,7 @@ export function FinalReview({ taxReturn, profile, calculation, onConfirm }: Prop
               ) : (
                 <FileText className="h-4 w-4 mr-2" />
               )}
-              Export XML (eCH-0196)
+              Export E-Tax Data (XML)
             </Button>
           </div>
         </CardContent>

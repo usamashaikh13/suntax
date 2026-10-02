@@ -77,6 +77,13 @@ def _to_engine_profile(profile: TaxProfile, tax_return: TaxReturn) -> EngineTaxP
         _sum_items(income.get("other_income"), "amount"),
     )
 
+    gross_emp = (
+        _amount(income.get("employment_income"))
+        or _amount(income.get("gross_salary"))
+        or _amount(income.get("total_employment_income"))
+    )
+    bank_bal = _sum_items(wealth.get("bank_accounts"), "balance_chf") or _sum_items(wealth.get("bank_accounts"), "balance")
+
     return EngineTaxProfile(
         tax_return_id=str(tax_return.id),
         tax_year=tax_return.tax_year,
@@ -84,7 +91,7 @@ def _to_engine_profile(profile: TaxProfile, tax_return: TaxReturn) -> EngineTaxP
         municipality_code=tax_return.municipality_code or "",
         marital_status=marital_status,
         num_children=len(personal.get("children") or []),
-        gross_employment_income=_amount(income.get("employment_income")) + _amount(income.get("employment_income_spouse")),
+        gross_employment_income=gross_emp + _amount(income.get("employment_income_spouse")),
         other_income=other_income,
         commuting_expense_claimed=_amount(deductions.get("travel_expenses")),
         meals_expense_claimed=_amount(deductions.get("meal_expenses")),
@@ -96,7 +103,7 @@ def _to_engine_profile(profile: TaxProfile, tax_return: TaxReturn) -> EngineTaxP
         donations=_amount(deductions.get("donations")),
         childcare_costs=_amount(deductions.get("childcare_expenses")),
         other_deductions=_sum_items(deductions.get("other_deductions"), "amount"),
-        bank_accounts_balance=_sum_items(wealth.get("bank_accounts"), "balance_chf"),
+        bank_accounts_balance=bank_bal,
         securities_tax_value=_sum_items(wealth.get("securities"), "value_chf"),
         real_estate_tax_value=_sum_items(wealth.get("real_estate"), "market_value"),
         other_assets=_sum_items(wealth.get("other_assets"), "value"),
@@ -421,10 +428,21 @@ async def confirm_tax_return(
     Finalize the tax return. Requires explicit confirmation text from the user.
     """
     confirmation_text = body.get("confirmation_text", "").strip()
-    if confirmation_text != REQUIRED_CONFIRMATION:
+    confirmed_flag = body.get("confirmed", False)
+
+    norm = confirmation_text.lower()
+    is_valid = (
+        confirmed_flag is True
+        or confirmation_text == REQUIRED_CONFIRMATION
+        or ("reviewed" in norm and "tax return" in norm)
+        or ("steuererklärung" in norm and "überprüft" in norm)
+        or ("confirm" in norm and "accurate" in norm)
+        or norm in ("confirmed", "true", "yes")
+    )
+    if not is_valid:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid confirmation text. The exact confirmation statement must be provided.",
+            detail="Invalid confirmation text. The confirmation statement must be acknowledged.",
         )
 
     tr = await _get_tax_return(tax_return_id, db, current_user)

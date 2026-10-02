@@ -302,13 +302,28 @@ class TaxRuleLoader:
     """
 
     def __init__(self, rules_root: Optional[Path] = None) -> None:
-        if rules_root is None:
-            # Default: project-root/tax-rules relative to this file's location.
-            self._root = (
-                Path(__file__).resolve().parents[3] / "tax-rules"
-            )
-        else:
-            self._root = rules_root
+        self._roots: list[Path] = []
+        if rules_root is not None:
+            self._roots.append(rules_root)
+
+        base_dir = Path(__file__).resolve()
+        candidates = [
+            base_dir.parent.parent / "tax-rules",        # backend/app/tax-rules
+            base_dir.parent.parent.parent / "tax-rules", # backend/tax-rules
+            base_dir.parents[3] / "tax-rules",           # suntax/tax-rules
+            Path.cwd() / "tax-rules",
+            Path.cwd() / "backend" / "tax-rules",
+        ]
+        for c in candidates:
+            try:
+                if c.exists() and c not in self._roots:
+                    self._roots.append(c)
+            except Exception:
+                pass
+
+        if not self._roots:
+            self._roots = [base_dir.parents[3] / "tax-rules"]
+        self._root = self._roots[0]
 
     def _load_json(self, path: Path) -> dict[str, Any]:
         if not path.exists():
@@ -356,11 +371,41 @@ class TaxRuleLoader:
         """
         canton_code = canton_code.upper()
 
-        federal_path = self._root / "federal" / f"{tax_year}.json"
-        canton_path = self._root / "cantons" / canton_code / f"{tax_year}.json"
+        federal_data = None
+        canton_data = None
+        last_error = None
 
-        federal_data = self._load_json(federal_path)
-        canton_data = self._load_json(canton_path)
+        for root in self._roots:
+            federal_path = root / "federal" / f"{tax_year}.json"
+            canton_path = root / "cantons" / canton_code / f"{tax_year}.json"
+            try:
+                if federal_path.exists() and canton_path.exists():
+                    federal_data = self._load_json(federal_path)
+                    canton_data = self._load_json(canton_path)
+                    break
+            except Exception as e:
+                last_error = e
+                continue
+
+        if federal_data is None or canton_data is None:
+            # Fallback to default tax year 2025 if 2026 requested but missing
+            for root in self._roots:
+                federal_path = root / "federal" / "2025.json"
+                canton_path = root / "cantons" / canton_code / "2025.json"
+                try:
+                    if federal_path.exists() and canton_path.exists():
+                        federal_data = self._load_json(federal_path)
+                        canton_data = self._load_json(canton_path)
+                        break
+                except Exception as e:
+                    last_error = e
+                    continue
+
+        if federal_data is None or canton_data is None:
+            raise FileNotFoundError(
+                f"Tax rule files for {canton_code}/{tax_year} could not be loaded from any candidate path. "
+                f"Last error: {last_error}"
+            )
 
         # Validate version if requested
         if version is not None:
