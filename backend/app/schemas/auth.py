@@ -14,18 +14,14 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 # ── Validators ────────────────────────────────────────────────────────────────
 
-_PASSWORD_RE = re.compile(
-    r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&\-_#^])[A-Za-z\d@$!%*?&\-_#^]{8,128}$"
-)
-
-
 def _validate_password(v: str) -> str:
-    """Enforce password complexity: 8-128 chars, upper, lower, digit, special."""
-    if not _PASSWORD_RE.match(v):
-        raise ValueError(
-            "Password must be 8–128 characters and contain at least one uppercase "
-            "letter, one lowercase letter, one digit, and one special character."
-        )
+    """Enforce password complexity: 8-128 chars, at least one uppercase letter and one digit."""
+    if len(v) < 8 or len(v) > 128:
+        raise ValueError("Password must be between 8 and 128 characters.")
+    if not any(c.isupper() for c in v):
+        raise ValueError("Password must contain at least one uppercase letter.")
+    if not any(c.isdigit() for c in v):
+        raise ValueError("Password must contain at least one digit.")
     return v
 
 

@@ -41,29 +41,43 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 # ── Redis client (lazy singleton) ─────────────────────────────────────────────
 
 _redis_client: Optional[aioredis.Redis] = None
+_redis_disabled: bool = False
+
+_memory_denylist: set[str] = set()
+_memory_refresh_tokens: dict[str, str] = {}
+_memory_email_tokens: dict[str, tuple[str, datetime]] = {}
 
 
-def _get_redis() -> aioredis.Redis:
-    global _redis_client
+def _get_redis() -> Optional[aioredis.Redis]:
+    global _redis_client, _redis_disabled
+    if _redis_disabled:
+        return None
     if _redis_client is None:
-        if settings.ENVIRONMENT == "development":
-            try:
-                import fakeredis.aioredis as fakeredis_async
-                _redis_client = fakeredis_async.FakeRedis(decode_responses=True)
-            except (ImportError, AttributeError):
+        try:
+            if settings.ENVIRONMENT in ("development", "test"):
                 try:
-                    import fakeredis
-                    # Use the async server pattern
-                    server = fakeredis.FakeServer()
-                    _redis_client = fakeredis.FakeRedis(server=server, decode_responses=True)
-                except ImportError:
-                    pass
-        if _redis_client is None:
+                    import fakeredis.aioredis as fakeredis_async
+                    _redis_client = fakeredis_async.FakeRedis(decode_responses=True)
+                    return _redis_client
+                except (ImportError, AttributeError):
+                    try:
+                        import fakeredis
+                        server = fakeredis.FakeServer()
+                        _redis_client = fakeredis.FakeRedis(server=server, decode_responses=True)
+                        return _redis_client
+                    except ImportError:
+                        pass
             _redis_client = aioredis.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",
                 decode_responses=True,
+                socket_connect_timeout=2.0,
+                socket_timeout=2.0,
             )
+        except Exception as exc:
+            logger.warning("Redis client initialization failed, using in-memory store: %s", exc)
+            _redis_disabled = True
+            return None
     return _redis_client
 
 
@@ -138,20 +152,32 @@ def create_refresh_token(data: dict[str, Any]) -> str:
 
 
 async def store_refresh_token(user_id: str, token: str) -> None:
-    """Persist refresh token in Redis (for revocation tracking)."""
+    """Persist refresh token in Redis (for revocation tracking) or in-memory fallback."""
+    key = f"{user_id}:{token[-16:]}"
+    _memory_refresh_tokens[key] = token
     redis = _get_redis()
-    ttl = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    await redis.setex(
-        f"{_REFRESH_PREFIX}{user_id}:{token[-16:]}",
-        int(ttl.total_seconds()),
-        token,
-    )
+    if redis is not None:
+        try:
+            ttl = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+            await redis.setex(
+                f"{_REFRESH_PREFIX}{key}",
+                int(ttl.total_seconds()),
+                token,
+            )
+        except Exception as exc:
+            logger.warning("Redis store_refresh_token failed: %s", exc)
 
 
 async def revoke_refresh_token(user_id: str, token: str) -> None:
-    """Remove a specific refresh token from Redis."""
+    """Remove a specific refresh token from Redis and memory."""
+    key = f"{user_id}:{token[-16:]}"
+    _memory_refresh_tokens.pop(key, None)
     redis = _get_redis()
-    await redis.delete(f"{_REFRESH_PREFIX}{user_id}:{token[-16:]}")
+    if redis is not None:
+        try:
+            await redis.delete(f"{_REFRESH_PREFIX}{key}")
+        except Exception as exc:
+            logger.warning("Redis revoke_refresh_token failed: %s", exc)
 
 
 def decode_token(token: str) -> dict[str, Any]:
@@ -192,21 +218,27 @@ def decode_token(token: str) -> dict[str, Any]:
 
 
 async def add_token_to_denylist(token: str, expires_in: int) -> None:
-    """
-    Add a JWT to the Redis denylist so it cannot be reused.
-
-    Args:
-        token: The raw JWT string.
-        expires_in: Seconds until the token naturally expires (Redis TTL).
-    """
+    """Add a JWT to the denylist."""
+    _memory_denylist.add(token)
     redis = _get_redis()
-    await redis.setex(f"{_DENYLIST_PREFIX}{token}", expires_in, "1")
+    if redis is not None:
+        try:
+            await redis.setex(f"{_DENYLIST_PREFIX}{token}", expires_in, "1")
+        except Exception as exc:
+            logger.warning("Redis add_token_to_denylist error: %s", exc)
 
 
 async def is_token_denylisted(token: str) -> bool:
     """Return True if *token* is in the denylist."""
+    if token in _memory_denylist:
+        return True
     redis = _get_redis()
-    return bool(await redis.exists(f"{_DENYLIST_PREFIX}{token}"))
+    if redis is not None:
+        try:
+            return bool(await redis.exists(f"{_DENYLIST_PREFIX}{token}"))
+        except Exception as exc:
+            logger.debug("Redis is_token_denylisted error: %s", exc)
+    return False
 
 
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
@@ -300,33 +332,40 @@ def create_email_token() -> str:
 
 
 async def store_email_token(purpose: str, token: str, user_id: str) -> None:
-    """
-    Store an email-verification or password-reset token in Redis.
-
-    Args:
-        purpose: ``'verify'`` or ``'reset'``.
-        token: The plaintext token to store.
-        user_id: The associated user's UUID string.
-    """
+    """Store an email-verification or password-reset token in Redis or in-memory."""
+    key = f"{purpose}:{token}"
+    ttl_seconds = int(timedelta(hours=settings.EMAIL_TOKEN_EXPIRE_HOURS).total_seconds())
+    _memory_email_tokens[key] = (user_id, datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds))
     redis = _get_redis()
-    ttl = timedelta(hours=settings.EMAIL_TOKEN_EXPIRE_HOURS)
-    await redis.setex(
-        f"{_EMAIL_TOKEN_PREFIX}{purpose}:{token}",
-        int(ttl.total_seconds()),
-        user_id,
-    )
+    if redis is not None:
+        try:
+            await redis.setex(
+                f"{_EMAIL_TOKEN_PREFIX}{purpose}:{token}",
+                ttl_seconds,
+                user_id,
+            )
+        except Exception as exc:
+            logger.warning("Redis store_email_token failed: %s", exc)
 
 
 async def consume_email_token(purpose: str, token: str) -> Optional[str]:
-    """
-    Validate and atomically delete an email token.
-
-    Returns:
-        The user_id string if valid, otherwise None.
-    """
+    """Validate and atomically delete an email token."""
+    key = f"{purpose}:{token}"
     redis = _get_redis()
-    key = f"{_EMAIL_TOKEN_PREFIX}{purpose}:{token}"
-    user_id = await redis.get(key)
-    if user_id:
-        await redis.delete(key)
-    return user_id
+    if redis is not None:
+        try:
+            rkey = f"{_EMAIL_TOKEN_PREFIX}{purpose}:{token}"
+            user_id = await redis.get(rkey)
+            if user_id:
+                await redis.delete(rkey)
+                _memory_email_tokens.pop(key, None)
+                return user_id
+        except Exception as exc:
+            logger.warning("Redis consume_email_token failed: %s", exc)
+
+    item = _memory_email_tokens.pop(key, None)
+    if item:
+        uid, exp = item
+        if datetime.now(timezone.utc) < exp:
+            return uid
+    return None

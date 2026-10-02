@@ -115,16 +115,59 @@ class ChatResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
+_chat_history_memory: dict[str, list[dict]] = {}
+
+
 async def _get_redis():
-    """Return an async Redis client (fakeredis in dev, real Redis in prod)."""
+    """Return an async Redis client, or None if unavailable."""
     try:
         import fakeredis.aioredis as fakeredis_aio
         if settings.ENVIRONMENT in ("development", "test"):
             return fakeredis_aio.FakeRedis(decode_responses=True)
     except ImportError:
         pass
-    import redis.asyncio as aioredis
-    return aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+    try:
+        import redis.asyncio as aioredis
+        return aioredis.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+            socket_connect_timeout=2.0,
+            socket_timeout=2.0,
+        )
+    except Exception:
+        return None
+
+
+async def _load_history(history_key: str) -> list[dict]:
+    try:
+        r = await _get_redis()
+        if r is not None:
+            raw = await r.get(history_key)
+            if raw:
+                return json.loads(raw)
+    except Exception as exc:
+        logger.warning("Redis load history error: %s", exc)
+    return list(_chat_history_memory.get(history_key, []))
+
+
+async def _save_history(history_key: str, history: list[dict]) -> None:
+    _chat_history_memory[history_key] = history
+    try:
+        r = await _get_redis()
+        if r is not None:
+            await r.setex(history_key, 86400 * 7, json.dumps(history))
+    except Exception as exc:
+        logger.warning("Redis save history error: %s", exc)
+
+
+async def _clear_history(history_key: str) -> None:
+    _chat_history_memory.pop(history_key, None)
+    try:
+        r = await _get_redis()
+        if r is not None:
+            await r.delete(history_key)
+    except Exception as exc:
+        logger.warning("Redis clear history error: %s", exc)
 
 
 def _history_key(user_id: str, tax_return_id: str) -> str:
@@ -527,10 +570,8 @@ async def chat(
         f"Calculation: {'Calculated (Total CHF ' + str(calc.total_tax_due) + ')' if calc else 'Not yet calculated'}\n"
     )
 
-    r = await _get_redis()
     history_key = _history_key(str(current_user.id), tax_return_id)
-    raw_history = await r.get(history_key)
-    history: list[dict] = json.loads(raw_history) if raw_history else []
+    history = await _load_history(history_key)
 
     assistant_reply = ""
     suggestions: List[str] = [
@@ -584,7 +625,7 @@ async def chat(
     history.append({"role": "user", "content": body.message})
     history.append({"role": "model", "content": assistant_reply})
     history = history[-40:]
-    await r.setex(history_key, 86400 * 7, json.dumps(history))
+    await _save_history(history_key, history)
 
     return ChatResponse(
         message=assistant_reply,
@@ -603,10 +644,9 @@ async def get_chat_history(
 ):
     """Retrieve conversation history."""
     await _get_tax_return_with_context(tax_return_id, db, current_user)
-    r = await _get_redis()
     history_key = _history_key(str(current_user.id), tax_return_id)
-    raw = await r.get(history_key)
-    return {"history": json.loads(raw) if raw else []}
+    history = await _load_history(history_key)
+    return {"history": history}
 
 
 @router.delete("/tax-returns/{tax_return_id}/chat/history")
@@ -617,6 +657,5 @@ async def clear_chat_history(
 ):
     """Clear conversation history."""
     await _get_tax_return_with_context(tax_return_id, db, current_user)
-    r = await _get_redis()
-    await r.delete(_history_key(str(current_user.id), tax_return_id))
+    await _clear_history(_history_key(str(current_user.id), tax_return_id))
     return {"message": "History cleared"}

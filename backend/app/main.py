@@ -71,6 +71,13 @@ manager = ConnectionManager()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("SunTax starting up...")
+    try:
+        logger.info("Verifying and initializing database schema...")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        logger.info("Database schema initialized successfully.")
+    except Exception as exc:
+        logger.error("Database schema initialization error: %s", exc)
     yield
     logger.info("SunTax shutting down...")
 
@@ -82,8 +89,8 @@ app = FastAPI(
     title="SunTax API",
     description="AI-Powered Swiss Tax Return Platform",
     version="1.0.0",
-    docs_url="/api/docs" if settings.ENVIRONMENT != "production" else None,
-    redoc_url="/api/redoc" if settings.ENVIRONMENT != "production" else None,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
     lifespan=lifespan,
 )
 
@@ -92,9 +99,20 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # CORS
+cors_origins = list(settings.BACKEND_CORS_ORIGINS)
+for extra in [
+    "https://frontend-ruby-gamma-46.vercel.app",
+    "https://frontend-workcoretech-4423.vercel.app",
+    "https://suntax.ch",
+    "https://www.suntax.ch",
+]:
+    if extra not in cors_origins:
+        cors_origins.append(extra)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origins=cors_origins,
+    allow_origin_regex=r"^https:\/\/.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -118,6 +136,11 @@ app.include_router(admin.router, prefix=PREFIX, tags=["admin"])
 # ---------------------------------------------------------------------------
 @app.get("/health", tags=["health"])
 async def health():
+    return {"status": "ok", "environment": settings.ENVIRONMENT}
+
+
+@app.get("/api/v1/health", tags=["health"])
+async def api_health():
     return {"status": "ok", "environment": settings.ENVIRONMENT}
 
 

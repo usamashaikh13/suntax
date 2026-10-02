@@ -32,10 +32,12 @@ logger = logging.getLogger(__name__)
 # ── Engine ────────────────────────────────────────────────────────────────────
 
 _database_url = settings.DATABASE_URL
-# Render exposes PostgreSQL URLs with the synchronous ``postgresql://`` scheme.
+# Render exposes PostgreSQL URLs with the synchronous ``postgres://`` or ``postgresql://`` scheme.
 # This application uses SQLAlchemy's async engine, so transparently select the
 # installed asyncpg driver when an unqualified Render URL is supplied.
-if _database_url.startswith("postgresql://"):
+if _database_url.startswith("postgres://"):
+    _database_url = _database_url.replace("postgres://", "postgresql+asyncpg://", 1)
+elif _database_url.startswith("postgresql://"):
     _database_url = _database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 _is_sqlite = _database_url.startswith("sqlite")
