@@ -8,6 +8,9 @@ email-validator==2.2.0
 pydantic-settings==2.6.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+# Passlib 1.7.4 is incompatible with bcrypt 5.x (it fails during backend
+# capability detection even for short passwords). Keep the supported release.
+bcrypt==4.2.1
 python-multipart==0.0.12
 celery[redis]==5.4.0
 redis==5.2.0
