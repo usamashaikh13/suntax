@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { TaxReturn, TaxProfile, Document } from '@/types'
@@ -15,13 +16,14 @@ import { TaxQuestions } from '@/components/tax-profile/TaxQuestions'
 import { TaxCalculationDisplay } from '@/components/calculation/TaxCalculationDisplay'
 import { FinalReview } from '@/components/review/FinalReview'
 import { TaxAssistant } from '@/components/tax-assistant/TaxAssistant'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { AiSubmissionGuide } from '@/components/tax-assistant/AiSubmissionGuide'
+import { Loader2, AlertCircle, Sparkles, MessageCircle } from 'lucide-react'
 
 const CANTON_NAMES: Record<string, string> = {
   ZH: 'Zurich', ZG: 'Zug', SZ: 'Schwyz',
-  SG: 'St. Gallen', AG: 'Aargau', BE: 'Bern', BS: 'Basel-Stadt',
+  SG: 'St. Gallen', AG: 'Aargau', BE: 'Bern', BS: 'Basel-City',
   LU: 'Lucerne', UR: 'Uri', OW: 'Obwalden', NW: 'Nidwalden',
-  GL: 'Glarus', FR: 'Fribourg', SO: 'Solothurn', BL: 'Basel-Landschaft',
+  GL: 'Glarus', FR: 'Fribourg', SO: 'Solothurn', BL: 'Basel-Country',
   SH: 'Schaffhausen', AR: 'Appenzell Ausserrhoden', AI: 'Appenzell Innerrhoden',
   GR: 'Graubünden', TG: 'Thurgau', TI: 'Ticino', VD: 'Vaud',
   VS: 'Valais', NE: 'Neuchâtel', GE: 'Geneva', JU: 'Jura',
@@ -51,6 +53,8 @@ export default function TaxReturnDetailPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [calculation, setCalculation] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<string>('guide')
+  const [assistantPrompt, setAssistantPrompt] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
@@ -77,7 +81,9 @@ export default function TaxReturnDetailPage() {
     }
   }
 
-  useEffect(() => { loadData() }, [id])
+  useEffect(() => {
+    loadData()
+  }, [id])
 
   if (loading) {
     return (
@@ -100,7 +106,7 @@ export default function TaxReturnDetailPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ── Header ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap justify-between items-start gap-4">
         <div>
           <div className="flex items-center gap-3 flex-wrap">
@@ -111,69 +117,121 @@ export default function TaxReturnDetailPage() {
               {STATUS_LABELS[taxReturn.status] ?? taxReturn.status}
             </Badge>
           </div>
-          <p className="text-gray-500 mt-1">Tax year {taxReturn.tax_year}</p>
+          <p className="text-gray-500 text-sm mt-1">
+            Tax year {taxReturn.tax_year} · Canton {taxReturn.canton_code}
+          </p>
         </div>
-        <TaxAssistant taxReturnId={id} />
+
+        {/* AI Copilot shortcut buttons */}
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setActiveTab('guide')}
+            className="border-red-200 text-red-700 bg-red-50/50 hover:bg-red-50 flex items-center gap-1.5 shadow-2xs text-xs"
+          >
+            <Sparkles className="h-3.5 w-3.5 text-red-600" />
+            AI Submission Roadmap
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setAssistantPrompt('How do I submit my tax return to the tax office?')}
+            className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-1.5 shadow-xs text-xs"
+          >
+            <MessageCircle className="h-3.5 w-3.5" />
+            Ask AI Copilot
+          </Button>
+        </div>
       </div>
 
-      {/* Progress overview */}
+      {/* ── Progress overview cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {
             label: 'Documents',
-            value: `${documents.filter(d => d.processing_status === 'completed').length}/${documents.length}`,
+            value: `${documents.filter(d => d.processing_status === 'done' || d.processing_status === 'completed').length}/${documents.length}`,
             done: documents.length > 0,
+            tab: 'documents',
           },
           {
             label: 'Tax Profile',
-            value: profile ? 'Ready' : 'Pending',
+            value: profile ? 'Configured' : 'Pending',
             done: !!profile,
+            tab: 'profile',
           },
           {
             label: 'Questions',
-            value: unansweredQuestions > 0 ? `${unansweredQuestions} open` : 'All answered',
+            value: unansweredQuestions > 0 ? `${unansweredQuestions} open` : 'Complete',
             done: unansweredQuestions === 0 && !!profile,
+            tab: 'questions',
           },
           {
             label: 'Calculation',
-            value: calculation ? 'Complete' : 'Pending',
+            value: calculation ? 'Computed' : 'Pending',
             done: !!calculation,
+            tab: 'calculation',
           },
         ].map(item => (
-          <div
+          <button
             key={item.label}
-            className={`p-3 rounded-lg border text-center ${item.done ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
+            onClick={() => setActiveTab(item.tab)}
+            className={`p-3 rounded-xl border text-center transition-all hover:shadow-xs cursor-pointer ${
+              item.done ? 'bg-green-50/60 border-green-200 text-green-900' : 'bg-white border-gray-200 text-gray-700'
+            }`}
           >
-            <p className="text-xs text-gray-500">{item.label}</p>
-            <p className={`text-sm font-medium ${item.done ? 'text-green-700' : 'text-gray-600'}`}>
+            <p className="text-xs text-gray-500 font-medium">{item.label}</p>
+            <p className={`text-sm font-semibold mt-0.5 ${item.done ? 'text-green-700' : 'text-gray-700'}`}>
               {item.value}
             </p>
-          </div>
+          </button>
         ))}
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="documents" className="space-y-4">
-        <TabsList className="grid grid-cols-5 w-full">
-          <TabsTrigger value="documents">Documents</TabsTrigger>
-          <TabsTrigger value="profile">Tax Profile</TabsTrigger>
-          <TabsTrigger value="questions" className="relative">
-            Questions{' '}
+      {/* ── Tabs Navigation & Content ───────────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <TabsList className="grid grid-cols-6 w-full bg-gray-100 p-1 rounded-xl">
+          <TabsTrigger value="guide" className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold">
+            <Sparkles className="h-3.5 w-3.5 text-red-600" />
+            AI Guide
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="text-xs sm:text-sm font-medium">
+            Documents
+          </TabsTrigger>
+          <TabsTrigger value="profile" className="text-xs sm:text-sm font-medium">
+            Tax Profile
+          </TabsTrigger>
+          <TabsTrigger value="questions" className="relative text-xs sm:text-sm font-medium">
+            Questions
             {unansweredQuestions > 0 && (
-              <span className="ml-1 bg-red-500 text-white rounded-full text-xs w-4 h-4 inline-flex items-center justify-center">
+              <span className="ml-1 bg-red-500 text-white rounded-full text-[10px] w-4 h-4 inline-flex items-center justify-center font-bold">
                 {unansweredQuestions}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="calculation">Calculation</TabsTrigger>
-          <TabsTrigger value="review">Review &amp; Submit</TabsTrigger>
+          <TabsTrigger value="calculation" className="text-xs sm:text-sm font-medium">
+            Calculation
+          </TabsTrigger>
+          <TabsTrigger value="review" className="text-xs sm:text-sm font-medium">
+            Review &amp; Submit
+          </TabsTrigger>
         </TabsList>
 
+        {/* Tab 1: AI Submission Guide */}
+        <TabsContent value="guide" className="space-y-4">
+          <AiSubmissionGuide
+            taxReturnId={id}
+            onSelectTab={setActiveTab}
+            onOpenChatWithPrompt={prompt => setAssistantPrompt(prompt)}
+          />
+        </TabsContent>
+
+        {/* Tab 2: Documents */}
         <TabsContent value="documents" className="space-y-4">
           <DocumentUploader taxReturnId={id} onUploadComplete={loadData} />
           <DocumentList documents={documents} onDelete={loadData} />
         </TabsContent>
 
+        {/* Tab 3: Tax Profile */}
         <TabsContent value="profile">
           {profile ? (
             <TaxProfileViewer profile={profile} taxReturnId={id} onUpdate={loadData} />
@@ -186,6 +244,7 @@ export default function TaxReturnDetailPage() {
           )}
         </TabsContent>
 
+        {/* Tab 4: Questions */}
         <TabsContent value="questions">
           {profile ? (
             <TaxQuestions profile={profile} taxReturnId={id} onUpdate={loadData} />
@@ -198,6 +257,7 @@ export default function TaxReturnDetailPage() {
           )}
         </TabsContent>
 
+        {/* Tab 5: Calculation */}
         <TabsContent value="calculation">
           <TaxCalculationDisplay
             taxReturnId={id}
@@ -206,6 +266,7 @@ export default function TaxReturnDetailPage() {
           />
         </TabsContent>
 
+        {/* Tab 6: Review & Submit */}
         <TabsContent value="review">
           <FinalReview
             taxReturn={taxReturn}
@@ -215,6 +276,14 @@ export default function TaxReturnDetailPage() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Floating AI Assistant Chat */}
+      <TaxAssistant
+        taxReturnId={id}
+        initialPrompt={assistantPrompt}
+        onClearInitialPrompt={() => setAssistantPrompt(null)}
+        onNavigateTab={setActiveTab}
+      />
     </div>
   )
 }

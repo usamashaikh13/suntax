@@ -439,3 +439,39 @@ export interface AIMessagePayload {
   content: string;
   is_final: boolean;
 }
+
+// ─── AI Tax Guide & Submission ───────────────────────────────────────────────
+
+export interface ChecklistItem {
+  id: string;
+  title: string;
+  description: string;
+  status: 'completed' | 'in_progress' | 'pending' | 'action_needed';
+  category: string;
+  action_tab: string;
+}
+
+export interface DeductionOpportunity {
+  title: string;
+  max_amount_chf: number | null;
+  estimated_saving_chf: number | null;
+  description: string;
+  status: 'claimed' | 'available' | 'optimized';
+}
+
+export interface AiTaxGuideResponse {
+  tax_return_id: string;
+  canton_code: string;
+  canton_name: string;
+  tax_year: number;
+  readiness_score: number;
+  current_phase: 'documents' | 'deductions' | 'questions' | 'calculation' | 'submission' | 'completed';
+  phase_title: string;
+  next_recommended_action: string;
+  next_tab: string;
+  ai_summary: string;
+  checklist: ChecklistItem[];
+  deduction_opportunities: DeductionOpportunity[];
+  official_submission_instructions: string;
+  is_ready_to_submit: boolean;
+}

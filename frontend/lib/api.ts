@@ -27,6 +27,7 @@ import type {
   PasswordChangeRequest,
   DocumentUploadResponse,
   PaginatedResponse,
+  AiTaxGuideResponse,
 } from '@/types';
 
 // ─── Axios Instance ───────────────────────────────────────────────────────────
@@ -556,14 +557,24 @@ export const taxEngineApi = {
 
 export const aiAssistantApi = {
   /**
+   * Retrieves the AI Submission Guide and readiness audit for a tax return.
+   */
+  async getGuide(taxReturnId: string): Promise<AiTaxGuideResponse> {
+    const response = await apiClient.get<AiTaxGuideResponse>(
+      `/tax-returns/${taxReturnId}/guide`,
+    );
+    return response.data;
+  },
+
+  /**
    * Sends a message to the AI tax assistant.
    * For streaming, use the WebSocket connection instead.
    */
   async sendMessage(
     taxReturnId: string,
     message: string,
-  ): Promise<{ response: string; suggestions: string[] }> {
-    const response = await apiClient.post<{ response: string; suggestions: string[] }>(
+  ): Promise<{ message: string; response: string; suggestions?: string[]; next_step?: string }> {
+    const response = await apiClient.post<{ message: string; response: string; suggestions?: string[]; next_step?: string }>(
       `/tax-returns/${taxReturnId}/chat`,
       { message },
     );
