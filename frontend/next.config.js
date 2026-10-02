@@ -56,10 +56,10 @@ const nextConfig = {
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: blob: http://localhost:9000 https://*.suntax.ch",
-              "connect-src 'self' http://localhost:8000 ws://localhost:8000 https://*.suntax.ch wss://*.suntax.ch",
+              "connect-src 'self' http://localhost:8000 ws://localhost:8000 https://suntax-api.onrender.com wss://suntax-api.onrender.com https://*.suntax.ch wss://*.suntax.ch",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",

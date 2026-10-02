@@ -3,6 +3,7 @@ PDF Tax Return Export using WeasyPrint (production) or a stub (dev without GTK).
 """
 from __future__ import annotations
 from datetime import datetime
+from html import escape
 
 try:
     from weasyprint import HTML as _WeasyHTML
@@ -10,6 +11,71 @@ try:
 except (OSError, ImportError):
     _WEASY_AVAILABLE = False
     _WeasyHTML = None  # type: ignore
+
+
+def _generate_reportlab_pdf(tax_return, profile, calculation) -> bytes:
+    """Create a standards-compliant PDF when WeasyPrint's native libraries are absent."""
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.units import cm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    pd = getattr(profile, "personal_data", {}) or {}
+    inc = getattr(profile, "income_data", {}) or getattr(profile, "income", {}) or {}
+    results = getattr(calculation, "results", {}) or {}
+    first_last = f"{pd.get('first_name', '')} {pd.get('last_name', '')}".strip()
+    name = first_last or pd.get("name", "Not provided")
+
+    def chf(value: object) -> str:
+        try:
+            return f"CHF {float(value or 0):,.2f}"
+        except (TypeError, ValueError):
+            return "CHF 0.00"
+
+    output = __import__("io").BytesIO()
+    document = SimpleDocTemplate(output, pagesize=A4, rightMargin=1.5 * cm,
+                                 leftMargin=1.5 * cm, topMargin=1.5 * cm, bottomMargin=1.5 * cm)
+    styles = getSampleStyleSheet()
+    title = styles["Title"]
+    title.textColor = colors.HexColor("#CC0000")
+    heading = styles["Heading2"]
+    heading.textColor = colors.HexColor("#CC0000")
+    story = [
+        Paragraph("SunTax – Swiss Tax Return Summary", title),
+        Paragraph(
+            f"Tax year {escape(str(tax_return.tax_year))} · Canton {escape(str(tax_return.canton_code))} · "
+            f"Municipality {escape(str(getattr(tax_return, 'municipality_name', '') or '–'))}",
+            styles["Normal"],
+        ),
+        Spacer(1, 0.45 * cm),
+        Paragraph("Taxpayer", heading),
+        Paragraph(f"Name: {escape(str(name))}", styles["Normal"]),
+        Spacer(1, 0.25 * cm),
+        Paragraph("Calculation", heading),
+    ]
+    rows = [
+        ["Taxable income", chf(results.get("taxable_income"))],
+        ["Federal income tax", chf(results.get("federal_income_tax"))],
+        ["Cantonal income tax", chf(results.get("cantonal_income_tax"))],
+        ["Municipal income tax", chf(results.get("municipal_income_tax"))],
+        ["Wealth tax", chf(results.get("wealth_tax"))],
+        ["Total tax", chf(results.get("total_tax"))],
+    ]
+    table = Table(rows, colWidths=[10.5 * cm, 5.5 * cm])
+    table.setStyle(TableStyle([
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#D1D5DB")),
+        ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#FEE2E2")),
+        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+        ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ("PADDING", (0, 0), (-1, -1), 7),
+    ]))
+    story.extend([table, Spacer(1, 0.5 * cm), Paragraph(
+        "This SunTax summary is an estimate based on the information entered. Verify all data before filing with the relevant cantonal authority.",
+        styles["BodyText"],
+    )])
+    document.build(story)
+    return output.getvalue()
 
 
 def generate_tax_return_pdf(tax_return, profile, calculation) -> bytes:
@@ -193,11 +259,5 @@ def generate_tax_return_pdf(tax_return, profile, calculation) -> bytes:
     if _WEASY_AVAILABLE:
         return _WeasyHTML(string=html_content).write_pdf()
 
-    # Dev-mode stub: return HTML bytes with a PDF-like header so browsers can display it
-    stub = (
-        "%PDF-1.4\n"
-        "% SunTax dev-mode PDF stub (WeasyPrint not available - GTK missing)\n"
-        "% Install GTK via: brew install pango cairo gobject-introspection\n\n"
-        + html_content
-    )
-    return stub.encode("utf-8")
+    # ReportLab has no GTK/Pango dependency and always produces a valid PDF.
+    return _generate_reportlab_pdf(tax_return, profile, calculation)

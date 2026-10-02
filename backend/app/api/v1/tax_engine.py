@@ -33,6 +33,14 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Keep this wording aligned with the declaration displayed in FinalReview.
+# The endpoint deliberately requires an explicit acknowledgement before a return
+# can be finalised.
+REQUIRED_CONFIRMATION = (
+    "I have reviewed my tax return and confirm that all information provided is complete and accurate. "
+    "I accept full responsibility for the information submitted."
+)
+
 
 def _amount(value: object) -> Decimal:
     """Safely turn optional JSON profile values into tax-engine amounts."""
@@ -412,11 +420,6 @@ async def confirm_tax_return(
     """
     Finalize the tax return. Requires explicit confirmation text from the user.
     """
-    REQUIRED_CONFIRMATION = (
-        "I have reviewed my tax return and confirm that the information is complete and correct. "
-        "I accept responsibility for the information provided."
-    )
-
     confirmation_text = body.get("confirmation_text", "").strip()
     if confirmation_text != REQUIRED_CONFIRMATION:
         raise HTTPException(
