@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     # ── Google Gemini ─────────────────────────────────────────────────────────
     GEMINI_API_KEY: str = "your-gemini-api-key"
     GEMINI_MODEL: str = "gemini-3.8-flash"
+    ENABLE_EXTERNAL_AI_EXTRACTION: bool = False  # Privacy safeguard: external AI requires explicit opt-in
+
+    # ── OCR & Document Processing Limits ──────────────────────────────────────
+    OCR_MAX_PAGES: int = 50
+    OCR_MAX_IMAGE_PIXELS: int = 50_000_000
+    OCR_TIMEOUT_SECONDS: int = 120
+    TESSDATA_DIR: Optional[str] = "backend/tessdata"
 
     # ── Sentry ────────────────────────────────────────────────────────────────
     SENTRY_DSN: Optional[str] = None

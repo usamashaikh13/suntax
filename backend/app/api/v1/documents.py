@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import (
     APIRouter,
+    BackgroundTasks,
     Depends,
     File,
     HTTPException,
@@ -56,6 +57,7 @@ from app.schemas.document import (
     DocumentUploadResponse,
     PresignedUrlResponse,
 )
+from app.services.document_pipeline_service import document_pipeline_service
 from app.services.storage_service import StorageService
 from app.tasks.ocr_tasks import process_document
 
@@ -498,201 +500,14 @@ async def apply_document_to_tax_profile(
 ) -> List[str]:
     """
     Merge approved extracted fields from this document into the TaxProfile.
-    Prevents duplicates and records source document attribution.
+    Enforces human review: only approved or edited fields are merged.
     """
-    applied_fields: List[str] = []
-    data = dict(document.extracted_data or {})
-    reviews = data.get("_reviews") or {}
-    doc_type = document.document_type
-
-    def is_approved(fld: str) -> bool:
-        rev = reviews.get(fld)
-        if isinstance(rev, dict):
-            return rev.get("status") in ("approved", "edited", "needs_review")
-        return True
-
-    # 1. Salary Certificate
-    if doc_type == "salary_certificate":
-        income = dict(profile.income_data or {})
-        personal = dict(profile.personal_data or {})
-        deductions = dict(profile.deductions_data or {})
-
-        if data.get("gross_salary") is not None and is_approved("gross_salary"):
-            income["employment_income"] = data["gross_salary"]
-            applied_fields.append("employment_income")
-
-        if data.get("net_salary") is not None and is_approved("net_salary"):
-            income["net_salary"] = data["net_salary"]
-            applied_fields.append("net_salary")
-
-        if data.get("pension_bvg") is not None and is_approved("pension_bvg"):
-            deductions["pillar2_contributions"] = data["pension_bvg"]
-            applied_fields.append("pillar2_contributions")
-
-        if data.get("employee_name") and is_approved("employee_name") and not personal.get("first_name"):
-            parts = str(data["employee_name"]).strip().split(" ", 1)
-            personal["first_name"] = parts[0]
-            if len(parts) > 1:
-                personal["last_name"] = parts[1]
-            personal["name"] = data["employee_name"]
-            applied_fields.append("employee_name")
-
-        if data.get("employee_address") and is_approved("employee_address") and not personal.get("address_street"):
-            personal["address_street"] = data["employee_address"]
-            applied_fields.append("address_street")
-
-        if data.get("ahv_number") and is_approved("ahv_number") and not personal.get("ahv_number"):
-            personal["ahv_number"] = data["ahv_number"]
-            applied_fields.append("ahv_number")
-
-        profile.income_data = income
-        profile.personal_data = personal
-        profile.deductions_data = deductions
-
-    # 2. Pillar 3a
-    elif doc_type == "pillar3a":
-        deductions = dict(profile.deductions_data or {})
-        wealth = dict(profile.wealth_data or {})
-
-        if data.get("contribution_amount") is not None and is_approved("contribution_amount"):
-            deductions["pillar3a_contributions"] = min(float(data["contribution_amount"]), 7258.0)
-            applied_fields.append("pillar3a_contributions")
-
-        if data.get("balance") is not None and is_approved("balance"):
-            wealth["pillar3a_capital"] = data["balance"]
-            applied_fields.append("pillar3a_capital")
-
-        profile.deductions_data = deductions
-        profile.wealth_data = wealth
-
-    # 3. Bank Statement
-    elif doc_type == "bank_statement":
-        wealth = dict(profile.wealth_data or {})
-        accounts = list(wealth.get("bank_accounts") or [])
-
-        bal = data.get("balance")
-        iban = data.get("iban")
-        bname = data.get("bank_name", "Swiss Bank")
-
-        if bal is not None and is_approved("balance"):
-            # Check for existing account by IBAN or bank name
-            existing_idx = None
-            for idx, acc in enumerate(accounts):
-                if iban and acc.get("iban") == iban:
-                    existing_idx = idx
-                    break
-                elif acc.get("bank_name") == bname and acc.get("balance_chf") == bal:
-                    existing_idx = idx
-                    break
-
-            acc_entry = {
-                "bank_name": bname,
-                "iban": iban or "–",
-                "balance_chf": bal,
-                "currency": "CHF",
-                "source_document_id": document.id,
-                "source_document_name": document.original_filename,
-            }
-
-            if existing_idx is not None:
-                accounts[existing_idx] = acc_entry
-            else:
-                accounts.append(acc_entry)
-
-            wealth["bank_accounts"] = accounts
-            profile.wealth_data = wealth
-            applied_fields.append("bank_accounts")
-
-    # 4. Mortgage
-    elif doc_type == "mortgage":
-        liabilities = dict(profile.liabilities_data or {})
-        deductions = dict(profile.deductions_data or {})
-        mortgages = list(liabilities.get("mortgages") or [])
-
-        bal = data.get("mortgage_balance")
-        lender = data.get("lender_name", "Bank")
-
-        if bal is not None and is_approved("mortgage_balance"):
-            existing_idx = None
-            for idx, m in enumerate(mortgages):
-                if m.get("lender") == lender:
-                    existing_idx = idx
-                    break
-
-            m_entry = {
-                "lender": lender,
-                "outstanding_balance": bal,
-                "interest_rate": data.get("interest_rate"),
-                "source_document_id": document.id,
-                "source_document_name": document.original_filename,
-            }
-            if existing_idx is not None:
-                mortgages[existing_idx] = m_entry
-            else:
-                mortgages.append(m_entry)
-
-            liabilities["mortgages"] = mortgages
-            profile.liabilities_data = liabilities
-            applied_fields.append("mortgages")
-
-        if data.get("interest_paid") is not None and is_approved("interest_paid"):
-            deductions["debt_interest"] = data["interest_paid"]
-            profile.deductions_data = deductions
-            applied_fields.append("debt_interest")
-
-    # 5. Donations
-    elif doc_type == "donation":
-        deductions = dict(profile.deductions_data or {})
-        if data.get("amount") is not None and is_approved("amount"):
-            deductions["donations"] = data["amount"]
-            profile.deductions_data = deductions
-            applied_fields.append("donations")
-
-    # 6. Insurance
-    elif doc_type == "insurance":
-        deductions = dict(profile.deductions_data or {})
-        if data.get("premium_amount") is not None and is_approved("premium_amount"):
-            deductions["health_insurance_premiums"] = data["premium_amount"]
-            profile.deductions_data = deductions
-            applied_fields.append("health_insurance_premiums")
-
-    now = datetime.now(timezone.utc)
-    profile.updated_at = now
-    db.add(profile)
-    await db.flush()
-    return applied_fields
+    return await document_pipeline_service.apply_approved_fields_to_profile(document, profile, db)
 
 
 async def _process_locally(document: Document, db: AsyncSession) -> None:
-    """Perform local OCR extraction and persist review-ready field metadata."""
-    try:
-        file_bytes = await storage.download_file(document.storage_key)
-    except Exception as exc:
-        logger.error("Download failed during local process: %s", exc)
-        document.processing_status = "failed"
-        return
-
-    text = _extract_local_text(file_bytes, document.mime_type)
-    doc_type, score, data, confidence = _local_extract(text, document.original_filename)
-
-    document.ocr_text = text
-    if not document.document_type or document.document_type == "other":
-        document.document_type = doc_type
-    document.classification_confidence = score
-    document.extracted_data = data
-    document.extraction_confidence = confidence
-    document.processing_status = "done"
-    document.processed_at = datetime.now(timezone.utc)
-
-    if document.tax_return_id:
-        profile_res = await db.execute(
-            select(TaxProfile).where(TaxProfile.tax_return_id == str(document.tax_return_id))
-        )
-        profile = profile_res.scalar_one_or_none()
-        if profile:
-            await apply_document_to_tax_profile(db, document, profile)
-
-    await db.flush()
+    """Execute unified document processing pipeline."""
+    await document_pipeline_service.process_document(str(document.id), db)
 
 
 # ── Upload ────────────────────────────────────────────────────────────────────
@@ -712,6 +527,7 @@ async def upload_documents(
     category: Optional[str] = Query(
         None, description="Pre-assigned document category"
     ),
+    background_tasks: BackgroundTasks = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[DocumentUploadResponse]:
@@ -793,7 +609,7 @@ async def upload_documents(
             document_type=doc_type_val,
             sha256_hash=sha256,
             is_duplicate_suspect=is_dup,
-            processing_status="pending",
+            processing_status="queued",
         )
         db.add(document)
         await db.flush()
@@ -813,27 +629,19 @@ async def upload_documents(
             )
         )
 
-        queued = True
+        # Dispatch background processing without blocking the API request
         try:
             process_document.delay(str(doc_id))
         except Exception:
-            queued = False
-            try:
-                await _process_locally(document, db)
-            except Exception:
-                logger.exception("Local OCR processing failed for %s", doc_id)
-                document.processing_status = "failed"
+            if background_tasks is not None:
+                background_tasks.add_task(document_pipeline_service.process_document_by_id, str(doc_id))
 
         responses.append(
             DocumentUploadResponse(
                 id=doc_id,
                 original_filename=document.original_filename,
-                processing_status=document.processing_status,
-                message=(
-                    "File uploaded and queued for processing"
-                    if queued
-                    else "File uploaded and processed via local extraction engine."
-                )
+                processing_status="queued",
+                message="File uploaded and queued for processing"
                 + (" (Notice: Possible duplicate document detected)" if is_dup else ""),
             )
         )
@@ -1000,7 +808,8 @@ async def review_document(
 
     current_data["_reviews"] = current_reviews
     doc.extracted_data = current_data
-    doc.processing_status = "done"
+    if not payload.apply_to_profile and doc.processing_status != "completed":
+        doc.processing_status = "needs_review"
 
     if payload.apply_to_profile and doc.tax_return_id:
         profile_res = await db.execute(
@@ -1008,10 +817,11 @@ async def review_document(
         )
         profile = profile_res.scalar_one_or_none()
         if profile:
-            await apply_document_to_tax_profile(db, doc, profile)
+            await document_pipeline_service.apply_approved_fields_to_profile(doc, profile, db)
+    else:
+        db.add(doc)
+        await db.commit()
 
-    db.add(doc)
-    await db.commit()
     await db.refresh(doc)
     return DocumentResponse.model_validate(doc)
 
@@ -1047,10 +857,9 @@ async def apply_document(
             detail="Tax profile not found for this return.",
         )
 
-    applied = await apply_document_to_tax_profile(db, doc, profile)
-    await db.commit()
+    applied = await document_pipeline_service.apply_approved_fields_to_profile(doc, profile, db)
     return {
-        "message": f"Successfully applied {len(applied)} fields to tax profile.",
+        "message": f"Successfully applied {len(applied)} approved fields to tax profile.",
         "applied_fields": applied,
     }
 
@@ -1065,34 +874,36 @@ async def apply_document(
 )
 async def retry_document_processing(
     document_id: str,
+    background_tasks: BackgroundTasks = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> DocumentRetryResponse:
     await set_rls_user_id(db, current_user.id)
     doc = await _get_owned_document(db, document_id, str(current_user.id))
 
-    doc.processing_status = "processing"
+    # Reset status and clear prior error message
+    doc.processing_status = "queued"
+    payload = dict(doc.extracted_data or {})
+    payload.pop("_error_message", None)
+    payload.pop("error", None)
+    doc.extracted_data = payload
     db.add(doc)
-    await db.flush()
+    await db.commit()
+    await db.refresh(doc)
 
     try:
-        await _process_locally(doc, db)
-        await db.commit()
-        await db.refresh(doc)
-        return DocumentRetryResponse(
-            id=doc.id,
-            processing_status=doc.processing_status,
-            message="Document processing re-run completed successfully.",
-        )
-    except Exception as exc:
-        logger.exception("Retry failed for document %s: %s", doc.id, exc)
-        doc.processing_status = "failed"
-        db.add(doc)
-        await db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="OCR retry processing failed. Please verify that the file is not corrupted.",
-        )
+        process_document.delay(str(doc.id))
+    except Exception:
+        if background_tasks is not None:
+            background_tasks.add_task(document_pipeline_service.process_document_by_id, str(doc.id))
+        else:
+            await document_pipeline_service.process_document(str(doc.id), db)
+
+    return DocumentRetryResponse(
+        id=doc.id,
+        processing_status="queued",
+        message="Document processing re-queued successfully.",
+    )
 
 
 # ── Update metadata ───────────────────────────────────────────────────────────

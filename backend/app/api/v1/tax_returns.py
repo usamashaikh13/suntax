@@ -40,6 +40,7 @@ from app.schemas.tax_return import (
 from app.services.canton_service import CantonService
 from app.services.smart_questions_service import (
     generate_smart_questions,
+    generate_ai_questions,
     apply_answers_to_profile,
 )
 from app.services.tax_optimization_service import compute_tax_opportunities
@@ -418,13 +419,15 @@ async def get_tax_return_questions(
         if isinstance(q, dict) and q.get("answer"):
             existing_ans[q["id"]] = q["answer"]
 
-    qs = generate_smart_questions(
+    qs = await generate_ai_questions(
         personal_data=profile.personal_data or {},
         income_data=profile.income_data or {},
         wealth_data=profile.wealth_data or {},
         deductions_data=profile.deductions_data or {},
         liabilities_data=profile.liabilities_data or {},
         documents=docs,
+        canton_code=tax_return.canton_code,
+        tax_year=tax_return.tax_year,
         existing_answers=existing_ans,
     )
     profile.tax_questions = qs
@@ -457,6 +460,7 @@ async def answer_single_question(
         wealth_data=dict(profile.wealth_data or {}),
         deductions_data=dict(profile.deductions_data or {}),
         liabilities_data=dict(profile.liabilities_data or {}),
+        questions_list=profile.tax_questions,
     )
     profile.personal_data = p_data
     profile.income_data = inc_data

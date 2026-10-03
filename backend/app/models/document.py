@@ -48,5 +48,19 @@ class Document(Base):
     user: Mapped["User"] = relationship("User", back_populates="documents")
     tax_return: Mapped[Optional["TaxReturn"]] = relationship("TaxReturn", back_populates="documents")
 
+    @property
+    def error_message(self) -> Optional[str]:
+        if isinstance(self.extracted_data, dict):
+            return self.extracted_data.get("_error_message") or self.extracted_data.get("error")
+        return None
+
+    @property
+    def provider(self) -> Optional[str]:
+        if isinstance(self.extracted_data, dict):
+            meta = self.extracted_data.get("_metadata")
+            if isinstance(meta, dict):
+                return meta.get("provider")
+        return None
+
     def __repr__(self) -> str:
         return f"<Document id={self.id} filename={self.original_filename!r} status={self.processing_status!r}>"

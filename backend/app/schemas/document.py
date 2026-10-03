@@ -34,6 +34,8 @@ class DocumentResponse(BaseModel):
     is_duplicate_suspect: bool = False
     uploaded_at: datetime
     processed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    provider: Optional[str] = None
 
 
 class DocumentUploadResponse(BaseModel):
@@ -87,6 +89,8 @@ class DocumentStatusResponse(BaseModel):
     classification_confidence: Optional[float] = None
     processed_at: Optional[datetime] = None
     is_duplicate_suspect: bool = False
+    error_message: Optional[str] = None
+    provider: Optional[str] = None
 
 
 class DocumentRetryResponse(BaseModel):

@@ -15,8 +15,19 @@ from app.core.database import get_db, Base
 from app.core.security import hash_password, create_access_token
 from app.models.user import User
 
-# Use a test database – override in CI via env
-TEST_DATABASE_URL = "postgresql+asyncpg://suntax:changeme@localhost:5432/suntax_test"
+import os
+import shutil
+
+from app.core.config import settings
+
+# Strictly isolate the test database – NEVER fall back to suntax_dev.db or production DATABASE_URL!
+TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL")
+if not TEST_DATABASE_URL:
+    TEST_DATABASE_URL = "sqlite+aiosqlite:////tmp/suntax_isolated_test.db"
+
+# Safety assertions: tests must NEVER touch the local dev or production databases
+assert "suntax_dev.db" not in TEST_DATABASE_URL, "Test database must NOT be suntax_dev.db!"
+assert TEST_DATABASE_URL != settings.DATABASE_URL, "TEST_DATABASE_URL must be strictly isolated from settings.DATABASE_URL!"
 
 
 @pytest.fixture(scope="session")
@@ -28,13 +39,63 @@ def event_loop():
 
 @pytest_asyncio.fixture(scope="session")
 async def test_engine():
-    engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    # Clean up any leftover temporary sqlite file from prior test runs
+    if "suntax_isolated_test.db" in TEST_DATABASE_URL:
+        db_path = "/tmp/suntax_isolated_test.db"
+        if os.path.exists(db_path):
+            try:
+                os.remove(db_path)
+            except OSError:
+                pass
+
+    engine_kwargs = {"echo": False}
+    if TEST_DATABASE_URL.startswith("sqlite"):
+        engine_kwargs["connect_args"] = {"check_same_thread": False}
+    engine = create_async_engine(TEST_DATABASE_URL, **engine_kwargs)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
+    if "suntax_isolated_test.db" in TEST_DATABASE_URL:
+        db_path = "/tmp/suntax_isolated_test.db"
+        if os.path.exists(db_path):
+            try:
+                os.remove(db_path)
+            except OSError:
+                pass
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def setup_test_database(test_engine):
+    """
+    Ensure all application services and background tasks use test_engine
+    instead of connecting to suntax_dev.db.
+    """
+    test_session_factory = async_sessionmaker(
+        bind=test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+        autocommit=False,
+    )
+    import app.core.database
+    import app.services.document_pipeline_service
+
+    orig_engine = app.core.database.engine
+    orig_session_local = app.core.database.AsyncSessionLocal
+    orig_pipeline_session_local = app.services.document_pipeline_service.AsyncSessionLocal
+
+    app.core.database.engine = test_engine
+    app.core.database.AsyncSessionLocal = test_session_factory
+    app.services.document_pipeline_service.AsyncSessionLocal = test_session_factory
+
+    yield
+
+    app.core.database.engine = orig_engine
+    app.core.database.AsyncSessionLocal = orig_session_local
+    app.services.document_pipeline_service.AsyncSessionLocal = orig_pipeline_session_local
 
 
 @pytest_asyncio.fixture
@@ -60,8 +121,8 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 @pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession) -> User:
     user = User(
-        id=uuid.uuid4(),
-        email=f"test_{uuid.uuid4().hex[:8]}@suntax.test",
+        id=str(uuid.uuid4()),
+        email=f"test_{uuid.uuid4().hex[:8]}@suntax.ch",
         hashed_password=hash_password("Test1234!"),
         full_name="Test User",
         is_verified=True,
@@ -77,8 +138,8 @@ async def test_user(db_session: AsyncSession) -> User:
 async def test_user2(db_session: AsyncSession) -> User:
     """A second user for isolation tests."""
     user = User(
-        id=uuid.uuid4(),
-        email=f"test2_{uuid.uuid4().hex[:8]}@suntax.test",
+        id=str(uuid.uuid4()),
+        email=f"test2_{uuid.uuid4().hex[:8]}@suntax.ch",
         hashed_password=hash_password("Test1234!"),
         full_name="Test User 2",
         is_verified=True,
@@ -93,8 +154,8 @@ async def test_user2(db_session: AsyncSession) -> User:
 @pytest_asyncio.fixture
 async def admin_user(db_session: AsyncSession) -> User:
     user = User(
-        id=uuid.uuid4(),
-        email=f"admin_{uuid.uuid4().hex[:8]}@suntax.test",
+        id=str(uuid.uuid4()),
+        email=f"admin_{uuid.uuid4().hex[:8]}@suntax.ch",
         hashed_password=hash_password("Admin1234!"),
         full_name="Admin User",
         is_verified=True,

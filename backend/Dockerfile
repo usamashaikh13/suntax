@@ -31,6 +31,11 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-deu \
+    tesseract-ocr-fra \
+    tesseract-ocr-ita \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed packages from builder
@@ -58,6 +63,11 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-deu \
+    tesseract-ocr-fra \
+    tesseract-ocr-ita \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user

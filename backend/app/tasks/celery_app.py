@@ -39,6 +39,9 @@ celery_app.conf.update(
     # Rate limiting & retry defaults
     task_default_retry_delay=30,  # seconds
     task_max_retries=3,
+    broker_connection_retry_on_startup=False,
+    broker_connection_max_retries=1,
+    broker_connection_timeout=0.2,
     # Worker settings
     worker_prefetch_multiplier=1,  # One task at a time per worker slot (IO-bound)
     worker_max_tasks_per_child=100,  # Recycle workers to avoid memory leaks

@@ -1,285 +1,238 @@
-# SunTax Architecture
+# SunTax System Architecture Specification
 
-This document describes the technical architecture of the SunTax platform in detail.
+**Project**: SunTax – Web-Based Document-to-Tax-Return Platform  
+**Document Version**: 1.2.0  
+**Status**: Approved & Implemented  
+**Date**: October 2026  
+**Audience**: Technical Stakeholders, Lead Engineers, Security Auditors  
 
 ---
 
-## High-Level Overview
+## 1. Executive Summary
 
-SunTax follows a classic **three-tier web architecture** with a separate **async task layer** for AI/document processing:
+SunTax is an intelligent, privacy-first web application designed to streamline the preparation of Swiss tax returns from raw taxpayer documentation. The system ingests scanned PDFs, digital documents, and smartphone photos, extracts structured financial and personal data via a hybrid OCR pipeline, allows human review of all extracted values, and deterministically calculates federal, cantonal, and municipal taxes across Swiss cantons.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        Internet                              │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ HTTPS (443) / HTTP→HTTPS (80)
-┌──────────────────────────▼──────────────────────────────────┐
-│                    Nginx Reverse Proxy                        │
-│  - TLS termination (Let's Encrypt)                           │
-│  - Rate limiting (10 req/s per IP)                           │
-│  - Security headers (HSTS, CSP, X-Frame-Options)             │
-│  - WebSocket upgrade                                          │
-│  - Gzip compression                                           │
-└────────────┬───────────────────────────────┬─────────────────┘
-             │ /api/*  /ws/*                  │ /*
-┌────────────▼──────────────┐  ┌─────────────▼─────────────────┐
-│     FastAPI Backend        │  │      Next.js 14 Frontend       │
-│     Python 3.12            │  │      TypeScript + Tailwind     │
-│                            │  │      App Router (RSC)          │
-│  ┌──────────────────────┐  │  │                                │
-│  │ Routers (API v1)     │  │  │  ┌────────────────────────┐   │
-│  │  /auth               │  │  │  │  Server Components      │   │
-│  │  /users              │  │  │  │  Client Components       │   │
-│  │  /tax-returns        │  │  │  │  shadcn/ui + Radix      │   │
-│  │  /documents          │  │  │  └────────────────────────┘   │
-│  │  /tax-calculations   │  │  └───────────────────────────────┘
-│  │  /health             │  │
-│  └──────────────────────┘  │
-│  ┌──────────────────────┐  │
-│  │ Services             │  │
-│  │  AuthService         │  │
-│  │  TaxCalculationSvc   │  │
-│  │  DocumentService     │  │
-│  │  GeminiAIService     │  │
-│  │  StorageService      │  │
-│  └──────────────────────┘  │
-└────────────┬───────────────┘
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│                     Data Layer                                │
-│                                                               │
-│  ┌──────────────────────┐   ┌──────────────────────────────┐ │
-│  │   PostgreSQL 16       │   │         Redis 7              │ │
-│  │                       │   │                              │ │
-│  │  Tables:              │   │  - JWT denylist              │ │
-│  │  - users              │   │  - Rate limit counters       │ │
-│  │  - tax_returns        │   │  - Celery message broker     │ │
-│  │  - tax_profiles       │   │  - Celery result backend     │ │
-│  │  - documents          │   │  - RedBeat schedules         │ │
-│  │  - tax_calculations   │   │  - Session cache             │ │
-│  │  - cantons            │   └──────────────────────────────┘ │
-│  │  - tax_rules          │                                     │
-│  │  - audit_logs         │   ┌──────────────────────────────┐ │
-│  │                       │   │         MinIO                │ │
-│  │  Row-Level Security   │   │                              │ │
-│  │  enabled on all       │   │  - User uploaded documents   │ │
-│  │  user-owned tables    │   │  - Generated PDF returns     │ │
-│  └──────────────────────┘   │  - Audit evidence files      │ │
-│                               └──────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-             │
-┌────────────▼────────────────────────────────────────────────┐
-│                   Async Task Layer (Celery)                   │
-│                                                               │
-│  Queues:                    Workers:                          │
-│  - celery (default)         - Document OCR                   │
-│  - ai_tasks                 - Gemini data extraction         │
-│  - document_processing      - PDF generation                 │
-│                             - Email notifications            │
-│  Scheduler (RedBeat):       - Tax rule sync                  │
-│  - Daily backup trigger     - Cleanup jobs                   │
-│  - Reminder emails                                           │
-└─────────────────────────────────────────────────────────────┘
+### Core Architectural Directives
+1. **Zero-LLM Tax Calculations**: Tax calculations are 100% deterministic and rule-driven. LLMs are never used for arithmetic or tax liability assessments.
+2. **Human-in-the-Loop Integrity**: OCR extractions enter a strict `needs_review` state. Extracted values are never merged into a taxpayer's return profile without explicit user approval.
+3. **Strict Tenant Isolation**: User data, tax returns, and uploaded documents are strictly segregated using Row-Level Security (RLS) and cryptographic access verification.
+4. **Draft-Only Compliance**: The system outputs "Draft Structured Tax Data XML" (eCH-0196 compatible) and "Tax Return Summary PDF", making no false claims of official automated filing with cantonal authorities.
+
+---
+
+## 2. High-Level System Architecture
+
+SunTax implements a decoupled **Three-Tier Web Architecture** paired with an **Asynchronous Distributed Worker Tier** for compute-heavy optical character recognition and document parsing.
+
+```mermaid
+flowchart TD
+    Client["Client Browser\n(Next.js 14 Web App)"]
+    Proxy["Nginx Reverse Proxy\n(TLS Termination, Rate Limiting, WS Upgrade)"]
+    API["FastAPI Application Tier\n(REST API, Auth, Tax Rules Engine)"]
+    Workers["Asynchronous Worker Tier\n(Celery Workers + Redis Broker)"]
+    DB[("Relational Database\nPostgreSQL 16 / SQLite Dev\n(RLS, JSONB Profiles)")]
+    Cache[("Redis 7 Cache\n(Token Denylist, Celery Queue)")]
+    Storage[("MinIO / AWS S3\n(Encrypted Object Storage)")]
+    Gemini["Google Gemini 2.0 Flash\n(Fallback Layout Extraction)"]
+
+    Client -->|HTTPS / WSS| Proxy
+    Proxy -->|/*| Client
+    Proxy -->|/api/* & /ws/*| API
+    API -->|Session & Auth| DB
+    API -->|Enqueue Task| Cache
+    API -->|Generate Presigned URLs| Storage
+    Cache -->|Dispatch Jobs| Workers
+    Workers -->|Download Raw Docs| Storage
+    Workers -->|Update OCR & Fields| DB
+    Workers -.->|Optional Layout Fallback| Gemini
 ```
 
 ---
 
-## Technology Stack
+## 3. Tier-by-Tier Specification
 
-### Backend (FastAPI)
-
-| Component | Technology | Version | Rationale |
-|-----------|------------|---------|-----------|
-| Web framework | FastAPI | 0.115+ | High performance, native async, auto OpenAPI |
-| ORM | SQLAlchemy | 2.0 (async) | Type-safe queries, async support |
-| Migrations | Alembic | 1.13+ | SQL migration versioning |
-| Data validation | Pydantic | v2 | Fast, type-safe schema validation |
-| Task queue | Celery | 5+ | Mature, Redis-backed, retry support |
-| Authentication | PyJWT | 2+ | JWT RS256 or HS256 |
-| AI | google-genai | latest | Gemini 2.0 Flash for doc extraction |
-| Object storage | boto3 / minio-py | latest | S3-compatible MinIO client |
-| Email | Resend | — | Reliable transactional email |
-
-### Frontend (Next.js)
-
-| Component | Technology | Rationale |
-|-----------|------------|-----------|
-| Framework | Next.js 14 (App Router) | RSC, streaming, built-in optimization |
-| Language | TypeScript 5 | Type safety, developer experience |
-| Styling | Tailwind CSS 3 | Utility-first, design system consistent |
-| UI Components | shadcn/ui + Radix | Accessible, composable, unstyled primitives |
-| Forms | React Hook Form + Zod | Performant, type-safe form validation |
-| State | Zustand | Lightweight, no boilerplate |
-| Data fetching | TanStack Query | Caching, background sync, optimistic updates |
-| i18n | next-intl | SSR-compatible internationalization |
-
-### Infrastructure
-
-| Component | Technology | Notes |
-|-----------|------------|-------|
-| Container runtime | Docker + Compose | Dev and prod parity |
-| Reverse proxy | Nginx 1.25 | TLS, rate limiting, compression |
-| Database | PostgreSQL 16 | ACID, RLS, JSON support |
-| Cache / Broker | Redis 7 | Persistence enabled |
-| Object storage | MinIO | S3-compatible, self-hosted |
-| TLS | Let's Encrypt + Certbot | Automatic cert renewal |
-| CI/CD | GitHub Actions | Build, test, deploy |
+### 3.1 Presentation Tier (Next.js 14 Frontend)
+* **Framework**: Next.js 14 (App Router architecture with React Server Components and Client Components).
+* **Language & Typing**: TypeScript 5+ in strict mode.
+* **Component System**: Tailwind CSS 3.4 + shadcn/ui built on unstyled accessible Radix primitives.
+* **State & Data Synchronization**:
+  * TanStack Query (React Query v5) for cache invalidation, background synchronization, and optimistic UI updates.
+  * React Hook Form with Zod runtime schema validation for forms.
+  * Real-time document processing updates via WebSocket (`/ws/{tax_return_id}`) with fallback to HTTP polling.
+* **Key User Journeys**:
+  * **Authentication**: Login, Registration with password strength meter, email verification, password reset.
+  * **Tax Return Wizard**: Canton selection with visual heraldic emblems, searchable BFS municipality selection, and tax year selection (2025/2026).
+  * **Document Ingestion & OCR Review**: Drag-and-drop file upload (PDF, JPEG, PNG, WebP, TIFF, HEIC), file-level status badges, field-by-field review screen showing confidence metrics and manual override controls.
+  * **Calculation & Export**: Dynamic tax liability breakdown by authority (Federal, Canton, Municipality, Wealth), Summary PDF preview, and draft XML download.
 
 ---
 
-## Database Schema
-
-```
-users
-  id UUID PK
-  email VARCHAR UNIQUE NOT NULL
-  hashed_password VARCHAR NOT NULL
-  full_name VARCHAR
-  is_active BOOLEAN DEFAULT true
-  is_admin BOOLEAN DEFAULT false
-  created_at TIMESTAMPTZ
-  updated_at TIMESTAMPTZ
-
-tax_profiles
-  id UUID PK
-  user_id UUID FK→users(id)  [RLS: user_id = current_user]
-  canton VARCHAR(2) NOT NULL
-  tax_year INT NOT NULL
-  civil_status VARCHAR
-  has_children BOOLEAN
-  church_tax BOOLEAN
-  created_at TIMESTAMPTZ
-
-tax_returns
-  id UUID PK
-  user_id UUID FK→users(id)  [RLS]
-  tax_profile_id UUID FK→tax_profiles(id)
-  status VARCHAR  (draft|in_review|submitted)
-  data JSONB  (all form fields)
-  federal_tax NUMERIC(12,2)
-  cantonal_tax NUMERIC(12,2)
-  submitted_at TIMESTAMPTZ
-  created_at TIMESTAMPTZ
-  updated_at TIMESTAMPTZ
-
-documents
-  id UUID PK
-  user_id UUID FK→users(id)  [RLS]
-  tax_return_id UUID FK→tax_returns(id)
-  filename VARCHAR
-  content_type VARCHAR
-  storage_key VARCHAR  (MinIO object key)
-  file_size BIGINT
-  extracted_data JSONB
-  processing_status VARCHAR
-  uploaded_at TIMESTAMPTZ
-
-cantons
-  code VARCHAR(2) PK
-  name_de VARCHAR NOT NULL
-  name_fr VARCHAR
-  name_it VARCHAR
-  name_en VARCHAR
-
-tax_rules
-  id UUID PK
-  canton_code VARCHAR(2) FK→cantons(code)
-  tax_year INT NOT NULL
-  rule_type VARCHAR  (deduction|rate|allowance)
-  rule_key VARCHAR
-  rule_data JSONB
-  effective_from DATE
-  effective_to DATE
-  source_url VARCHAR
-  verified_at TIMESTAMPTZ
-
-audit_logs
-  id UUID PK
-  user_id UUID  (nullable for system events)
-  action VARCHAR NOT NULL
-  resource_type VARCHAR
-  resource_id UUID
-  ip_address INET
-  user_agent TEXT
-  occurred_at TIMESTAMPTZ
-```
+### 3.2 Application Tier (FastAPI Backend)
+* **Runtime**: Python 3.12 running on Uvicorn ASGI with native asynchronous event loops.
+* **Input Validation**: Pydantic v2 schemas providing strict compile-time and runtime validation.
+* **Modular Router Breakdown**:
+  * `/api/v1/auth`: JWT issuance (HS256/RS256), refresh token rotation, user registration, email verification triggers.
+  * `/api/v1/tax-returns`: Return lifecycle (draft → review → confirmed), Canton metadata and BFS municipality lookup.
+  * `/api/v1/documents`: Multipart uploads, magic-byte inspection, SHA-256 duplicate detection, presigned download URLs, OCR retry triggers.
+  * `/api/v1/tax-engine`: Deterministic calculation triggers, rule line-item explanations, WeasyPrint PDF compilation, and eCH-0196 XML generation.
+  * `/api/v1/admin`: Administrative metrics, account status management, audit log inspection.
 
 ---
 
-## Authentication Flow
+### 3.3 Asynchronous Processing & OCR Tier
+Heavy document processing is completely decoupled from the synchronous HTTP request loop to preserve sub-100ms API response times.
 
+```mermaid
+flowchart LR
+    Upload["1. Document Upload\n(SHA-256 + S3 Upload)"] --> Enqueue["2. Enqueue Job\n(Celery / Redis)"]
+    Enqueue --> HybridOCR["3. Hybrid OCR Pipeline\n(PyMuPDF + Tesseract)"]
+    HybridOCR --> Extract["4. Structured Extraction\n(Regex / Layout / Gemini Fallback)"]
+    Extract --> Review["5. State: needs_review\n(Awaiting Human Approval)"]
+    Review --> Merge["6. Explicit User Approval\n(Idempotent Profile Merge)"]
 ```
-Client                        FastAPI                   PostgreSQL / Redis
-  │                              │                              │
-  │──POST /auth/login ──────────►│                              │
-  │   {email, password}          │──SELECT user WHERE email────►│
-  │                              │◄─ user row ─────────────────│
-  │                              │  verify bcrypt hash         │
-  │                              │──SET jwt_denylist:* ────────►│ (Redis)
-  │◄── {access_token,           │                              │
-  │     refresh_token} ─────────│                              │
-  │                              │                              │
-  │──GET /api/v1/me ────────────►│                              │
-  │   Authorization: Bearer ...  │  decode JWT, check expiry   │
-  │                              │──CHECK denylist ────────────►│ (Redis)
-  │                              │  inject user into request   │
-  │◄── {user data} ─────────────│                              │
-  │                              │                              │
-  │──POST /auth/refresh ────────►│                              │
-  │   {refresh_token}            │  verify refresh token       │
-  │◄── {new access_token} ──────│                              │
-  │                              │                              │
-  │──POST /auth/logout ─────────►│                              │
-  │                              │──SETEX denylist:jti ────────►│ (Redis, TTL=exp)
-  │◄── 204 No Content ──────────│                              │
-```
+
+1. **Format Handling**: Supports PDF, JPG, PNG, WebP, multi-page TIFF, and HEIC (where decoder is available).
+2. **Hybrid OCR Engine (`app/services/ocr_service.py`)**:
+   * **Digital PDF Layer**: Direct vector text extraction via PyMuPDF (fitz) for fast, 100% accurate extraction on digital PDFs.
+   * **Scanned/Hybrid PDF Layer**: Pages with low text density (<40 characters) are rasterized at 300 DPI.
+   * **Image Preprocessing**: Auto-rotates using Tesseract Orientation & Script Detection (OSD) for 90°, 180°, and 270° orientations; deskews tilt angles using projection-profile variance; enhances contrast via PIL autocontrast.
+   * **Process Sandboxing**: Pytesseract processes run with strict execution timeouts; any subprocess exceeding `OCR_TIMEOUT_SECONDS` is actively terminated via `SIGKILL` to prevent resource starvation.
+3. **Structured Data Extractor (`app/services/document_extractor.py`)**:
+   * Classifies documents into 14 supported tax categories (Salary Certificate, Bank Statement, Securities Statement, Pillar 3a, Mortgage, Insurance, Donations, Medical, etc.).
+   * Extracts fields deterministically using tailored Swiss number parsers (`120'000.00` / `120 000,00`).
+   * Fallback to Google Gemini 2.0 Flash structured JSON schema when enabled and necessary for complex unformatted documents.
+4. **Idempotent Merge Service (`app/services/document_pipeline_service.py`)**:
+   * Tracks prior contributions per document ID.
+   * Subtracts existing values before applying newly approved fields, preventing double-counting if a document is re-processed or reviewed multiple times.
 
 ---
 
-## AI Document Processing Flow
+### 3.4 Deterministic Swiss Tax Calculation Engine
+* **Location**: `app/services/tax_engine_service.py`
+* **Architecture**: Rule-based progressive calculation pipeline matching official Federal (ESTV) and Cantonal tax laws.
 
-```
-User                FastAPI              Celery Worker          Gemini API
- │                     │                      │                     │
- │─POST /documents ───►│                      │                     │
- │  (multipart PDF)     │  save to MinIO       │                     │
- │                     │  INSERT document     │                     │
- │                     │  status=pending      │                     │
- │◄─ 202 {task_id} ────│  enqueue task ──────►│                     │
- │                     │                      │  download from MinIO │
- │─WS /ws/task_id ────►│                      │  extract text/images │
- │   (subscribe)        │                      │─── Gemini request ──►│
- │                     │                      │  prompt: extract     │
- │                     │                      │  structured JSON     │
- │                     │                      │◄── JSON response ───│
- │                     │                      │  UPDATE document     │
- │                     │                      │  extracted_data={}   │
- │◄─ WS: {status,      │◄── WS push ─────────│  status=completed    │
- │    data} ───────────│                      │                     │
-```
+$$\text{Total Tax Liability} = \text{Federal Income Tax} + \text{Cantonal Income Tax} + \text{Municipal Income Tax} + \text{Wealth Tax}$$
+
+1. **Taxable Income Calculation**:
+   * Gross Employment Income (Lohnausweis line 8 or approved override).
+   * Less Employment Deductions: Commuting (capped at Federal CHF 3'000 / Cantonal limits), Meals (CHF 3'200 standard), and Professional Equipment flat rates.
+   * Less Pension & Savings: Pillar 3a contributions (strictly capped at CHF 7'258 for employed, CHF 36'288 for self-employed).
+   * Less General Deductions: Health insurance premiums (single/married/child caps), medical expenses (exceeding 5% net income threshold), charitable donations (capped at 20% net income), and debt interest.
+2. **Federal Tax Computation**:
+   * Progressive bracket table application with marriage divisor/splitting methodology.
+3. **Cantonal Tax Computation**:
+   * Base tax evaluated using Canton-specific rate tables (e.g. Zürich, Bern, Zug, Schwyz).
+4. **Municipal Tax Computation**:
+   * Computed deterministically via: $\text{Cantonal Base Tax} \times \frac{\text{Municipality Multiplier}}{100}$.
+5. **Wealth Tax Computation**:
+   * Net wealth (bank deposits + securities tax values + real estate - liabilities - social deductions) evaluated against progressive cantonal wealth tax brackets.
 
 ---
 
-## Security Architecture
+## 4. Data & Storage Layer
 
-See [`docs/security.md`](security.md) for the full security document.
+```mermaid
+erDiagram
+    users ||--o{ tax_returns : owns
+    users ||--o{ documents : uploads
+    users ||--o{ audit_logs : triggers
+    tax_returns ||--|| tax_profiles : contains
+    tax_returns ||--o{ documents : references
+    tax_returns ||--o{ tax_calculations : generates
+    cantons ||--o{ tax_rules : dictates
 
-Key points:
-- **Row-Level Security** on all user-owned tables
-- **JWT** with short-lived access tokens (30 min) + long-lived refresh tokens (30 days)
-- **JWT denylist** in Redis for immediate logout
-- **bcrypt** password hashing (cost factor 12)
-- **TLS 1.3** only in production
-- **Content-Security-Policy** enforced by Nginx
-- **Rate limiting** at Nginx (10 req/s) and FastAPI middleware
-- **Audit log** for all sensitive actions
+    users {
+        uuid id PK
+        string email UK
+        string hashed_password
+        boolean is_active
+        boolean is_admin
+        timestamp created_at
+    }
+
+    tax_returns {
+        uuid id PK
+        uuid user_id FK
+        string canton_code
+        string municipality_code
+        int tax_year
+        string status
+        timestamp confirmed_at
+    }
+
+    tax_profiles {
+        uuid id PK
+        uuid tax_return_id FK
+        jsonb personal_data
+        jsonb income_data
+        jsonb wealth_data
+        jsonb deductions_data
+        jsonb liabilities_data
+    }
+
+    documents {
+        uuid id PK
+        uuid user_id FK
+        uuid tax_return_id FK
+        string original_filename
+        string storage_key
+        string mime_type
+        string document_type
+        string processing_status
+        jsonb extracted_data
+        string sha256_hash
+    }
+
+    tax_calculations {
+        uuid id PK
+        uuid tax_return_id FK
+        decimal total_tax
+        decimal federal_tax
+        decimal cantonal_tax
+        decimal municipal_tax
+        decimal wealth_tax
+        jsonb breakdown
+        string status
+    }
+```
+
+### Storage Engines
+* **Relational Storage**:
+  * **Production**: PostgreSQL 16 with native `JSONB` indexing, foreign keys, and Row-Level Security policies.
+  * **Development**: SQLite (`sqlite+aiosqlite`) at `backend/suntax_dev.db` enabling instantaneous local onboarding.
+  * **Testing**: Isolated in-memory/temporary SQLite (`/tmp/suntax_isolated_test.db`) strictly isolated from dev data.
+* **Cache & Transient Store**: Redis 7 managing JWT invalidation lists, Celery task distribution, and API request throttling counters.
+* **Object Storage**: MinIO (development/staging) or AWS S3 (production) using tenant-segregated directory structures (`users/{user_id}/{doc_id}/filename.pdf`).
 
 ---
 
-## Deployment Environments
+## 5. Security & Isolation Architecture
 
-| Environment | Branch | URL | Deploy |
-|-------------|--------|-----|--------|
-| Development | any | http://localhost:3000 | `docker compose up` |
-| Staging | `staging` | https://staging.suntax.ch | GitHub Actions on push |
-| Production | `main` | https://suntax.ch | GitHub Actions on push (after CI) |
+| Layer | Mechanism | Specification |
+|---|---|---|
+| **Identity & Access** | JWT Authentication | RS256/HS256 signed access tokens (15–60 min TTL) with refresh token rotation and Redis denylist on logout. |
+| **Password Storage** | Bcrypt | Passlib bcrypt with salt cost factor 12. |
+| **Tenant Isolation** | Foreign Key & RLS | Every record is bounded to `user_id`. API endpoints verify user identity prior to database execution. |
+| **File Protection** | Sandboxing & Inspection | Magic-byte file validation, 50MB upload limits, password-protected PDF rejection, and isolated temporary disk storage. |
+| **Transport Security** | TLS & Headers | TLS 1.3, Strict-Transport-Security (HSTS), X-Content-Type-Options, Content-Security-Policy (CSP), and X-Frame-Options: DENY. |
+| **Audit Trails** | Immutability | `audit_logs` record all authentication, export, and financial modifications with IP and timestamp metadata. |
+
+---
+
+## 6. Deployment & Infrastructure
+
+The entire platform is deployable via containerized orchestration:
+
+* **Production Orchestration**: `docker-compose.prod.yml` defining separate microservices for Frontend, Backend, Celery Worker, PostgreSQL, Redis, and MinIO behind an Nginx reverse proxy.
+* **Local Development**: Standalone shell scripts (`backend/start_dev.sh`) and hot-reloading Next.js dev server.
+* **Continuous Integration**: GitHub Actions CI (`.github/workflows/ci.yml`) enforcing automated linting, security scanning with Bandit, and 100% passing tests on all pull requests.
+
+---
+
+## 7. Automated Test & Verification Matrix
+
+The architecture is accompanied by an automated pytest verification suite ensuring reliability across all components:
+
+* **E2E Document Pipeline Tests** (`tests/test_document_pipeline_e2e.py`): 21 tests verifying clean digital PDFs, scanned PDFs, rotated phone images (90°/180°/270°), multi-page TIFFs, blank/corrupt/password-protected files, timeout enforcement, storage failure propagation, Celery retries, and idempotent profile merging.
+* **Tax Engine Tests** (`tests/test_tax_engine.py`): 16 tests verifying single vs. married splitting, progressive brackets across cantons, deduction caps, and total tax calculations against ESTV reference values.
+* **Security & Isolation Tests** (`tests/security/test_user_isolation.py`): Verifying that tenant data access attempts by unauthenticated or unauthorized users are strictly denied.

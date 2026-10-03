@@ -25,10 +25,12 @@ import { formatFileSize, formatDate } from '@/lib/utils';
 import { DocumentReviewModal } from './DocumentReviewModal';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  pending: { label: 'Pending', color: 'bg-gray-100 text-gray-700 border-gray-200', icon: Loader2 },
+  queued: { label: 'Queued', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: Loader2 },
+  pending: { label: 'Queued', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: Loader2 },
   processing: { label: 'Processing...', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: Loader2 },
-  completed: { label: 'Ready', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle },
-  done: { label: 'Ready', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle },
+  needs_review: { label: 'Needs Review', color: 'bg-amber-100 text-amber-800 border-amber-200', icon: SlidersHorizontal },
+  completed: { label: 'Completed', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle },
+  done: { label: 'Completed', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle },
   failed: { label: 'Failed', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertTriangle },
   error: { label: 'Error', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertTriangle },
 };

@@ -68,7 +68,8 @@ export default function DocumentsPage() {
   const stats = {
     total: documents.length,
     completed: documents.filter(d => d.processing_status === 'done' || d.processing_status === 'completed').length,
-    processing: documents.filter(d => d.processing_status === 'processing' || d.processing_status === 'pending').length,
+    needs_review: documents.filter(d => d.processing_status === 'needs_review').length,
+    processing: documents.filter(d => d.processing_status === 'processing' || d.processing_status === 'pending' || d.processing_status === 'queued').length,
   }
 
   return (
@@ -78,7 +79,7 @@ export default function DocumentsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-              Gemini 3.8 Flash Vision OCR
+              Deterministic OCR & Field Extraction
             </span>
             <span className="text-xs text-slate-400">•</span>
             <span className="text-xs text-slate-500 font-medium">End-to-End Encrypted</span>

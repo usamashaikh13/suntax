@@ -56,8 +56,10 @@ export const DOCUMENT_CATEGORIES = [
 ] as const;
 
 export enum ProcessingStatus {
+  QUEUED = 'queued',
   PENDING = 'pending',
   PROCESSING = 'processing',
+  NEEDS_REVIEW = 'needs_review',
   COMPLETED = 'completed',
   FAILED = 'failed',
   MANUAL_REVIEW = 'manual_review',

@@ -21,8 +21,17 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-client = genai.Client(api_key=settings.GEMINI_API_KEY)
-EXTRACTION_MODEL = "gemini-2.0-flash"
+def get_client() -> Optional[genai.Client]:
+    if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY in ("your-gemini-api-key", "placeholder"):
+        return None
+    try:
+        return genai.Client(api_key=settings.GEMINI_API_KEY)
+    except Exception as exc:
+        logger.warning("Could not initialize Google GenAI client: %s", exc)
+        return None
+
+def get_extraction_model() -> str:
+    return settings.GEMINI_MODEL or "gemini-3.8-flash"
 
 
 def _parse_currency(raw: Optional[str]) -> Optional[float]:
@@ -232,9 +241,13 @@ def _build_part(file_bytes: bytes, mime_type: str) -> types.Part:
 
 def _call_gemini(prompt: str, file_bytes: bytes, mime_type: str, response_schema: Any) -> dict:
     """Call Gemini with structured output enforcement."""
+    client = get_client()
+    if not client:
+        logger.info("Gemini client not configured or disabled; skipping AI extraction.")
+        return {}
     try:
         response = client.models.generate_content(
-            model=EXTRACTION_MODEL,
+            model=get_extraction_model(),
             contents=[
                 types.Content(
                     role="user",
