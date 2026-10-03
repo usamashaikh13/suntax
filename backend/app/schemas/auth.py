@@ -90,6 +90,12 @@ class UserUpdateRequest(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
 
 
+class EmailVerificationRequest(BaseModel):
+    """Payload for POST /auth/verify-email."""
+
+    token: str
+
+
 # ── Response schemas ──────────────────────────────────────────────────────────
 
 

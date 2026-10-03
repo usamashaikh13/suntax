@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import select
@@ -53,6 +54,7 @@ from app.schemas.auth import (
     UserRegisterRequest,
     UserResponse,
     UserUpdateRequest,
+    EmailVerificationRequest,
 )
 from app.services.email_service import EmailService
 
@@ -179,15 +181,7 @@ async def register(
     )
 
 
-@router.get(
-    "/verify-email",
-    response_model=MessageResponse,
-    summary="Verify email address via token",
-)
-async def verify_email(
-    token: str = Query(..., min_length=1),
-    db: AsyncSession = Depends(get_db),
-) -> MessageResponse:
+async def _do_verify_email(token: str, db: AsyncSession) -> MessageResponse:
     """Consume an email verification token and activate the user."""
     user_id = await consume_email_token("verify", token)
     if not user_id:
@@ -213,6 +207,37 @@ async def verify_email(
         resource_id=str(user.id),
     )
     return MessageResponse(message="Email verified successfully")
+
+
+@router.get(
+    "/verify-email",
+    response_model=MessageResponse,
+    summary="Verify email address via GET query token",
+)
+async def verify_email_get(
+    token: str = Query(..., min_length=1),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    return await _do_verify_email(token, db)
+
+
+@router.post(
+    "/verify-email",
+    response_model=MessageResponse,
+    summary="Verify email address via POST token payload or query",
+)
+async def verify_email_post(
+    payload: Optional[EmailVerificationRequest] = None,
+    token: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    t = (payload.token if payload else None) or token
+    if not t:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification token is required",
+        )
+    return await _do_verify_email(t, db)
 
 
 @router.post(
@@ -434,6 +459,11 @@ async def get_me(
     response_model=UserResponse,
     summary="Update current user profile",
 )
+@router.patch(
+    "/me",
+    response_model=UserResponse,
+    summary="Update current user profile",
+)
 async def update_me(
     payload: UserUpdateRequest,
     current_user: User = Depends(get_current_user),
@@ -444,6 +474,30 @@ async def update_me(
         current_user.full_name = payload.full_name
     db.add(current_user)
     return UserResponse.model_validate(current_user)
+
+
+@router.delete(
+    "/me",
+    response_model=MessageResponse,
+    summary="Delete or deactivate user account",
+)
+async def delete_me(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Soft-deactivate current user account and audit the event."""
+    current_user.is_active = False
+    db.add(current_user)
+    await _write_audit(
+        db,
+        user_id=str(current_user.id),
+        action="user.account_deactivated",
+        resource_type="user",
+        resource_id=str(current_user.id),
+        ip_address=_client_ip(request),
+    )
+    return MessageResponse(message="Account deactivated successfully.")
 
 
 @router.post(
