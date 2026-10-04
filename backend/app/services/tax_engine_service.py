@@ -308,8 +308,55 @@ def _apply_wealth_brackets(
 
 
 # ---------------------------------------------------------------------------
-# Rule loader
+# Rule loader & Municipality Aliases
 # ---------------------------------------------------------------------------
+
+_MUNICIPALITY_ALIASES: dict[str, dict[str, str]] = {
+    "BE": {
+        "942": "352",   # Biel/Bienne
+        "371": "353",   # Thun
+        "581": "354",   # Köniz
+        "572": "355",   # Langenthal
+        "561": "356",   # Burgdorf
+        "764": "358",   # Ostermundigen
+        "762": "359",   # Ittigen
+        "771": "364",   # Zollikofen
+        "861": "366",   # Interlaken
+        "781": "367",   # Muri bei Bern
+    },
+    "SZ": {
+        "1372": "1301", # Schwyz
+        "1342": "1304", # Freienbach
+        "1343": "1321", # Wollerau
+        "1322": "1307", # Küssnacht
+    },
+    "SG": {
+        "3441": "3301", # Rapperswil-Jona
+        "3427": "3205", # Wil (SG)
+        "3214": "3202", # Gossau (SG)
+        "3358": "3207", # Uzwil
+        "3401": "3209", # Altstätten
+        "3271": "3208", # Buchs (SG)
+    },
+    "AG": {
+        "4021": "4002", # Baden
+        "4045": "4004", # Wettingen
+        "4082": "4008", # Wohlen
+        "4201": "4007", # Zofingen
+        "4112": "4005", # Rheinfelden
+        "4041": "4009", # Suhr
+        "4033": "4006", # Lenzburg
+        "4271": "4003", # Brugg
+    },
+    "ZH": {
+        "191": "241",   # Dietikon
+        "167": "192",   # Kloten
+        "135": "162",   # Horgen
+        "171": "157",   # Küsnacht
+        "182": "176",   # Meilen
+        "066": "131",   # Adliswil
+    },
+}
 
 
 class TaxRuleLoader:
@@ -380,6 +427,71 @@ class TaxRuleLoader:
             )
         return sorted(brackets, key=lambda x: x.from_chf)
 
+    def _resolve_municipality(
+        self,
+        canton_code: str,
+        municipality_code: Optional[str],
+        canton_data: dict[str, Any],
+        tax_year: int,
+    ) -> tuple[str, str, int]:
+        """
+        Resolve municipality data by code, alias, name, or canton default.
+        Never silently substitutes another municipality's rate when an unrecognized
+        identifier is provided — raises TaxRuleNotFoundError instead.
+        """
+        munis = canton_data.get("municipality_multipliers", {})
+        code_str = str(municipality_code).strip() if municipality_code is not None else ""
+
+        # Case A: Default requested (None, "", "default")
+        if not code_str or code_str.lower() == "default":
+            _default_codes = {
+                "ZH": "261", "BE": "351", "LU": "1061", "UR": "1201", "SZ": "1301",
+                "OW": "1406", "NW": "1509", "GL": "1632", "ZG": "1701", "FR": "2196",
+                "SO": "2601", "BS": "2701", "BL": "2829", "SH": "2937", "AR": "3001",
+                "AI": "3101", "SG": "3203", "GR": "3901", "AG": "4001", "TG": "4566",
+                "TI": "5192", "VD": "5586", "VS": "6266", "NE": "6458", "GE": "6621",
+                "JU": "6711",
+            }
+            preferred = _default_codes.get(canton_code)
+            if preferred and preferred in munis:
+                muni_info = munis[preferred]
+                return preferred, str(muni_info.get("name", preferred)), int(muni_info["multiplier"])
+            if munis:
+                first_k = next(iter(munis))
+                muni_info = munis[first_k]
+                return first_k, str(muni_info.get("name", first_k)), int(muni_info["multiplier"])
+            raise TaxRuleNotFoundError(
+                rule_key="no_municipalities_configured",
+                canton=canton_code,
+                tax_year=tax_year,
+            )
+
+        # Case B: Direct match by code
+        if code_str in munis:
+            muni_info = munis[code_str]
+            return code_str, str(muni_info.get("name", code_str)), int(muni_info["multiplier"])
+
+        # Case C: Alias lookup
+        aliases = _MUNICIPALITY_ALIASES.get(canton_code, {})
+        if code_str in aliases:
+            canonical_code = aliases[code_str]
+            if canonical_code in munis:
+                muni_info = munis[canonical_code]
+                return canonical_code, str(muni_info.get("name", canonical_code)), int(muni_info["multiplier"])
+
+        # Case D: Name match (case-insensitive)
+        norm_input = code_str.lower().strip()
+        for k, v in munis.items():
+            if str(v.get("name", "")).lower().strip() == norm_input:
+                return k, str(v.get("name", k)), int(v["multiplier"])
+
+        # Case E: Unrecognized municipality identifier -> raise explicit error, NO SILENT FALLBACK!
+        raise TaxRuleNotFoundError(
+            rule_key=f"municipality_multiplier[{code_str}]",
+            canton=canton_code,
+            tax_year=tax_year,
+        )
+
     def load_from_files(
         self,
         canton_code: str,
@@ -441,22 +553,13 @@ class TaxRuleLoader:
                         tax_year=tax_year,
                     )
 
-        # Resolve municipality
-        muni_data = canton_data.get("municipality_multipliers", {}).get(municipality_code)
-        if muni_data is None:
-            # Resilient fallback: use first municipality or canton default
-            all_munis = canton_data.get("municipality_multipliers", {})
-            if all_munis:
-                first_k = next(iter(all_munis))
-                muni_data = all_munis[first_k]
-                multiplier = muni_data.get("multiplier", 100)
-                municipality_name = muni_data.get("name", f"Municipality {municipality_code}")
-            else:
-                multiplier = 100
-                municipality_name = f"Municipality {municipality_code}"
-        else:
-            multiplier = int(muni_data["multiplier"])
-            municipality_name = str(muni_data["name"])
+        # Resolve municipality without silent substitution
+        resolved_muni_code, municipality_name, multiplier = self._resolve_municipality(
+            canton_code=canton_code,
+            municipality_code=municipality_code,
+            canton_data=canton_data,
+            tax_year=tax_year,
+        )
 
         # Wealth social deductions
         wsd = canton_data.get("wealth_tax_social_deductions", {})
@@ -467,7 +570,7 @@ class TaxRuleLoader:
         return TaxRuleSet(
             canton_code=canton_code,
             canton_name=canton_data["canton_name"],
-            municipality_code=municipality_code,
+            municipality_code=resolved_muni_code,
             municipality_name=municipality_name,
             municipality_multiplier=multiplier,
             tax_year=tax_year,
@@ -543,19 +646,20 @@ class TaxRuleLoader:
                 federal_data = fed_result[0]
                 canton_data = canton_result[0]
 
-                muni_data = canton_data.get("municipality_multipliers", {}).get(municipality_code)
-                if muni_data is None:
-                    raise TaxRuleNotFoundError(
-                        f"municipality_multiplier[{municipality_code}]", canton_code, tax_year
-                    )
+                resolved_muni_code, municipality_name, multiplier = self._resolve_municipality(
+                    canton_code=canton_code.upper(),
+                    municipality_code=municipality_code,
+                    canton_data=canton_data,
+                    tax_year=tax_year,
+                )
                 wsd = canton_data.get("wealth_tax_social_deductions", {})
 
                 return TaxRuleSet(
                     canton_code=canton_code.upper(),
                     canton_name=canton_data["canton_name"],
-                    municipality_code=municipality_code,
-                    municipality_name=muni_data["name"],
-                    municipality_multiplier=muni_data["multiplier"],
+                    municipality_code=resolved_muni_code,
+                    municipality_name=municipality_name,
+                    municipality_multiplier=multiplier,
                     tax_year=tax_year,
                     version=canton_data.get("version", "unknown"),
                     federal_brackets_single=self._parse_brackets(
@@ -633,7 +737,9 @@ def _adapt_profile(profile: Any, rules: TaxRuleSet, tax_return: Any = None) -> T
     )
     other_inc = (
         _val(income.get("bank_interest"))
+        + _val(income.get("interest_income"))
         + _val(income.get("dividends"))
+        + _val(income.get("dividend_income"))
         + _val(income.get("rental_income"))
         + _val(income.get("other_income"))
     )
@@ -648,10 +754,17 @@ def _adapt_profile(profile: Any, rules: TaxRuleSet, tax_return: Any = None) -> T
                 bank_bal += _val(acc)
 
     sec_val = Decimal("0")
-    if isinstance(securities, list):
-        for s in securities:
+    sec_source = wealth.get("securities") or wealth.get("securities_positions") or securities
+    if isinstance(sec_source, list):
+        for s in sec_source:
             if isinstance(s, dict):
-                sec_val += _val(s.get("value") or s.get("value_chf"))
+                sec_val += _val(
+                    s.get("value")
+                    or s.get("value_chf")
+                    or s.get("total_value_chf")
+                    or s.get("total_value")
+                    or s.get("tax_value")
+                )
             else:
                 sec_val += _val(s)
 

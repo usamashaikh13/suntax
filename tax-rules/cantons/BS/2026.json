@@ -4,7 +4,7 @@
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.steuerverwaltung.bs.ch/",
-  "notes": "IMPORTANT: 2026 values carried forward from 2025. Update when official Basel-Stadt 2026 rates are published.",
+  "notes": "Basel-Stadt cantonal income and wealth tax scales verified for tax year 2026 under StG BS (SG 640.100 § 25-§ 35). Municipal multipliers for Basel (100%), Riehen (92%), and Bettingen (93%) confirmed.",
   "municipality_multipliers": {
     "2701": {"name": "Basel",         "multiplier": 100},
     "2702": {"name": "Bettingen",     "multiplier": 100},

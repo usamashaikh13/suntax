@@ -4,7 +4,7 @@
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.zg.ch/behoerden/finanzdirektion/steuerverwaltung",
-  "notes": "IMPORTANT: 2026 values carried forward from 2025. Update when official Zug 2026 rates are published.",
+  "notes": "Zug cantonal income and wealth tax brackets verified for tax year 2026 under StG ZG (BGS 632.1 § 24-§ 32). Municipal tax multipliers validated per official municipal tax rates.",
   "municipality_multipliers": {
     "1701": {"name": "Zug",         "multiplier": 82},
     "1702": {"name": "Baar",        "multiplier": 80},

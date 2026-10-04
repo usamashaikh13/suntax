@@ -2,16 +2,11 @@
 Database type compatibility shim for SunTax.
 Provides JSONB and UUIDType that work with both PostgreSQL and SQLite.
 """
-from app.core.database import _is_sqlite
+from sqlalchemy import JSON, String
+from sqlalchemy.dialects.postgresql import JSONB as PG_JSONB, UUID as PG_UUID
 
-if _is_sqlite:
-    from sqlalchemy import JSON as JSONB  # noqa: F401
-    from sqlalchemy import String
+# Dynamic JSON type that resolves to JSONB on PostgreSQL and JSON on SQLite
+JSONB = JSON().with_variant(PG_JSONB, "postgresql")
 
-    class UUIDType(String):
-        """UUID stored as 36-char string in SQLite."""
-        def __init__(self, as_uuid=True, **kw):
-            super().__init__(length=36, **kw)
-else:
-    from sqlalchemy.dialects.postgresql import JSONB  # noqa: F401
-    from sqlalchemy.dialects.postgresql import UUID as UUIDType  # noqa: F401
+# Dynamic UUID/String type that resolves to UUID on PostgreSQL and String(36) on SQLite
+UUIDType = String(36).with_variant(PG_UUID(as_uuid=False), "postgresql")

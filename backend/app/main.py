@@ -132,8 +132,19 @@ app.include_router(admin.router, prefix=PREFIX, tags=["admin"])
 
 
 # ---------------------------------------------------------------------------
-# Health check
+# Root and Health check
 # ---------------------------------------------------------------------------
+@app.get("/", tags=["root"])
+async def root():
+    return {
+        "name": "SunTax API",
+        "version": "1.0.0",
+        "status": "running",
+        "docs": "/api/docs",
+        "health": "/health",
+    }
+
+
 @app.get("/health", tags=["health"])
 async def health():
     return {"status": "ok", "environment": settings.ENVIRONMENT}

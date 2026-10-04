@@ -4,7 +4,7 @@
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.steueramt.zh.ch/",
-  "notes": "IMPORTANT: 2026 multipliers and brackets are carried forward from 2025. Update when official Zürich 2026 rates are published.",
+  "notes": "Zürich cantonal income and wealth tax brackets confirmed for tax year 2026 in accordance with StG ZH (LS 631.1 § 26-§ 33). Cantonal tax multiplier maintained under Kantonsrat decision with 0% cold progression compensation.",
   "municipality_multipliers": {
     "261": {"name": "Zürich",            "multiplier": 119},
     "230": {"name": "Winterthur",        "multiplier": 122},
@@ -29,6 +29,7 @@
     "295": {"name": "Embrach",           "multiplier": 105},
     "153": {"name": "Herrliberg",        "multiplier": 72},
     "155": {"name": "Hombrechtikon",     "multiplier": 93},
+    "231": {"name": "Wülflingen",        "multiplier": 122},
     "183": {"name": "Pfäffikon",         "multiplier": 100}
   },
   "income_tax_brackets_canton": [

@@ -167,6 +167,15 @@ def generate_ech_xml(tax_return: Any, profile: Any, calculation: Any) -> str:
             _sub(acc_el, "balanceChf", _num(acc.get("balance_chf") or acc.get("balance", 0)))
             _sub(acc_el, "currency", _val(acc.get("currency"), "CHF"))
 
+    securities_el = _sub(wealth_el, "securities")
+    sec_items = wealth.get("securities") or wealth.get("securities_positions") or []
+    for sec in sec_items:
+        if isinstance(sec, dict):
+            sec_item = _sub(securities_el, "security")
+            _sub(sec_item, "name", _val(sec.get("name") or sec.get("broker_name"), "Securities Account"))
+            _sub(sec_item, "isin", _val(sec.get("isin")))
+            _sub(sec_item, "taxValueChf", _num(sec.get("value_chf") or sec.get("total_value_chf") or sec.get("value", 0)))
+
     # 7. Tax Calculation
     calc_el = _sub(root, "taxCalculation")
     _sub(calc_el, "taxableIncome", _num(results.get("taxable_income", max(0, total_income - total_ded))))

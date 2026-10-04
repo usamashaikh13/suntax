@@ -333,8 +333,10 @@ class OcrService:
                         # 300 DPI for high recognition accuracy
                         pix = page.get_pixmap(dpi=300)
                         page_img = Image.open(io.BytesIO(pix.tobytes("png")))
-                        processed_img = self._preprocess_image(page_img, timeout=remaining_timeout)
-                        ocr_text = self._run_tesseract(processed_img, timeout=remaining_timeout)
+                        rem_prep = max(0.5, float(settings.OCR_TIMEOUT_SECONDS) - (time.monotonic() - start_time))
+                        processed_img = self._preprocess_image(page_img, timeout=rem_prep)
+                        rem_ocr = max(0.5, float(settings.OCR_TIMEOUT_SECONDS) - (time.monotonic() - start_time))
+                        ocr_text = self._run_tesseract(processed_img, timeout=rem_ocr)
                         combined_text = (digital_text + "\n" + ocr_text).strip() if digital_text else ocr_text
                         lines = [ln.strip() for ln in combined_text.splitlines() if ln.strip()]
                         pages_result.append(

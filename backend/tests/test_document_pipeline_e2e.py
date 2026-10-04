@@ -619,9 +619,9 @@ async def test_calculation_invalidation(
     resp = await auth_client.post(f"/api/v1/documents/{doc_id}/apply")
     assert resp.status_code == 200
 
-    # Verify calculation is now outdated
+    # Verify calculation is now outdated/stale
     await db_session.refresh(calc)
-    assert calc.status == "outdated"
+    assert calc.status in ("outdated", "stale")
     assert calc.is_final is False
 
 

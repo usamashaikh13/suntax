@@ -243,3 +243,99 @@ class TestFullCalculation:
 
         # Zug is famously lower-tax than Zürich
         assert zg_result.results_dict["total_tax"] < zh_result.results_dict["total_tax"]
+
+
+class TestMilestone3BlockerFixes:
+    """Targeted regression tests for the Milestone 3 audit blocker resolutions."""
+
+    def test_biel_bienne_uses_correct_165_percent_multiplier(self):
+        """Biel/Bienne must resolve to 165% multiplier and not fall back silently to Bern (149%)."""
+        loader = TaxRuleLoader()
+        
+        # Test 1: Canonical BFS code 352
+        rules_canonical = loader.load(canton_code="BE", municipality_code="352", tax_year=2025)
+        assert rules_canonical.municipality_multiplier == 165
+        assert rules_canonical.municipality_name == "Biel/Bienne"
+
+        # Test 2: Legacy alias 942
+        rules_alias = loader.load(canton_code="BE", municipality_code="942", tax_year=2025)
+        assert rules_alias.municipality_multiplier == 165
+        assert rules_alias.municipality_name == "Biel/Bienne"
+
+        # Test 3: Name resolution
+        rules_name = loader.load(canton_code="BE", municipality_code="Biel/Bienne", tax_year=2025)
+        assert rules_name.municipality_multiplier == 165
+        assert rules_name.municipality_name == "Biel/Bienne"
+
+    def test_unrecognized_municipality_raises_error(self):
+        """Unrecognized municipality code must raise TaxRuleNotFoundError without silent substitution."""
+        loader = TaxRuleLoader()
+        with pytest.raises(TaxRuleNotFoundError) as exc_info:
+            loader.load(canton_code="BE", municipality_code="99999", tax_year=2025)
+        assert "municipality_multiplier[99999]" in str(exc_info.value)
+
+    def test_securities_statement_merged_into_taxable_wealth_and_dividends(self):
+        """Securities positions and dividend income must be included in taxable wealth and income."""
+        loader = TaxRuleLoader()
+        rules = loader.load(canton_code="ZH", municipality_code="261", tax_year=2025)
+        engine = TaxCalculationEngine(rules)
+
+        class ProfileWithSecurities:
+            personal_data = {"marital_status": "single"}
+            income_data = {
+                "employment_income": 100000,
+                "dividend_income": 5000,
+            }
+            wealth_data = {
+                "bank_accounts": [{"balance": 50000}],
+                "securities_positions": [
+                    {"broker_name": "Swissquote", "total_value_chf": 150000, "name": "Global Equity ETF"}
+                ],
+            }
+            deductions_data = {"pillar3a_contributions": 7258}
+            liabilities_data = {}
+
+        class TR:
+            canton_code = "ZH"
+            municipality_code = "261"
+            municipality_name = "Zürich"
+            tax_year = 2025
+
+        result = engine.calculate(ProfileWithSecurities(), TR())
+        # Taxable wealth should reflect bank (50k) + securities (150k) minus social deduction (76k)
+        # 200,000 - 76,000 = 124,000
+        assert result.results_dict["taxable_wealth"] > Decimal("100000")
+        # Taxable income should include dividend income (5,000)
+        assert result.results_dict["taxable_income"] > Decimal("80000")
+
+    def test_2025_and_2026_tax_calculations_across_all_7_cantons(self):
+        """Verify deterministic calculation across all 7 supported cantons for both 2025 and 2026."""
+        loader = TaxRuleLoader()
+        cantons = ["ZH", "BE", "ZG", "SZ", "SG", "AG", "BS"]
+        
+        class BaseProfile:
+            personal_data = {"marital_status": "single"}
+            income_data = {"employment_income": 120000}
+            wealth_data = {"bank_accounts": [{"balance": 80000}]}
+            deductions_data = {"pillar3a_contributions": 7258}
+            liabilities_data = {}
+
+        for canton in cantons:
+            for year in (2025, 2026):
+                rules = loader.load(canton_code=canton, municipality_code=None, tax_year=year)
+                assert rules.canton_code == canton
+                assert rules.tax_year == year
+                assert rules.municipality_multiplier > 0
+                
+                class C_TR:
+                    canton_code = canton
+                    municipality_code = rules.municipality_code
+                    municipality_name = rules.municipality_name
+                    tax_year = year
+
+                calc_res = TaxCalculationEngine(rules).calculate(BaseProfile(), C_TR())
+                assert calc_res.results_dict["total_tax"] > 0
+                assert calc_res.results_dict["federal_income_tax"] > 0
+                assert calc_res.results_dict["cantonal_income_tax"] > 0
+                assert calc_res.results_dict["municipal_income_tax"] > 0
+

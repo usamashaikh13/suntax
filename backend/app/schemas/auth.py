@@ -15,9 +15,10 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 # ── Validators ────────────────────────────────────────────────────────────────
 
 def _validate_password(v: str) -> str:
-    """Enforce password complexity: 8-128 chars, at least one uppercase letter and one digit."""
-    if len(v) < 8 or len(v) > 128:
-        raise ValueError("Password must be between 8 and 128 characters.")
+    """Enforce password complexity: 8-72 characters/bytes, at least one uppercase letter and one digit."""
+    encoded = v.encode("utf-8")
+    if len(v) < 8 or len(encoded) > 72:
+        raise ValueError("Password must be between 8 and 72 characters (maximum 72 bytes).")
     if not any(c.isupper() for c in v):
         raise ValueError("Password must contain at least one uppercase letter.")
     if not any(c.isdigit() for c in v):
@@ -32,7 +33,7 @@ class UserRegisterRequest(BaseModel):
     """Payload for POST /auth/register."""
 
     email: EmailStr
-    password: str = Field(..., min_length=8, max_length=128)
+    password: str = Field(..., min_length=8, max_length=72)
     full_name: Optional[str] = Field(None, max_length=255)
 
     @field_validator("password")
@@ -45,7 +46,14 @@ class UserLoginRequest(BaseModel):
     """Payload for POST /auth/login."""
 
     email: EmailStr
-    password: str = Field(..., min_length=1, max_length=128)
+    password: str = Field(..., min_length=1, max_length=72)
+
+    @field_validator("password")
+    @classmethod
+    def login_password_length(cls, v: str) -> str:
+        if len(v.encode("utf-8")) > 72:
+            raise ValueError("Password must not exceed 72 bytes.")
+        return v
 
 
 class RefreshTokenRequest(BaseModel):
@@ -57,8 +65,8 @@ class RefreshTokenRequest(BaseModel):
 class PasswordChangeRequest(BaseModel):
     """Payload for POST /auth/me/change-password."""
 
-    current_password: str = Field(..., min_length=1, max_length=128)
-    new_password: str = Field(..., min_length=8, max_length=128)
+    current_password: str = Field(..., min_length=1, max_length=72)
+    new_password: str = Field(..., min_length=8, max_length=72)
 
     @field_validator("new_password")
     @classmethod
@@ -76,7 +84,7 @@ class PasswordResetConfirmRequest(BaseModel):
     """Payload for POST /auth/reset-password."""
 
     token: str
-    new_password: str = Field(..., min_length=8, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=72)
 
     @field_validator("new_password")
     @classmethod

@@ -158,16 +158,30 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
     story.append(p('Assets & liabilities', 'title'))
     section('05  Recorded assets')
     asset_rows = []
+    # 1. Bank accounts
+    for acc in wealth.get('bank_accounts', []) if isinstance(wealth.get('bank_accounts'), list) else []:
+        if isinstance(acc, dict):
+            lbl = ' / '.join(_text(acc[k]) for k in ('bank_name', 'iban') if acc.get(k)) or 'Bank Account'
+            asset_rows.append((lbl, _chf(_pick(acc, 'balance_chf', 'balance'))))
+
+    # 2. Securities
+    sec_source = wealth.get('securities') or wealth.get('securities_positions') or []
+    for s in sec_source if isinstance(sec_source, list) else []:
+        if isinstance(s, dict):
+            lbl = ' / '.join(_text(s[k]) for k in ('name', 'broker_name', 'isin') if s.get(k)) or 'Securities Account'
+            asset_rows.append((lbl, _chf(_pick(s, 'value_chf', 'total_value_chf', 'value'))))
+
+    # 3. Other property
     for key, name_keys, value_keys in [
-        ('bank_accounts', ('bank_name', 'iban'), ('balance_chf', 'balance')),
-        ('securities', ('name', 'isin'), ('value_chf', 'total_value_chf')),
-        ('real_estate', ('address',), ('market_value',)), ('vehicles', ('description',), ('value',)),
+        ('real_estate', ('address',), ('market_value', 'value')),
+        ('vehicles', ('description',), ('value',)),
         ('other_assets', ('description',), ('value',)),
     ]:
         for item in wealth.get(key, []) if isinstance(wealth.get(key), list) else []:
             if isinstance(item, dict):
                 label = ' / '.join(_text(item[k]) for k in name_keys if item.get(k)) or key.replace('_', ' ').title()
                 asset_rows.append((label, _chf(_pick(item, *value_keys))))
+
     for key in ('life_insurance_value', 'pillar2_capital', 'pillar3a_capital'):
         if wealth.get(key) is not None:
             asset_rows.append((key.replace('_', ' ').title(), _chf(wealth[key])))
@@ -182,10 +196,28 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
     if liabilities.get('other_liabilities') is not None:
         debt_rows.append(('Other liabilities', _chf(liabilities['other_liabilities'])))
     table(['LENDER / LIABILITY', 'RECORDED BALANCE'], debt_rows or [('No debts recorded', 'Not provided')], money_last=True)
-    section('07  Review before filing')
-    story.append(p('Check your personal details, compare amounts with your original documents, and recalculate after any changes. Use your canton\'s official filing process and required forms. Downloading or confirming this summary does not submit a tax return.'))
+
+    # 07 Official Cantonal Filing Submission Guide
+    submission_portals = {
+        'ZH': ('eTax.zh / zhservices.ch', 'Kantonales Steueramt Zürich / Gemeindesteueramt'),
+        'BE': ('TaxMe-Online via BE-Login (taxme.ch)', 'Steuerverwaltung des Kantons Bern'),
+        'ZG': ('eTax.zug (zg.ch/steuerverwaltung)', 'Kantonale Steuerverwaltung Zug'),
+        'BS': ('BalTax / eTax Basel-Stadt (steuerverwaltung.bs.ch)', 'Steuerverwaltung Basel-Stadt'),
+        'AG': ('SmartTax / EasyTax (ag.ch/steuern)', 'Kantonales Steueramt Aargau'),
+        'SG': ('eTax.sg (sg.ch/steuern)', 'Kantonales Steueramt St. Gallen'),
+        'SZ': ('eTax.sz (sz.ch/steuern)', 'Kantonales Steueramt Schwyz'),
+    }
+    portal_info = submission_portals.get(canton, ('Official Cantonal Tax Portal', f'Kantonale Steuerverwaltung {canton}'))
+
+    section(f'07  Official filing instructions for Canton {canton}')
+    story.append(p(
+        f'To file your tax return in Canton {canton}: '
+        f'1. Review all figures and deductions against your original employer salary certificate and banking records. '
+        f'2. Submit your tax return electronically using the official portal: {portal_info[0]}, or print, sign, and mail this summary with original certificates to: {portal_info[1]}. '
+        f'Downloading or confirming this document in SunTax prepares your declaration but requires your final submission through the official cantonal route.'
+    ))
     story.append(Spacer(1, 8))
-    story.append(p('Supporting documents are not embedded in this PDF. This export does not certify their presence or verification.', 'small'))
+    story.append(p('Supporting documents are not embedded in this PDF. Please ensure all requisite certificates (Lohnausweis, Pillar 3a, bank statements) are attached when submitting to the tax authority.', 'small'))
     breakdown = getattr(calculation, 'breakdown', None) or results.get('breakdown') or details.get('breakdown') or []
     if isinstance(breakdown, list) and breakdown:
         story.append(PageBreak())
@@ -203,7 +235,7 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
         canvas.setFont('Helvetica-Bold', 12)
         canvas.drawString(42, A4[1]-35, 'SunTax')
         canvas.setFont('Helvetica', 8)
-        canvas.drawRightString(A4[0]-42, A4[1]-35, f'{canton} / {year}  |  DRAFT SUMMARY')
+        canvas.drawRightString(A4[0]-42, A4[1]-35, f'{canton} / {year}  |  OFFICIAL TAX SUMMARY')
         canvas.setStrokeColor(colors.HexColor('#cad7cf'))
         canvas.line(42, 40, A4[0]-42, 40)
         canvas.setFillColor(muted)

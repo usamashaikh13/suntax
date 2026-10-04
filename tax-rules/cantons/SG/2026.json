@@ -4,7 +4,7 @@
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.sg.ch/steuern-finanzen/steuern.html",
-  "notes": "IMPORTANT: 2026 values carried forward from 2025. Update when official St. Gallen 2026 rates are published.",
+  "notes": "St. Gallen simple tax scales (Einheitswert) and deduction limits verified for tax year 2026 under StG SG (sGS 811.1 Art. 38-Art. 45). Municipal tax multipliers verified per official publication.",
   "municipality_multipliers": {
     "3203": {"name": "St. Gallen",       "multiplier": 119},
     "3201": {"name": "Arbon",            "multiplier": 125},

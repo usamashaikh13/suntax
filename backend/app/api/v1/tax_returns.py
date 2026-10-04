@@ -18,7 +18,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db, set_rls_user_id
@@ -27,6 +27,7 @@ from app.models.audit_log import AuditLog
 from app.models.document import Document
 from app.models.tax_return import TaxReturn
 from app.models.tax_profile import TaxProfile
+from app.models.tax_calculation import TaxCalculation
 from app.models.user import User
 from app.schemas.tax_profile import TaxProfileResponse, TaxProfileUpdateRequest, TaxQuestion
 from app.schemas.tax_return import (
@@ -300,23 +301,59 @@ async def update_tax_profile(
     db: AsyncSession = Depends(get_db),
 ) -> TaxProfileResponse:
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+
+    # Finalized state protection: confirmed tax returns cannot be modified without reopening
+    if tax_return.status == "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot modify a confirmed tax return. Reopen the tax return before making modifications.",
+        )
+
     profile = await _get_or_create_profile(tax_return, db)
+
+    # Selective deep merge: update only supplied fields while preserving unrelated existing values
+    # and internal provenance metadata (_doc_contributions)
     for field in (
         "personal_data",
         "income_data",
         "wealth_data",
         "deductions_data",
         "liabilities_data",
-        "notes",
     ):
         value = getattr(payload, field)
         if value is not None:
-            setattr(profile, field, value.model_dump() if hasattr(value, "model_dump") else value)
-    from datetime import datetime, timezone
+            raw_update = (
+                value.model_dump(exclude_unset=True)
+                if hasattr(value, "model_dump")
+                else (dict(value) if isinstance(value, dict) else value)
+            )
+            if isinstance(raw_update, dict):
+                existing_dict = dict(getattr(profile, field) or {})
+                doc_contribs = existing_dict.get("_doc_contributions")
+                for k, v in raw_update.items():
+                    if v is not None:
+                        existing_dict[k] = v
+                if doc_contribs and "_doc_contributions" not in existing_dict:
+                    existing_dict["_doc_contributions"] = doc_contribs
+                setattr(profile, field, existing_dict)
+            else:
+                setattr(profile, field, raw_update)
+
+    if payload.notes is not None:
+        profile.notes = payload.notes
+
     profile.updated_at = datetime.now(timezone.utc)
     if profile.created_at is None:
         profile.created_at = datetime.now(timezone.utc)
     db.add(profile)
+
+    # Invalidate prior calculation snapshots: material profile edits render existing calculations stale
+    await db.execute(
+        update(TaxCalculation)
+        .where(TaxCalculation.tax_return_id == str(tax_return.id))
+        .values(status="stale")
+    )
+
     await db.commit()
     await db.refresh(profile)
     return TaxProfileResponse.model_validate(profile)
@@ -450,6 +487,12 @@ async def answer_single_question(
 ) -> TaxQuestion:
     """Submit an answer to a single question and update the profile accordingly."""
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    if tax_return.status == "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot modify a confirmed tax return. Reopen the tax return before making modifications.",
+        )
+
     profile = await _get_or_create_profile(tax_return, db)
     answer = payload.get("answer", "")
 
@@ -489,6 +532,13 @@ async def answer_single_question(
     profile.tax_questions = qs
     profile.updated_at = datetime.now(timezone.utc)
     db.add(profile)
+
+    await db.execute(
+        update(TaxCalculation)
+        .where(TaxCalculation.tax_return_id == str(tax_return.id))
+        .values(status="stale")
+    )
+
     await db.commit()
     return TaxQuestion.model_validate(updated_q)
 
@@ -505,6 +555,12 @@ async def submit_questions(
 ) -> dict:
     """Submit answers to multiple questions and refresh the profile."""
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    if tax_return.status == "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot modify a confirmed tax return. Reopen the tax return before making modifications.",
+        )
+
     profile = await _get_or_create_profile(tax_return, db)
     answers = payload.get("answers", {})
 
@@ -530,6 +586,13 @@ async def submit_questions(
     profile.tax_questions = qs
     profile.updated_at = datetime.now(timezone.utc)
     db.add(profile)
+
+    await db.execute(
+        update(TaxCalculation)
+        .where(TaxCalculation.tax_return_id == str(tax_return.id))
+        .values(status="stale")
+    )
+
     await db.commit()
     return {"message": f"Successfully updated profile with {len(answers)} answers."}
 
@@ -548,6 +611,12 @@ async def apply_all_documents(
 ) -> dict:
     """Merge approved fields from all documents into the tax profile."""
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    if tax_return.status == "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot modify a confirmed tax return. Reopen the tax return before making modifications.",
+        )
+
     profile = await _get_or_create_profile(tax_return, db)
     docs = (
         await db.execute(
@@ -559,6 +628,12 @@ async def apply_all_documents(
     for doc in docs:
         applied = await apply_document_to_tax_profile(db, doc, profile)
         all_applied.extend(applied)
+
+    await db.execute(
+        update(TaxCalculation)
+        .where(TaxCalculation.tax_return_id == str(tax_return.id))
+        .values(status="stale")
+    )
 
     await db.commit()
     return {

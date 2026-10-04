@@ -36,7 +36,7 @@ from fastapi import (
     UploadFile,
     status,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -46,6 +46,7 @@ from app.models.audit_log import AuditLog
 from app.models.document import Document
 from app.models.tax_return import TaxReturn
 from app.models.tax_profile import TaxProfile
+from app.models.tax_calculation import TaxCalculation
 from app.models.user import User
 from app.schemas.document import (
     DocumentListResponse,
@@ -547,13 +548,20 @@ async def upload_documents(
                 TaxReturn.user_id == str(current_user.id),
             )
         )
-        if not tr_result.scalar_one_or_none():
+        tr = tr_result.scalar_one_or_none()
+        if not tr:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Tax return not found or access denied.",
             )
+        if tr.status == "confirmed":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot upload documents to a confirmed tax return. Reopen the tax return first.",
+            )
 
     responses: List[DocumentUploadResponse] = []
+    doc_ids_to_process: List[str] = []
 
     for file in files:
         file_bytes = await file.read()
@@ -576,12 +584,12 @@ async def upload_documents(
         sha256 = _compute_sha256(file_bytes)
 
         dup_result = await db.execute(
-            select(Document).where(
+            select(Document.id).where(
                 Document.user_id == str(current_user.id),
                 Document.sha256_hash == sha256,
-            )
+            ).limit(1)
         )
-        is_dup = dup_result.scalar_one_or_none() is not None
+        is_dup = dup_result.scalars().first() is not None
 
         doc_id = str(uuid_mod.uuid4())
         ext = mimetypes.guess_extension(detected_mime) or ""
@@ -629,12 +637,7 @@ async def upload_documents(
             )
         )
 
-        # Dispatch background processing without blocking the API request
-        try:
-            process_document.delay(str(doc_id))
-        except Exception:
-            if background_tasks is not None:
-                background_tasks.add_task(document_pipeline_service.process_document_by_id, str(doc_id))
+        doc_ids_to_process.append(str(doc_id))
 
         responses.append(
             DocumentUploadResponse(
@@ -646,7 +649,24 @@ async def upload_documents(
             )
         )
 
+    # Invalidate existing tax calculation snapshots since new documents were uploaded
+    if tax_return_id:
+        await db.execute(
+            update(TaxCalculation)
+            .where(TaxCalculation.tax_return_id == str(tax_return_id))
+            .values(status="stale")
+        )
+
     await db.commit()
+
+    # Dispatch background processing after successful database commit
+    for d_id in doc_ids_to_process:
+        try:
+            process_document.delay(d_id)
+        except Exception:
+            if background_tasks is not None:
+                background_tasks.add_task(document_pipeline_service.process_document_by_id, d_id)
+
     return responses
 
 
@@ -927,18 +947,54 @@ async def update_document(
         doc.document_type = payload.document_type
 
     if payload.tax_return_id is not None:
-        tr_result = await db.execute(
-            select(TaxReturn).where(
-                TaxReturn.id == str(payload.tax_return_id),
-                TaxReturn.user_id == str(current_user.id),
+        new_tr_id = str(payload.tax_return_id)
+        if new_tr_id != str(doc.tax_return_id):
+            tr_result = await db.execute(
+                select(TaxReturn).where(
+                    TaxReturn.id == new_tr_id,
+                    TaxReturn.user_id == str(current_user.id),
+                )
             )
-        )
-        if not tr_result.scalar_one_or_none():
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Tax return not found",
+            target_tr = tr_result.scalar_one_or_none()
+            if not target_tr:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Target tax return not found",
+                )
+            if target_tr.status == "confirmed":
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Cannot assign documents to a confirmed tax return. Reopen the tax return first.",
+                )
+
+            # Reconcile: Retract contributions from the previous tax return
+            if doc.tax_return_id:
+                old_tr_res = await db.execute(
+                    select(TaxReturn).where(TaxReturn.id == str(doc.tax_return_id))
+                )
+                old_tr = old_tr_res.scalar_one_or_none()
+                if old_tr and old_tr.status == "confirmed":
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail="Cannot reassign documents from a confirmed tax return. Reopen the tax return first.",
+                    )
+                await document_pipeline_service.retract_document_contributions(
+                    document_id=str(doc.id),
+                    tax_return_id=str(doc.tax_return_id),
+                    db=db,
+                )
+                await db.execute(
+                    update(TaxCalculation)
+                    .where(TaxCalculation.tax_return_id == str(doc.tax_return_id))
+                    .values(status="stale")
+                )
+
+            doc.tax_return_id = new_tr_id
+            await db.execute(
+                update(TaxCalculation)
+                .where(TaxCalculation.tax_return_id == new_tr_id)
+                .values(status="stale")
             )
-        doc.tax_return_id = str(payload.tax_return_id)
 
     db.add(doc)
     await db.commit()
@@ -962,6 +1018,31 @@ async def delete_document(
 ) -> None:
     await set_rls_user_id(db, current_user.id)
     doc = await _get_owned_document(db, document_id, str(current_user.id))
+
+    if doc.tax_return_id:
+        tr_res = await db.execute(
+            select(TaxReturn).where(TaxReturn.id == str(doc.tax_return_id))
+        )
+        tr = tr_res.scalar_one_or_none()
+        if tr and tr.status == "confirmed":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Cannot delete documents associated with a confirmed tax return. Reopen the tax return first.",
+            )
+
+        # Retract financial contributions and metadata from tax profile
+        await document_pipeline_service.retract_document_contributions(
+            document_id=str(doc.id),
+            tax_return_id=str(doc.tax_return_id),
+            db=db,
+        )
+
+        # Invalidate existing calculation snapshots
+        await db.execute(
+            update(TaxCalculation)
+            .where(TaxCalculation.tax_return_id == str(doc.tax_return_id))
+            .values(status="stale")
+        )
 
     try:
         await storage.delete_file(doc.storage_key)

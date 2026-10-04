@@ -140,7 +140,7 @@ export default function LandingPage() {
 
             {/* Subtitle */}
             <p className="text-lg sm:text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto font-normal">
-              Upload your documents. Our AI extracts your salary and bank statements, calculates every statutory deduction automatically, and generates official <span className="font-semibold text-slate-800">eCH-0196 XML</span> ready for your canton.
+              Upload your documents. Our AI extracts your salary and bank statements, calculates every statutory deduction automatically, and generates an official <span className="font-semibold text-slate-800">Tax Return Summary PDF and eCH-compliant export</span> ready for your canton.
             </p>
 
             {/* CTA Buttons */}
@@ -319,9 +319,9 @@ export default function LandingPage() {
               <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
                 <FileText className="h-6 w-6" />
               </div>
-              <h3 className="text-lg font-bold text-slate-900">Official eCH-0196 XML Export</h3>
+              <h3 className="text-lg font-bold text-slate-900">Official Filing Summary & Export</h3>
               <p className="text-sm text-slate-600 leading-relaxed">
-                Export directly in the official Swiss e-Government standard format (eCH-0196) for upload into your cantonal tax portal, plus a full summary PDF with itemized deduction notes.
+                Generate structured eCH-compliant data export for your records, plus an Official Tax Return Summary PDF with complete instructions for your canton’s official portal or postal submission.
               </p>
             </div>
 
@@ -510,8 +510,8 @@ export default function LandingPage() {
                 a: 'SunTax utilizes a 100% deterministic calculation engine programmed with the official progressive tax bracket formulas from the Federal Tax Administration (ESTV) and Cantonal Tax Offices (StG). We never use AI to guess numbers or tax rates.',
               },
               {
-                q: 'Can I submit directly to my cantonal tax authority?',
-                a: 'Yes. SunTax exports your finalized return in official eCH-0196 XML standard format, which can be uploaded directly to your canton’s e-tax portal (e.g., eSteuern.ch for Zurich, TaxMe for Bern, eTax.zug for Zug). You can also download the signed summary PDF to submit by post.',
+                q: 'How do I submit my tax return to my cantonal tax authority?',
+                a: 'SunTax generates an official Tax Return Filing Summary PDF and structured eCH-compliant data export. You can complete your official submission via your canton’s official electronic portal (e.g., eTax.zh for Zurich, BE-Login TaxMe for Bern, eTax.zug for Zug, BalTax for Basel-Stadt, SmartTax for Aargau, eTax.sg for St. Gallen, and eTax.sz for Schwyz) or by mailing the signed Summary PDF with original certificates.',
               },
               {
                 q: 'Is my personal financial data protected?',

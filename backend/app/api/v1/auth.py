@@ -36,10 +36,12 @@ from app.core.security import (
     get_current_user,
     hash_password,
     is_token_denylisted,
+    is_refresh_token_active,
     store_email_token,
     store_refresh_token,
     verify_password,
     revoke_refresh_token,
+    revoke_all_user_refresh_tokens,
 )
 from app.models.audit_log import AuditLog
 from app.models.user import User
@@ -310,7 +312,7 @@ async def refresh_token(
     payload: RefreshTokenRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
-    """Issue a new access token (and rotate the refresh token)."""
+    """Issue a new access token (with atomic one-time rotation and replay protection)."""
     if await is_token_denylisted(payload.refresh_token):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -324,8 +326,16 @@ async def refresh_token(
             detail="Invalid token type",
         )
 
-    user_id = token_payload["sub"]
-    result = await db.execute(select(User).where(User.id == str(user_id)))
+    user_id = str(token_payload["sub"])
+
+    # Strict check: refresh token must be present in active store
+    if not await is_refresh_token_active(user_id, payload.refresh_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Refresh token has been revoked or expired",
+        )
+
+    result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
 
     if not user or not user.is_active:
@@ -334,12 +344,20 @@ async def refresh_token(
             detail="User not found or inactive",
         )
 
-    # Rotate: revoke old, issue new
-    await revoke_refresh_token(str(user_id), payload.refresh_token)
-    token_data = {"sub": str(user.id)}
+    # Atomic rotation & replay protection:
+    # 1. Revoke the old refresh token immediately from active store
+    await revoke_refresh_token(user_id, payload.refresh_token)
+    # 2. Add old token to denylist so replaying it is rejected immediately
+    import time
+    exp = token_payload.get("exp", 0)
+    remaining = max(1, int(exp - time.time())) if exp else 86400 * 7
+    await add_token_to_denylist(payload.refresh_token, remaining)
+
+    # 3. Issue new tokens and store new refresh token in active store
+    token_data = {"sub": user_id}
     new_access = create_access_token(token_data)
     new_refresh = create_refresh_token(token_data)
-    await store_refresh_token(str(user.id), new_refresh)
+    await store_refresh_token(user_id, new_refresh)
 
     return TokenResponse(access_token=new_access, refresh_token=new_refresh)
 
@@ -347,14 +365,14 @@ async def refresh_token(
 @router.post(
     "/logout",
     response_model=MessageResponse,
-    summary="Invalidate the current access token",
+    summary="Invalidate the current access token and revoke active sessions",
 )
 async def logout(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
-    """Add the bearer token to the denylist and revoke all refresh tokens."""
+    """Add the bearer token to the denylist and revoke all active refresh tokens."""
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.removeprefix("Bearer ").strip()
 
@@ -368,6 +386,9 @@ async def logout(
             await add_token_to_denylist(token, remaining or 1)
         except HTTPException:
             pass  # Already expired – denylist not needed
+
+    # Revoke all active refresh sessions for this user
+    await revoke_all_user_refresh_tokens(str(current_user.id))
 
     await _write_audit(
         db,

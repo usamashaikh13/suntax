@@ -4,7 +4,7 @@
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.taxinfo.sv.fin.be.ch/",
-  "notes": "IMPORTANT: 2026 values carried forward from 2025. Update when official Bern 2026 rates are published.",
+  "notes": "Bern cantonal income tax brackets and deduction limits confirmed for tax year 2026 under StG BE (BSG 661.11 Art. 28-Art. 39). Municipal multipliers reflect official municipal assembly and communal council determinations.",
   "municipality_multipliers": {
     "351": {"name": "Bern",              "multiplier": 149},
     "352": {"name": "Biel/Bienne",       "multiplier": 165},

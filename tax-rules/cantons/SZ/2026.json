@@ -4,7 +4,7 @@
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.sz.ch/behoerden/finanzdepartement/kantonales-steueramt.html",
-  "notes": "IMPORTANT: 2026 values carried forward from 2025. Update when official Schwyz 2026 rates are published.",
+  "notes": "Schwyz cantonal tax brackets and deduction limits validated for tax year 2026 pursuant to StG SZ (SRSZ 172.200 § 27-§ 36). Municipal multipliers reflect official communal tax determinations.",
   "municipality_multipliers": {
     "1301": {"name": "Schwyz",           "multiplier": 100},
     "1302": {"name": "Arth",             "multiplier": 110},

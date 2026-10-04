@@ -627,27 +627,37 @@ class DocumentPipelineService:
             if tot_val is not None and is_approved("total_value"):
                 sec_entry = {
                     "broker_name": data.get("broker_name") or "Securities Account",
+                    "name": data.get("broker_name") or "Securities Account",
                     "total_value_chf": float(tot_val),
+                    "value_chf": float(tot_val),
                     "source_document_id": document.id,
                     "source_document_name": document.original_filename,
                 }
                 positions.append(sec_entry)
                 wealth["securities_positions"] = positions
+                wealth["securities"] = positions
                 applied_fields.append("securities_positions")
+                applied_fields.append("securities")
 
             income_contributions = dict(income.get("_doc_contributions") or {})
             doc_income_contrib = dict(income_contributions.get(document.id) or {})
             if "dividends" in doc_income_contrib:
                 prior_val = doc_income_contrib.pop("dividends")
-                current_total = income.get("dividend_income") or 0.0
-                income["dividend_income"] = max(0.0, round(current_total - prior_val, 2))
+                current_total = income.get("dividend_income") or income.get("dividends") or 0.0
+                rem_total = max(0.0, round(current_total - prior_val, 2))
+                income["dividend_income"] = rem_total
+                income["dividends"] = rem_total
 
             div_rec = data.get("dividends_received")
             if div_rec is not None and is_approved("dividends_received"):
                 new_val = float(div_rec)
-                income["dividend_income"] = round((income.get("dividend_income") or 0.0) + new_val, 2)
+                cur_total = income.get("dividend_income") or income.get("dividends") or 0.0
+                updated_total = round(cur_total + new_val, 2)
+                income["dividend_income"] = updated_total
+                income["dividends"] = updated_total
                 doc_income_contrib["dividends"] = new_val
                 applied_fields.append("dividend_income")
+                applied_fields.append("dividends")
 
             if doc_income_contrib:
                 income_contributions[document.id] = doc_income_contrib
@@ -674,12 +684,80 @@ class DocumentPipelineService:
                 select(TaxCalculation).where(TaxCalculation.tax_return_id == str(document.tax_return_id))
             )
             for calc in calcs_res.scalars().all():
-                calc.status = "outdated"
+                calc.status = "stale"
                 calc.is_final = False
                 db.add(calc)
 
         await db.commit()
         return applied_fields
+
+    async def retract_document_contributions(
+        self,
+        document_id: str,
+        tax_return_id: str,
+        db: AsyncSession,
+    ) -> None:
+        """
+        Retract all financial amounts and metadata contributed by a document
+        from the associated TaxProfile.
+        """
+        prof_res = await db.execute(
+            select(TaxProfile).where(TaxProfile.tax_return_id == str(tax_return_id))
+        )
+        profile = prof_res.scalar_one_or_none()
+        if not profile:
+            return
+
+        income = dict(profile.income_data or {})
+        wealth = dict(profile.wealth_data or {})
+        deductions = dict(profile.deductions_data or {})
+        liabilities = dict(profile.liabilities_data or {})
+
+        # 1. Retract income contributions
+        income_contribs = dict(income.get("_doc_contributions") or {})
+        doc_inc = income_contribs.pop(document_id, None)
+        if doc_inc and isinstance(doc_inc, dict):
+            for field_name, amount in doc_inc.items():
+                cur = float(income.get(field_name) or 0.0)
+                income[field_name] = max(0.0, round(cur - float(amount), 2))
+                if field_name == "dividends" and "dividend_income" in income:
+                    income["dividend_income"] = income[field_name]
+                elif field_name == "dividend_income" and "dividends" in income:
+                    income["dividends"] = income[field_name]
+        income["_doc_contributions"] = income_contribs
+
+        # 2. Retract deductions contributions
+        ded_contribs = dict(deductions.get("_doc_contributions") or {})
+        doc_ded = ded_contribs.pop(document_id, None)
+        if doc_ded and isinstance(doc_ded, dict):
+            for field_name, amount in doc_ded.items():
+                cur = float(deductions.get(field_name) or 0.0)
+                deductions[field_name] = max(0.0, round(cur - float(amount), 2))
+        deductions["_doc_contributions"] = ded_contribs
+
+        # 3. Retract wealth contributions (bank accounts, securities)
+        bank_accounts = list(wealth.get("bank_accounts") or [])
+        wealth["bank_accounts"] = [
+            acc for acc in bank_accounts if acc.get("source_document_id") != document_id
+        ]
+
+        sec_positions = list(wealth.get("securities_positions") or [])
+        rem_sec = [p for p in sec_positions if p.get("source_document_id") != document_id]
+        wealth["securities_positions"] = rem_sec
+        wealth["securities"] = rem_sec
+
+        # 4. Retract flags referencing this document
+        flags = list(profile.tax_flags or [])
+        profile.tax_flags = [
+            f for f in flags if isinstance(f, dict) and f.get("source_document_id") != document_id
+        ]
+
+        profile.income_data = income
+        profile.wealth_data = wealth
+        profile.deductions_data = deductions
+        profile.liabilities_data = liabilities
+        profile.updated_at = datetime.now(timezone.utc)
+        db.add(profile)
 
 
 # Module singleton

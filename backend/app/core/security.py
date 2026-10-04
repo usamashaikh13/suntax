@@ -15,6 +15,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+import uuid
 from uuid import UUID
 
 import redis.asyncio as aioredis
@@ -85,17 +86,20 @@ def _get_redis() -> Optional[aioredis.Redis]:
 
 
 def hash_password(password: str) -> str:
-    """Return a bcrypt hash of *password*. Truncates to 72 bytes (bcrypt limit)."""
-    # bcrypt silently truncates at 72 bytes; some versions raise ValueError.
-    pw_bytes = password.encode("utf-8")[:72]
-    return _pwd_context.hash(pw_bytes.decode("utf-8", errors="replace"))
+    """Return a bcrypt hash of *password*. Enforces maximum 72-byte limit to prevent silent truncation collision."""
+    pw_bytes = password.encode("utf-8")
+    if len(pw_bytes) > 72:
+        raise ValueError("Password exceeds 72-byte limit for bcrypt hashing.")
+    return _pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Return True if *plain_password* matches *hashed_password*."""
-    pw_bytes = plain_password.encode("utf-8")[:72]
+    """Return True if *plain_password* matches *hashed_password*. Rejects passwords > 72 bytes."""
+    pw_bytes = plain_password.encode("utf-8")
+    if len(pw_bytes) > 72:
+        return False
     try:
-        return _pwd_context.verify(pw_bytes.decode("utf-8", errors="replace"), hashed_password)
+        return _pwd_context.verify(plain_password, hashed_password)
     except Exception:
         return False
 
@@ -104,6 +108,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 _DENYLIST_PREFIX = "token:denylist:"
 _REFRESH_PREFIX = "token:refresh:"
+_USER_REFRESH_SET_PREFIX = "user:refresh:"
 
 
 def _utc_now() -> datetime:
@@ -146,7 +151,13 @@ def create_refresh_token(data: dict[str, Any]) -> str:
         Encoded JWT string.
     """
     expire = _utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    payload = {**data, "exp": expire, "iat": _utc_now(), "type": "refresh"}
+    payload = {
+        **data,
+        "exp": expire,
+        "iat": _utc_now(),
+        "type": "refresh",
+        "jti": str(uuid.uuid4()),
+    }
     token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return token
 
@@ -159,13 +170,28 @@ async def store_refresh_token(user_id: str, token: str) -> None:
     if redis is not None:
         try:
             ttl = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+            ttl_seconds = int(ttl.total_seconds())
             await redis.setex(
                 f"{_REFRESH_PREFIX}{key}",
-                int(ttl.total_seconds()),
+                ttl_seconds,
                 token,
             )
+            await redis.sadd(f"{_USER_REFRESH_SET_PREFIX}{user_id}", key)
+            await redis.expire(f"{_USER_REFRESH_SET_PREFIX}{user_id}", ttl_seconds)
         except Exception as exc:
             logger.warning("Redis store_refresh_token failed: %s", exc)
+
+
+async def is_refresh_token_active(user_id: str, token: str) -> bool:
+    """Return True if *token* is currently present in the active refresh store for *user_id*."""
+    key = f"{user_id}:{token[-16:]}"
+    redis = _get_redis()
+    if redis is not None:
+        try:
+            return bool(await redis.exists(f"{_REFRESH_PREFIX}{key}"))
+        except Exception as exc:
+            logger.warning("Redis is_refresh_token_active check failed: %s", exc)
+    return key in _memory_refresh_tokens
 
 
 async def revoke_refresh_token(user_id: str, token: str) -> None:
@@ -176,8 +202,28 @@ async def revoke_refresh_token(user_id: str, token: str) -> None:
     if redis is not None:
         try:
             await redis.delete(f"{_REFRESH_PREFIX}{key}")
+            await redis.srem(f"{_USER_REFRESH_SET_PREFIX}{user_id}", key)
         except Exception as exc:
             logger.warning("Redis revoke_refresh_token failed: %s", exc)
+
+
+async def revoke_all_user_refresh_tokens(user_id: str) -> None:
+    """Revoke all active refresh tokens for *user_id* across memory and Redis."""
+    keys_to_del = [k for k in list(_memory_refresh_tokens.keys()) if k.startswith(f"{user_id}:")]
+    for k in keys_to_del:
+        _memory_refresh_tokens.pop(k, None)
+
+    redis = _get_redis()
+    if redis is not None:
+        try:
+            set_key = f"{_USER_REFRESH_SET_PREFIX}{user_id}"
+            members = await redis.smembers(set_key)
+            if members:
+                del_keys = [f"{_REFRESH_PREFIX}{m}" for m in members]
+                await redis.delete(*del_keys)
+            await redis.delete(set_key)
+        except Exception as exc:
+            logger.warning("Redis revoke_all_user_refresh_tokens failed: %s", exc)
 
 
 def decode_token(token: str) -> dict[str, Any]:

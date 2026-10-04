@@ -72,7 +72,8 @@ def _to_engine_profile(profile: TaxProfile, tax_return: TaxReturn) -> EngineTaxP
     other_income = sum(
         (_amount(income.get(key)) for key in (
             "self_employment_income", "pension_income", "rental_income",
-            "dividend_income", "interest_income", "capital_gains", "alimony_received",
+            "dividend_income", "dividends", "interest_income", "bank_interest",
+            "capital_gains", "alimony_received",
         )),
         _sum_items(income.get("other_income"), "amount"),
     )
@@ -83,6 +84,14 @@ def _to_engine_profile(profile: TaxProfile, tax_return: TaxReturn) -> EngineTaxP
         or _amount(income.get("total_employment_income"))
     )
     bank_bal = _sum_items(wealth.get("bank_accounts"), "balance_chf") or _sum_items(wealth.get("bank_accounts"), "balance")
+
+    sec_items = wealth.get("securities") or wealth.get("securities_positions") or []
+    sec_tax_val = (
+        _sum_items(sec_items, "value_chf")
+        or _sum_items(sec_items, "total_value_chf")
+        or _sum_items(sec_items, "value")
+        or _sum_items(sec_items, "total_value")
+    )
 
     return EngineTaxProfile(
         tax_return_id=str(tax_return.id),
@@ -104,8 +113,8 @@ def _to_engine_profile(profile: TaxProfile, tax_return: TaxReturn) -> EngineTaxP
         childcare_costs=_amount(deductions.get("childcare_expenses")),
         other_deductions=_sum_items(deductions.get("other_deductions"), "amount"),
         bank_accounts_balance=bank_bal,
-        securities_tax_value=_sum_items(wealth.get("securities"), "value_chf"),
-        real_estate_tax_value=_sum_items(wealth.get("real_estate"), "market_value"),
+        securities_tax_value=sec_tax_val,
+        real_estate_tax_value=_sum_items(wealth.get("real_estate"), "market_value") or _sum_items(wealth.get("real_estate"), "value"),
         other_assets=_sum_items(wealth.get("other_assets"), "value"),
         mortgage_balance=_sum_items(liabilities.get("mortgages"), "outstanding_balance"),
         other_liabilities=_sum_items(liabilities.get("loans"), "outstanding_balance") + _amount(liabilities.get("other_liabilities")),
@@ -289,6 +298,8 @@ async def get_calculation(
 
     return {
         "calculation_id": str(calc.id),
+        "status": calc.status,
+        "is_stale": calc.status == "stale",
         "calculated_at": calc.calculated_at.isoformat(),
         "results": calc.calculation_details or {},
         "breakdown": (calc.calculation_details or {}).get("breakdown", []),
@@ -457,39 +468,7 @@ async def confirm_tax_return(
             detail="Tax return is already confirmed.",
         )
 
-    force = body.get("force", False)
-    if not force:
-        # Check required profile details and unanswered questions
-        profile_res = await db.execute(
-            select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
-        )
-        profile = profile_res.scalar_one_or_none()
-        p_data = profile.personal_data if profile and profile.personal_data else {}
-        first_name = p_data.get("first_name") or (current_user.full_name.split()[0] if current_user.full_name else None)
-        last_name = p_data.get("last_name") or (current_user.full_name.split()[-1] if current_user.full_name else None)
-
-        missing_items = []
-        if not first_name or not last_name:
-            missing_items.append("Taxpayer full name")
-        if not tr.canton_code:
-            missing_items.append("Canton code")
-
-        if profile and profile.tax_questions:
-            unanswered = [
-                q.get("question", q.get("id"))
-                for q in profile.tax_questions
-                if isinstance(q, dict) and q.get("is_required") and not q.get("is_answered")
-            ]
-            if unanswered:
-                missing_items.extend([f"Required Question: '{q}'" for q in unanswered])
-
-        if missing_items:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot confirm tax return draft: Incomplete required information ({', '.join(missing_items)}). Please complete these items before confirming.",
-            )
-
-    # Mark latest calculation as final
+    # Mandatory readiness check: Must have an active, non-stale calculation
     calc_result = await db.execute(
         select(TaxCalculation)
         .where(TaxCalculation.tax_return_id == str(tr.id))
@@ -497,8 +476,50 @@ async def confirm_tax_return(
         .limit(1)
     )
     calc = calc_result.scalar_one_or_none()
-    if calc:
-        calc.is_final = True
+    if not calc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot confirm tax return without a tax calculation. Please calculate taxes before confirming.",
+        )
+    if calc.status == "stale":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot confirm tax return with stale calculation results. Please re-run the calculation before confirming.",
+        )
+
+    # Check required profile details and unanswered questions
+    profile_res = await db.execute(
+        select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
+    )
+    profile = profile_res.scalar_one_or_none()
+    p_data = profile.personal_data if profile and profile.personal_data else {}
+    first_name = p_data.get("first_name") or (current_user.full_name.split()[0] if current_user.full_name else None)
+    last_name = p_data.get("last_name") or (current_user.full_name.split()[-1] if current_user.full_name else None)
+
+    missing_items = []
+    if not first_name or not last_name:
+        missing_items.append("Taxpayer full name")
+    if not tr.canton_code:
+        missing_items.append("Canton code")
+
+    if profile and profile.tax_questions:
+        unanswered = [
+            q.get("question", q.get("id"))
+            for q in profile.tax_questions
+            if isinstance(q, dict) and q.get("is_required") and not q.get("is_answered")
+        ]
+        if unanswered:
+            missing_items.extend([f"Required Question: '{q}'" for q in unanswered])
+
+    if missing_items:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot confirm tax return draft: Incomplete required information ({', '.join(missing_items)}). Please complete these items before confirming.",
+        )
+
+    # Finalize calculation
+    calc.is_final = True
+    calc.status = "completed"
 
     from datetime import datetime, timezone
     tr.status = "confirmed"
@@ -507,6 +528,45 @@ async def confirm_tax_return(
     await db.commit()
 
     return {"message": "Tax return draft confirmed successfully.", "status": "confirmed"}
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/reopen",
+    tags=["Tax Engine"],
+    summary="Reopen a confirmed tax return for editing",
+)
+async def reopen_tax_return(
+    tax_return_id: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Reopen a previously confirmed tax return back to draft status
+    so the taxpayer can make amendments and recalculate.
+    """
+    tr = await _get_tax_return(tax_return_id, db, current_user)
+    if tr.status != "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tax return is not confirmed (current status: '{tr.status}'). Only confirmed returns can be reopened.",
+        )
+
+    tr.status = "draft"
+    tr.confirmed_at = None
+
+    # Mark prior calculations as stale
+    calcs = await db.execute(
+        select(TaxCalculation).where(TaxCalculation.tax_return_id == str(tr.id))
+    )
+    for c in calcs.scalars().all():
+        c.is_final = False
+        c.status = "stale"
+
+    await db.commit()
+    return {
+        "message": "Tax return reopened successfully. You may now make modifications and recalculate.",
+        "status": "draft",
+    }
 
 
 # ── Tax Tools & Extensions (Commuting, ICTax, Crypto) ─────────────────────────

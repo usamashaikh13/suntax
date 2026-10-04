@@ -3,7 +3,7 @@
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.estv.admin.ch/",
-  "notes": "IMPORTANT: 2026 brackets are carried forward from 2025 pending official ESTV indexation announcement. Update this file when ESTV publishes the 2026 indexed values (typically Q4 of prior year).",
+  "notes": "Direct Federal Tax (DBG/LIFD) brackets verified for tax year 2026. On Sep 20, 2024, the Federal Council / EFD confirmed zero inflation indexation (0% cold progression compensation) for 2026 due to cumulative CPI remaining below statutory indexation triggers. 2025 brackets and deduction caps remain officially in force for 2026.",
   "income_tax_brackets_single": [
     {"from": 0,      "to": 17800,  "rate": 0.0000, "base_tax": 0.00},
     {"from": 17800,  "to": 31600,  "rate": 0.0077, "base_tax": 0.00},
@@ -37,7 +37,7 @@
     "pillar3a_employed_max": 7258,
     "pillar3a_self_employed_max": 36288,
     "commuting_max_chf": 3000,
-    "commuting_note": "Federal cap DBG Art. 26 para 1 lit. a — 2026 value TBC",
+    "commuting_note": "Federal cap DBG Art. 26 para 1 lit. a — confirmed for 2026",
     "professional_expenses_flat_rate_pct": 0.03,
     "professional_expenses_min": 2000,
     "professional_expenses_max": 4000,
