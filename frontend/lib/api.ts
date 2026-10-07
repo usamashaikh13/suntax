@@ -228,6 +228,59 @@ export const authApi = {
   },
 
   /**
+   * Submit 2FA challenge code to finalize login.
+   */
+  async login2fa(temp_token: string, code: string): Promise<LoginResponse> {
+    const response = await apiClient.post<LoginResponse>('/auth/login/2fa', { temp_token, code });
+    if (response.data.access_token && response.data.refresh_token) {
+      setTokens(response.data.access_token, response.data.refresh_token);
+      const userResponse = await apiClient.get<User>('/auth/me');
+      setCurrentUser(userResponse.data);
+      return { ...response.data, user: userResponse.data };
+    }
+    return response.data;
+  },
+
+  /**
+   * Initiates Two-Factor Authentication setup.
+   */
+  async setup2fa(): Promise<{ secret: string; provisioning_uri: string }> {
+    const response = await apiClient.post<{ secret: string; provisioning_uri: string }>('/auth/2fa/setup');
+    return response.data;
+  },
+
+  /**
+   * Verifies TOTP code and activates Two-Factor Authentication.
+   */
+  async verify2fa(code: string): Promise<{ message: string }> {
+    const response = await apiClient.post<{ message: string }>('/auth/2fa/verify', { code });
+    return response.data;
+  },
+
+  /**
+   * Disables Two-Factor Authentication.
+   */
+  async disable2fa(password: string): Promise<{ message: string }> {
+    const response = await apiClient.post<{ message: string }>('/auth/2fa/disable', { password });
+    return response.data;
+  },
+
+  /**
+   * Fetches user security and FDPIC compliance status.
+   */
+  async getSecurityStatus(): Promise<{
+    two_factor_enabled: boolean;
+    account_locked: boolean;
+    failed_login_attempts: number;
+    token_lifetime_minutes: number;
+    encryption_standard: string;
+    data_protection_act: string;
+  }> {
+    const response = await apiClient.get('/auth/security-status');
+    return response.data;
+  },
+
+  /**
    * Updates the current user's profile.
    */
   async updateProfile(data: ProfileUpdateRequest): Promise<User> {

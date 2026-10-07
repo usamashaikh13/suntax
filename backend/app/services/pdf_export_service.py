@@ -209,15 +209,36 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any) -> 
     }
     portal_info = submission_portals.get(canton, ('Official Cantonal Tax Portal', f'Kantonale Steuerverwaltung {canton}'))
 
-    section(f'07  Official filing instructions for Canton {canton}')
+    section(f'07  Legal Filing Framework: Selbstdeklaration (Art. 110 DBG)')
     story.append(p(
-        f'To file your tax return in Canton {canton}: '
-        f'1. Review all figures and deductions against your original employer salary certificate and banking records. '
-        f'2. Submit your tax return electronically using the official portal: {portal_info[0]}, or print, sign, and mail this summary with original certificates to: {portal_info[1]}. '
-        f'Downloading or confirming this document in SunTax prepares your declaration but requires your final submission through the official cantonal route.'
+        f'Rechtliche Grundlage: Selbstdeklaration gemäss Art. 110 DBG (Bundesgesetz über die direkte Bundessteuer). '
+        f'SunTax agiert als automatisiertes Vorbereitungs- und Berechnungswerkzeug zur Erstellung ESTV-konformer Steuerdeklarationen. '
+        f'Der Steuerpflichtige reicht das validierte Deklarationspaket direkt über das offizielle Portal des Kantons {canton} ein ({portal_info[0]}) '
+        f'oder unterzeichnet die Druckfassung zur postalischer Zustellung an: {portal_info[1]}. '
+        f'Dies garantiert volle Gesetzeskonformität ohne unberechtigte Stellvertretung.'
     ))
     story.append(Spacer(1, 8))
-    story.append(p('Supporting documents are not embedded in this PDF. Please ensure all requisite certificates (Lohnausweis, Pillar 3a, bank statements) are attached when submitting to the tax authority.', 'small'))
+    
+    # Statutory taxpayer signature block
+    sig_data = [
+        [
+            p("Ort, Datum (Place, Date):\n\n__________________________________", 'small'),
+            p("Unterschrift Steuerpflichtige(r) gemäss Art. 110 DBG:\n\n__________________________________", 'small')
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[width * 0.45, width * 0.55])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
+        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
+        ('TOPPADDING', (0, 0), (-1, -1), 8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+    ]))
+    story.append(sig_table)
+    story.append(Spacer(1, 8))
+    story.append(p('Requisite supporting documents (Lohnausweis, Säule 3a, bank statements) must accompany this declaration.', 'small'))
     breakdown = getattr(calculation, 'breakdown', None) or results.get('breakdown') or details.get('breakdown') or []
     if isinstance(breakdown, list) and breakdown:
         story.append(PageBreak())

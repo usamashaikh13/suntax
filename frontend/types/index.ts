@@ -94,6 +94,7 @@ export interface User {
   is_active: boolean;
   is_verified: boolean;
   is_admin: boolean;
+  totp_enabled?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -398,9 +399,11 @@ export interface LoginRequest {
 export interface LoginResponse {
   access_token: string;
   refresh_token: string;
-  token_type: string;
-  expires_in: number;
-  user: User;
+  token_type?: string;
+  expires_in?: number;
+  user?: User;
+  two_factor_required?: boolean;
+  temp_token?: string;
 }
 
 export interface RegisterRequest {

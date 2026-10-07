@@ -108,11 +108,51 @@ class EmailVerificationRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    """Returned after a successful login or token refresh."""
+    """Returned after a successful login, token refresh, or 2FA challenge initiation."""
 
-    access_token: str
-    refresh_token: str
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
+    two_factor_required: bool = False
+    temp_token: Optional[str] = None
+
+
+class TwoFactorSetupResponse(BaseModel):
+    """Returned when initiating TOTP 2FA setup."""
+
+    secret: str
+    provisioning_uri: str
+
+
+class TwoFactorVerifyRequest(BaseModel):
+    """Payload to confirm TOTP 2FA activation."""
+
+    code: str
+
+
+class TwoFactorLoginRequest(BaseModel):
+    """Payload to solve 2FA challenge during login."""
+
+    temp_token: str
+    code: str
+
+
+class TwoFactorDisableRequest(BaseModel):
+    """Payload to disable 2FA."""
+
+    password: str
+    code: Optional[str] = None
+
+
+class SecurityStatusResponse(BaseModel):
+    """Security and compliance status for the authenticated user."""
+
+    two_factor_enabled: bool
+    account_locked: bool
+    failed_login_attempts: int
+    token_lifetime_minutes: int
+    encryption_standard: str
+    data_protection_act: str
 
 
 class UserResponse(BaseModel):
@@ -126,6 +166,7 @@ class UserResponse(BaseModel):
     is_verified: bool
     is_active: bool
     is_admin: bool
+    totp_enabled: bool = False
     created_at: datetime
     updated_at: datetime
 

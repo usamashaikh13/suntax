@@ -60,6 +60,10 @@ def parse_currency_amount(raw: Any) -> Optional[float]:
     s = s.rstrip(".,-")
     s = s.replace("'", "").replace("’", "").replace(" ", "")
 
+    # Date guard: e.g. 28.03.2025 or 31.12.2025 is a date, not a currency amount
+    if re.search(r"^\d{1,2}\.\d{1,2}\.\d{2,4}$", s):
+        return None
+
     if not s:
         return None
 
@@ -247,6 +251,17 @@ class DocumentExtractor:
                 lines = page.raw_lines or page.text.splitlines()
                 for line_idx, line in enumerate(lines):
                     if re.search(rf"\b{re.escape(label)}\b", line, re.I) or (len(label) > 6 and label.lower() in line.lower()):
+                        # 1. Check direct match on line with optional 'per DD.MM.YYYY' or colon
+                        direct_match = re.search(
+                            rf"{re.escape(label)}(?:\s+per\s+\d{{1,2}}\.\d{{1,2}}\.\d{{2,4}})?\s*[:]?\s*(?:CHF|EUR|Fr\.)?\s*([0-9][0-9'., ]*)",
+                            line,
+                            re.I,
+                        )
+                        if direct_match:
+                            val = parse_currency_amount(direct_match.group(1))
+                            if val is not None and not (1990 <= val <= 2099 and not re.search(r"(?:CHF|EUR|Fr\.)", line, re.I)):
+                                return val, direct_match.group(1).strip(), page.page_number, line.strip(), 0.95
+
                         cleaned = re.sub(r"\b\d{1,2}\.\d{1,2}\.\d{2,4}\b", " ", line)
 
                         cur_match = re.search(r"(?:CHF|EUR|USD|Fr\.|SFr\.)\s*[:]?\s*([0-9][0-9'., ]*)", cleaned, re.I)
@@ -319,17 +334,64 @@ class DocumentExtractor:
                     return clean, page.page_number, line.strip(), 0.98
         return None, 1, "", 0.0
 
-    def _find_tax_year(self, pages: List[PageOCRResult]) -> Tuple[Optional[int], int, str, float]:
+    def _find_tax_year(
+        self,
+        pages: List[PageOCRResult],
+        expected_tax_year: Optional[int] = None,
+    ) -> Tuple[Optional[int], int, str, float]:
         """Find tax year mentioned in the document (e.g. 2024, 2025, 2026)."""
         year_pattern = re.compile(r"\b(20[2-3][0-9])\b")
+        
+        # 1. High priority: explicit Steuerjahr / Tax Year / Période fiscale
         for page in pages:
             lines = page.raw_lines or page.text.splitlines()
             for line in lines:
+                m_sj = re.search(r"(?:steuerjahr|p[eé]riode\s*fiscale|tax\s*year)\s*[:]?\s*(20[2-3][0-9])", line, re.I)
+                if m_sj:
+                    return int(m_sj.group(1)), page.page_number, line.strip(), 0.98
+
+        # 2. Date ranges: e.g. 01.01.2025 - 31.12.2025
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for line in lines:
+                m_range = re.search(r"01\.01\.(20[2-3][0-9])\s*[-–]\s*31\.12\.(20[2-3][0-9])", line)
+                if m_range:
+                    return int(m_range.group(2)), page.page_number, line.strip(), 0.98
+
+        # 3. Year-end balance date: e.g. per 31.12.2025
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for line in lines:
+                m_end = re.search(r"(?:per|au|al)\s*31\.12\.(20[2-3][0-9])", line, re.I)
+                if m_end:
+                    return int(m_end.group(1)), page.page_number, line.strip(), 0.95
+
+        # 4. Keyword near year: jahr / année / periode
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for line in lines:
+                # Also check donation date e.g. "Datum der Spende: 28.03.2025"
+                m_sp = re.search(r"(?:spende|donation|don)\b[^\n\r]*\b\d{1,2}\.\d{1,2}\.(20[2-3][0-9])", line, re.I)
+                if m_sp:
+                    return int(m_sp.group(1)), page.page_number, line.strip(), 0.95
                 if any(w in line.lower() for w in ("jahr", "année", "anno", "tax year", "periode", "période")):
                     m = year_pattern.search(line)
                     if m:
-                        return int(m.group(1)), page.page_number, line.strip(), 0.95
-        # Fallback: any mention of 2024-2026
+                        return int(m.group(1)), page.page_number, line.strip(), 0.90
+
+        # 5. If issue date is in Jan-Apr of YYYY, annual tax documents (Lohnausweis, Bescheinigung) apply to YYYY - 1
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for line in lines:
+                m_issue = re.search(r"\b\d{1,2}\.(?:0[1-4])\.(20[2-3][0-9])\b", line)
+                if m_issue:
+                    issue_yr = int(m_issue.group(1))
+                    if expected_tax_year and issue_yr == expected_tax_year + 1:
+                        return expected_tax_year, page.page_number, line.strip(), 0.92
+                    elif not expected_tax_year:
+                        return issue_yr - 1, page.page_number, line.strip(), 0.85
+
+        # 6. Fallback: any mention of 2024-2026
         for page in pages:
             for line in page.raw_lines or page.text.splitlines():
                 m = year_pattern.search(line)
@@ -359,9 +421,23 @@ class DocumentExtractor:
         warnings: List[str] = []
         pages = ocr_result.pages
 
-        # Gross Salary
+        # Gross Salary (Ziffer 8 or Ziffer 1)
         gross, raw_g, pg_g, src_g, conf_g = self._find_number_in_pages(
-            ("8. bruttolohn", "8. salaire brut", "8. salario lordo", "bruttolohn", "salaire brut", "gross salary", "gross annual salary", "1. lohn", "1. salaire"),
+            (
+                "bruttolohn total",
+                "salario lordo totale",
+                "salaire brut total",
+                "8. bruttolohn",
+                "8. salaire brut",
+                "8. salario lordo",
+                "bruttolohn",
+                "salario lordo",
+                "salaire brut",
+                "gross salary",
+                "gross annual salary",
+                "1. lohn",
+                "1. salaire",
+            ),
             pages,
         )
         if gross is not None:
@@ -376,9 +452,9 @@ class DocumentExtractor:
                 extraction_method="deterministic_ocr",
             )
 
-        # Net Salary
+        # Net Salary (Ziffer 11)
         net, raw_n, pg_n, src_n, conf_n = self._find_number_in_pages(
-            ("11. nettolohn", "11. salaire net", "11. salario netto", "nettolohn", "salaire net", "net salary", "net salary paid"),
+            ("11. nettolohn", "11. salaire net", "11. salario netto", "nettolohn", "salaire net", "salario netto", "net salary", "net salary paid"),
             pages,
         )
         if net is not None:
@@ -393,9 +469,9 @@ class DocumentExtractor:
                 extraction_method="deterministic_ocr",
             )
 
-        # Social deductions (AHV/AVS/AI/APG/ALV)
+        # Social deductions (AHV/AVS/AI/APG/ALV - Ziffer 9)
         social, raw_s, pg_s, src_s, conf_s = self._find_number_in_pages(
-            ("9. beiträge ahv", "9. cotisations avs", "9. contributi avs", "beiträge ahv", "cotisations avs", "ahv/iv/eo/alv", "social deductions"),
+            ("9. beiträge ahv", "9. cotisations avs", "9. contributi avs", "beiträge ahv", "contributi avs", "cotisations avs", "ahv/iv/eo/alv", "social deductions"),
             pages,
         )
         if social is not None:
@@ -410,9 +486,21 @@ class DocumentExtractor:
                 extraction_method="deterministic_ocr",
             )
 
-        # Pension / BVG / LPP
+        # Pension / BVG / LPP (Ziffer 10.1)
         pension, raw_p, pg_p, src_p, conf_p = self._find_number_in_pages(
-            ("10. berufliche vorsorge", "10. prévoyance professionnelle", "10. previdenza professionale", "bvg", "lpp", "pension fund", "berufliche vorsorge (bvg)"),
+            (
+                "10.1 ordentliche beiträge",
+                "ordentliche beiträge",
+                "cotisations ordinaires",
+                "contributi ordinari",
+                "10. berufliche vorsorge",
+                "10. prévoyance professionnelle",
+                "10. previdenza professionale",
+                "bvg",
+                "lpp",
+                "pension fund",
+                "berufliche vorsorge (bvg)",
+            ),
             pages,
         )
         if pension is not None:
@@ -427,28 +515,28 @@ class DocumentExtractor:
                 extraction_method="deterministic_ocr",
             )
 
-        # Employee name
-        emp_name, pg_en, src_en, conf_en = self._find_text_in_pages(
-            ("name und adresse des arbeitnehmers", "nom du salarié", "salarié", "arbeitnehmer", "employee", "mitarbeiter"),
-            pages,
-        )
-        if emp_name:
-            fields["employee_name"] = ExtractedFieldDetail(
-                field_name="employee_name",
-                value=emp_name,
-                raw_value=emp_name,
-                source_page=pg_en,
-                source_text=src_en,
-                confidence=conf_en,
-                confidence_level="high" if conf_en > 0.85 else "medium",
-                extraction_method="deterministic_ocr",
-            )
-
         # Employer name
         employer, pg_em, src_em, conf_em = self._find_text_in_pages(
             ("arbeitgeber", "employeur", "datore di lavoro", "employer"),
             pages,
         )
+        if not employer:
+            # Fallback: scan for corporate entity indicator (AG, GmbH, SA, Sàrl) in issuer section
+            for page in pages:
+                lines = page.raw_lines or page.text.splitlines()
+                for line in lines:
+                    if re.search(r"\b([A-Z][A-Za-z0-9\s&.-]+(?:\s+AG|\s+GmbH|\s+SA|\s+S[aà]rl))\b", line):
+                        m = re.search(r"\b([A-Z][A-Za-z0-9\s&.-]+(?:\s+AG|\s+GmbH|\s+SA|\s+S[aà]rl))\b", line)
+                        cand = m.group(1).strip()
+                        if len(cand) > 3 and not any(skip in cand.lower() for skip in ("ubs", "vorsorge", "postfinance", "bundesamt")):
+                            employer = cand
+                            pg_em = page.page_number
+                            src_em = line.strip()
+                            conf_em = 0.88
+                            break
+                if employer:
+                    break
+
         if employer:
             fields["employer_name"] = ExtractedFieldDetail(
                 field_name="employer_name",
@@ -476,7 +564,7 @@ class DocumentExtractor:
             )
 
         # Tax Year
-        year, pg_yr, src_yr, conf_yr = self._find_tax_year(pages)
+        year, pg_yr, src_yr, conf_yr = self._find_tax_year(pages, expected_tax_year=expected_tax_year)
         if year:
             fields["tax_year"] = ExtractedFieldDetail(
                 field_name="tax_year",
@@ -516,7 +604,20 @@ class DocumentExtractor:
 
         # Balance as of Dec 31
         bal, raw_b, pg_b, src_b, conf_b = self._find_number_in_pages(
-            ("saldo per 31.12", "solde au 31.12", "saldo al 31.12", "kontostand per 31.12", "closing balance", "schluss-saldo", "schlusssaldo", "habensaldo", "balance"),
+            (
+                "kontosaldo",
+                "saldo per 31.12",
+                "solde au 31.12",
+                "saldo al 31.12",
+                "kontostand per 31.12",
+                "closing balance",
+                "schluss-saldo",
+                "schlusssaldo",
+                "habensaldo",
+                "balance",
+                "kontostand",
+                "saldo",
+            ),
             pages,
         )
         if bal is not None:
@@ -531,7 +632,7 @@ class DocumentExtractor:
                 extraction_method="deterministic_ocr",
             )
 
-        # Interest Earned
+        # Interest Earned (Habenzinsen)
         interest, raw_i, pg_i, src_i, conf_i = self._find_number_in_pages(
             ("habenzins", "bruttozins", "intérêts créditeurs", "interessi", "interest earned", "zinsgutschrift"),
             pages,
@@ -545,6 +646,23 @@ class DocumentExtractor:
                 source_text=src_i,
                 confidence=conf_i,
                 confidence_level="high" if conf_i > 0.85 else "medium",
+                extraction_method="deterministic_ocr",
+            )
+
+        # Interest on Debt (Sollzinsen)
+        soll, raw_soll, pg_soll, src_soll, conf_soll = self._find_number_in_pages(
+            ("sollzinsen", "intérêts débiteurs", "debit interest", "verzugszins"),
+            pages,
+        )
+        if soll is not None:
+            fields["interest_debt"] = ExtractedFieldDetail(
+                field_name="interest_debt",
+                value=soll,
+                raw_value=raw_soll,
+                source_page=pg_soll,
+                source_text=src_soll,
+                confidence=conf_soll,
+                confidence_level="high" if conf_soll > 0.85 else "medium",
                 extraction_method="deterministic_ocr",
             )
 
@@ -567,6 +685,36 @@ class DocumentExtractor:
             ("bank", "finanzinstitut", "banque", "banca", "institution"),
             pages,
         )
+        if not bank:
+            known_banks = (
+                "UBS Switzerland AG",
+                "UBS",
+                "Credit Suisse",
+                "Zürcher Kantonalbank",
+                "ZKB",
+                "PostFinance",
+                "Raiffeisen",
+                "Julius Bär",
+                "Migros Bank",
+                "Bank Cler",
+                "Basler Kantonalbank",
+                "BCV",
+            )
+            for page in pages:
+                lines = page.raw_lines or page.text.splitlines()
+                for line in lines[:8]:
+                    for kb in known_banks:
+                        if re.search(rf"\b{re.escape(kb)}\b", line, re.I):
+                            bank = kb
+                            pg_bn = page.page_number
+                            src_bn = line.strip()
+                            conf_bn = 0.95
+                            break
+                    if bank:
+                        break
+                if bank:
+                    break
+
         if bank:
             fields["bank_name"] = ExtractedFieldDetail(
                 field_name="bank_name",
@@ -575,12 +723,12 @@ class DocumentExtractor:
                 source_page=pg_bn,
                 source_text=src_bn,
                 confidence=conf_bn,
-                confidence_level="medium",
+                confidence_level="high" if conf_bn > 0.85 else "medium",
                 extraction_method="deterministic_ocr",
             )
 
         # Tax Year
-        year, pg_yr, src_yr, conf_yr = self._find_tax_year(pages)
+        year, pg_yr, src_yr, conf_yr = self._find_tax_year(pages, expected_tax_year=expected_tax_year)
         if year:
             fields["tax_year"] = ExtractedFieldDetail(
                 field_name="tax_year",
@@ -651,7 +799,21 @@ class DocumentExtractor:
 
         # Contribution amount
         contrib, raw_c, pg_c, src_c, conf_c = self._find_number_in_pages(
-            ("einzahlung säule 3a", "einbezahlter betrag", "montant versé", "contributo pilastro 3a", "contribution amount", "einzahlung", "versé"),
+            (
+                "total beiträge an die säule 3a",
+                "total beiträge",
+                "beiträge an die säule 3a",
+                "beiträge säule 3a",
+                "vorsorgebeiträge",
+                "einzahlung säule 3a",
+                "einbezahlter betrag",
+                "montant versé",
+                "contributo pilastro 3a",
+                "cotisations pilier 3a",
+                "contribution amount",
+                "einzahlung",
+                "versé",
+            ),
             pages,
         )
         if contrib is not None:
@@ -688,10 +850,40 @@ class DocumentExtractor:
                 extraction_method="deterministic_ocr",
             )
 
-        provider, pg_pr, src_pr, conf_pr = self._find_text_in_pages(
-            ("vorsorgestiftung", "fondation de prévoyance", "fondazione", "provider", "bank"),
-            pages,
-        )
+        # Provider Name
+        provider, pg_pr, src_pr, conf_pr = None, 1, "", 0.0
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for idx, line in enumerate(lines):
+                # Header "Name und Sitz der Vorsorgeeinrichtung" with next line
+                if re.search(r"name\s+und\s+sitz\s+der\s+vorsorge", line, re.I) and idx + 1 < len(lines):
+                    next_l = lines[idx + 1].strip()
+                    cand = next_l.split(",")[0].strip()
+                    if cand and len(cand) > 3:
+                        provider = cand
+                        pg_pr = page.page_number
+                        src_pr = f"{line} -> {next_l}"
+                        conf_pr = 0.95
+                        break
+                # Pattern: explicit line containing Vorsorgestiftung / Bankstiftung
+                m_pv = re.search(r"([A-Za-z0-9\s&.-]*(?:vorsorgestiftung|bankstiftung|fondation\s+de\s+pr[eé]voyance|fondazione)[A-Za-z0-9\s&.-]*)", line, re.I)
+                if m_pv:
+                    cand = m_pv.group(1).split(",")[0].strip()
+                    if cand and len(cand) > 4 and not any(skip in cand.lower() for skip in ("sitz", "name", "form.", "steuererklärung", "einrichtung", "/bankstiftung")):
+                        provider = cand
+                        pg_pr = page.page_number
+                        src_pr = line.strip()
+                        conf_pr = 0.95
+                        break
+            if provider:
+                break
+
+        if not provider:
+            provider, pg_pr, src_pr, conf_pr = self._find_text_in_pages(
+                ("vorsorgestiftung", "fondation de prévoyance", "fondazione", "provider", "bank"),
+                pages,
+            )
+
         if provider:
             fields["provider_name"] = ExtractedFieldDetail(
                 field_name="provider_name",
@@ -700,11 +892,53 @@ class DocumentExtractor:
                 source_page=pg_pr,
                 source_text=src_pr,
                 confidence=conf_pr,
-                confidence_level="medium",
+                confidence_level="high" if conf_pr > 0.85 else "medium",
                 extraction_method="deterministic_ocr",
             )
 
-        year, pg_yr, src_yr, conf_yr = self._find_tax_year(pages)
+        # Insured person / account holder
+        holder, pg_h, src_h, conf_h = None, 1, "", 0.0
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for idx, line in enumerate(lines):
+                if re.search(r"name,\s*vorname|nom,\s*pr[eé]nom|nome,\s*cognome", line, re.I):
+                    if idx + 1 < len(lines):
+                        cand = lines[idx + 1].strip()
+                        if cand and not any(w in cand.lower() for w in ("adresse", "ahv", "strasse", "756.")):
+                            holder = cand
+                            pg_h = page.page_number
+                            src_h = f"{line} -> {cand}"
+                            conf_h = 0.90
+                            break
+            if holder:
+                break
+        if holder:
+            fields["account_holder"] = ExtractedFieldDetail(
+                field_name="account_holder",
+                value=holder,
+                raw_value=holder,
+                source_page=pg_h,
+                source_text=src_h,
+                confidence=conf_h,
+                confidence_level="high",
+                extraction_method="deterministic_ocr",
+            )
+
+        # AHV Number
+        ahv, pg_ahv, src_ahv, conf_ahv = self._find_ahv_number(pages)
+        if ahv:
+            fields["ahv_number"] = ExtractedFieldDetail(
+                field_name="ahv_number",
+                value=ahv,
+                raw_value=ahv,
+                source_page=pg_ahv,
+                source_text=src_ahv,
+                confidence=conf_ahv,
+                confidence_level="high",
+                extraction_method="deterministic_ocr",
+            )
+
+        year, pg_yr, src_yr, conf_yr = self._find_tax_year(pages, expected_tax_year=expected_tax_year)
         if year:
             fields["tax_year"] = ExtractedFieldDetail(
                 field_name="tax_year",
@@ -788,7 +1022,7 @@ class DocumentExtractor:
         pages = ocr_result.pages
 
         amt, raw_a, pg_a, src_a, conf_a = self._find_number_in_pages(
-            ("spendenbetrag", "spende", "montant du don", "donazione", "donation amount", "betrag"),
+            ("betrag der spende", "spendenbetrag", "montant du don", "donazione", "donation amount", "betrag", "spende"),
             pages,
         )
         if amt is not None:
@@ -803,10 +1037,29 @@ class DocumentExtractor:
                 extraction_method="deterministic_ocr",
             )
 
-        org, pg_o, src_o, conf_o = self._find_text_in_pages(
-            ("organisation", "begünstigter", "bénéficiaire", "beneficiario", "institution"),
-            pages,
-        )
+        # Organization Name
+        org, pg_o, src_o, conf_o = None, 1, "", 0.0
+        best_org = ""
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for idx, line in enumerate(lines[:12]):
+                m_org = re.search(r"([A-Za-z0-9\s&.-]*(?:\b(?:Charity|Stiftung|Verein|Hilfswerk|Organisation|Association|Fondation|Fund|Alliance|Aid)\b)[A-Za-z0-9\s&.-]*)", line, re.I)
+                if m_org:
+                    cand = m_org.group(1).split(",")[0].strip()
+                    if cand and len(cand) > len(best_org) and not any(skip in cand.lower() for skip in ("befreit", "bestätigen", "institution", "spende", "steuer")):
+                        best_org = cand
+                        pg_o = page.page_number
+                        src_o = line.strip()
+                        conf_o = 0.95
+        if best_org:
+            org = best_org
+
+        if not org:
+            org, pg_o, src_o, conf_o = self._find_text_in_pages(
+                ("organisation", "begünstigter", "bénéficiaire", "beneficiario", "institution"),
+                pages,
+            )
+
         if org:
             fields["organisation_name"] = ExtractedFieldDetail(
                 field_name="organisation_name",
@@ -815,7 +1068,47 @@ class DocumentExtractor:
                 source_page=pg_o,
                 source_text=src_o,
                 confidence=conf_o,
-                confidence_level="medium",
+                confidence_level="high" if conf_o > 0.85 else "medium",
+                extraction_method="deterministic_ocr",
+            )
+
+        # Donor Name
+        donor, pg_d, src_d, conf_d = None, 1, "", 0.0
+        for page in pages:
+            lines = page.raw_lines or page.text.splitlines()
+            for line in lines:
+                m_d = re.search(r"(?:spendende\s*person|donateur|donatore|donor)\s*[:]?\s*([A-Za-z\s.-]+)", line, re.I)
+                if m_d:
+                    donor = m_d.group(1).strip()
+                    pg_d = page.page_number
+                    src_d = line.strip()
+                    conf_d = 0.92
+                    break
+            if donor:
+                break
+        if donor:
+            fields["donor_name"] = ExtractedFieldDetail(
+                field_name="donor_name",
+                value=donor,
+                raw_value=donor,
+                source_page=pg_d,
+                source_text=src_d,
+                confidence=conf_d,
+                confidence_level="high",
+                extraction_method="deterministic_ocr",
+            )
+
+        # Tax Year
+        year, pg_yr, src_yr, conf_yr = self._find_tax_year(pages, expected_tax_year=expected_tax_year)
+        if year:
+            fields["tax_year"] = ExtractedFieldDetail(
+                field_name="tax_year",
+                value=year,
+                raw_value=str(year),
+                source_page=pg_yr,
+                source_text=src_yr,
+                confidence=conf_yr,
+                confidence_level="high",
                 extraction_method="deterministic_ocr",
             )
 

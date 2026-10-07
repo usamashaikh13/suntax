@@ -521,6 +521,7 @@ async def _process_locally(document: Document, db: AsyncSession) -> None:
     summary="Upload one or more documents for processing",
 )
 async def upload_documents(
+    background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(..., description="One or more files to upload"),
     tax_return_id: Optional[str] = Query(
         None, description="Associate uploaded files with a tax return"
@@ -528,7 +529,6 @@ async def upload_documents(
     category: Optional[str] = Query(
         None, description="Pre-assigned document category"
     ),
-    background_tasks: BackgroundTasks = None,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> List[DocumentUploadResponse]:
@@ -661,11 +661,15 @@ async def upload_documents(
 
     # Dispatch background processing after successful database commit
     for d_id in doc_ids_to_process:
-        try:
-            process_document.delay(d_id)
-        except Exception:
-            if background_tasks is not None:
-                background_tasks.add_task(document_pipeline_service.process_document_by_id, d_id)
+        dispatched = False
+        if settings.ENVIRONMENT != "development":
+            try:
+                process_document.delay(d_id)
+                dispatched = True
+            except Exception:
+                pass
+        if not dispatched:
+            background_tasks.add_task(document_pipeline_service.process_document_by_id, d_id)
 
     return responses
 

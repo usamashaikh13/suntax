@@ -26,6 +26,10 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
   const [showPassword, setShowPassword] = useState(false)
+  const [is2faStep, setIs2faStep] = useState(false)
+  const [tempToken, setTempToken] = useState<string | null>(null)
+  const [twoFactorCode, setTwoFactorCode] = useState('')
+  const [submitting2fa, setSubmitting2fa] = useState(false)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -34,6 +38,16 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginForm) => {
     try {
       const response = await api.auth.login(data)
+      if (response.two_factor_required && response.temp_token) {
+        setTempToken(response.temp_token)
+        setIs2faStep(true)
+        toast({
+          title: '2FA Verification Required',
+          description: 'Please enter the 6-digit code from your authenticator app.',
+        })
+        return
+      }
+
       setTokens(response.access_token, response.refresh_token)
       toast({
         title: 'Welcome back!',
@@ -41,11 +55,35 @@ export default function LoginPage() {
       })
       router.push('/dashboard')
     } catch (error: any) {
+      const detail = error?.response?.data?.detail
       toast({
-        title: 'Sign in failed',
-        description: error?.response?.data?.detail || 'Invalid email or password. Please try again.',
+        title: error?.response?.status === 423 ? 'Account Locked' : 'Sign in failed',
+        description: detail || 'Invalid email or password. Please try again.',
         variant: 'destructive',
       })
+    }
+  }
+
+  const handle2faSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!tempToken || !twoFactorCode.trim()) return
+    setSubmitting2fa(true)
+    try {
+      const response = await api.auth.login2fa(tempToken, twoFactorCode.trim())
+      setTokens(response.access_token, response.refresh_token)
+      toast({
+        title: 'Authentication Verified',
+        description: 'Two-Factor Authentication successful. Welcome back!',
+      })
+      router.push('/dashboard')
+    } catch (error: any) {
+      toast({
+        title: '2FA Verification Failed',
+        description: error?.response?.data?.detail || 'Invalid code. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSubmitting2fa(false)
     }
   }
 
@@ -66,7 +104,58 @@ export default function LoginPage() {
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        {is2faStep ? (
+          <form onSubmit={handle2faSubmit} className="space-y-4">
+            <div className="p-3 bg-red-950/40 border border-red-800/40 rounded-lg text-xs text-red-200">
+              <ShieldCheck className="h-4 w-4 inline mr-1 text-red-400" />
+              Two-Factor Authentication is enabled on this account. Open your authenticator app (Google Authenticator, etc.) and enter the 6-digit code.
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="twoFactorCode" className="text-xs font-semibold text-slate-300">
+                6-Digit Security Code
+              </Label>
+              <Input
+                id="twoFactorCode"
+                type="text"
+                maxLength={6}
+                placeholder="123456"
+                value={twoFactorCode}
+                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                autoFocus
+                className="bg-slate-950 border-slate-800 text-slate-100 text-center tracking-widest font-mono text-lg h-12 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={submitting2fa || twoFactorCode.length < 6}
+              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold text-sm h-10 mt-2"
+            >
+              {submitting2fa ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Verifying Code...
+                </>
+              ) : (
+                'Verify & Complete Sign In'
+              )}
+            </Button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIs2faStep(false)
+                setTempToken(null)
+                setTwoFactorCode('')
+              }}
+              className="w-full text-center text-xs text-slate-400 hover:text-slate-200 pt-1"
+            >
+              &larr; Back to Email & Password
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email" className="text-xs font-semibold text-slate-300">
               Email Address
@@ -137,6 +226,7 @@ export default function LoginPage() {
             )}
           </Button>
         </form>
+        )}
       </CardContent>
 
       <CardFooter className="pt-2 pb-6 border-t border-slate-800/80 flex flex-col gap-3">

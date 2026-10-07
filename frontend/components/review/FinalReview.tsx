@@ -30,7 +30,7 @@ interface Props {
 }
 
 const CONFIRMATION_TEXT =
-  'I have reviewed my tax return and confirm that all information provided is complete and accurate. I accept full responsibility for the information submitted.';
+  'Pursuant to Art. 110 DBG (Swiss Self-Declaration), I have reviewed my tax return and confirm that all information provided is complete, truthful, and accurate. I understand that SunTax acts as an automated preparation tool and that I as the taxpayer am filing directly with the cantonal tax authorities.';
 
 export function FinalReview({
   taxReturn,
@@ -317,46 +317,107 @@ export function FinalReview({
       {/* Export & Cantonal Filing Instructions */}
       <Card className="border-gray-200 shadow-sm">
         <CardHeader className="pb-3 border-b">
-          <CardTitle className="text-sm font-bold">Filing Package & Cantonal Guidance</CardTitle>
+          <CardTitle className="text-sm font-bold flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            <span>Legal Filing Framework: Selbstdeklaration (Art. 110 DBG)</span>
+          </CardTitle>
           <CardDescription className="text-xs">
-            Download your completed tax return package or follow canton-specific declaration procedures.
+            SunTax prepares your validated filing package. Pursuant to Art. 110 DBG, you file directly with your cantonal tax office.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 text-xs">
-          {/* Informational Canton Guidance */}
-          <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg text-blue-950 space-y-1.5">
-            <div className="flex items-center gap-1.5 font-semibold text-blue-900">
-              <Info className="h-4 w-4 text-blue-600 flex-shrink-0" />
-              <span>Informational Filing Instructions for Canton {taxReturn.canton_code}:</span>
+          {/* Statutory Legal Statement */}
+          <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-lg text-emerald-950 space-y-2">
+            <div className="flex items-center gap-1.5 font-bold text-emerald-900">
+              <Check className="h-4 w-4 text-emerald-700 flex-shrink-0" />
+              <span>Swiss Self-Declaration Legal Principle (Art. 110 DBG):</span>
             </div>
-            {taxReturn.canton_code === 'AI' ? (
-              <p className="text-blue-900 leading-relaxed">
-                In Canton Appenzell Innerrhoden (AI), official electronic filing is submitted through{' '}
-                <a
-                  href="https://ai.ch/themen/steuern/etax"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline font-semibold text-blue-700"
-                >
-                  eTax.AI
-                </a>{' '}
-                using your declaration PID and access code, or by mailing the signed Tax Return Summary PDF with your original Lohnausweis.
-              </p>
-            ) : taxReturn.canton_code === 'ZH' ? (
-              <p className="text-blue-900 leading-relaxed">
-                In Canton Zurich (ZH), submit your return online via the ZHservices / eTax.zh portal or print and mail the signed Tax Return Summary PDF to your local municipal tax administration ({taxReturn.municipality_name}).
-              </p>
+            <p className="text-emerald-900 leading-relaxed text-[11.5px]">
+              SunTax operates under the Swiss self-declaration legal framework (<strong>Selbstdeklaration pursuant to Art. 110 DBG</strong>). The software acts as an automated preparation and calculation tool. It parses tax slips, calculates deterministic ESTV-compliant cantonal and federal taxes, and generates validated filing packages (standardized <strong>eCH-0196 XML</strong> and <strong>Summary PDF</strong>).
+            </p>
+            <p className="text-emerald-900 leading-relaxed text-[11.5px]">
+              The taxpayer submits the package directly via their canton&apos;s official tax portal or signs the printed filing. This ensures full statutory compliance without unauthorized proxy filing.
+            </p>
+          </div>
+
+          {/* Canton-Specific Direct Portal Links */}
+          <div className="p-3.5 bg-blue-50/70 border border-blue-200 rounded-lg text-blue-950 space-y-2">
+            <div className="flex items-center justify-between font-semibold text-blue-900">
+              <div className="flex items-center gap-1.5">
+                <Info className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                <span>Official Cantonal Portal for Canton {taxReturn.canton_code}:</span>
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-white border-blue-300 text-blue-800">
+                Direct Submission Portal
+              </Badge>
+            </div>
+            {taxReturn.canton_code === 'ZH' ? (
+              <div className="space-y-1">
+                <p className="text-blue-900 leading-relaxed">
+                  In Canton Zurich (ZH), submit your return online via{' '}
+                  <a
+                    href="https://www.zh.ch/de/steuern-finanzen/steuern/steuern-natuerliche-personen/steuererklaerung-ausfuellen.html"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline font-bold text-blue-700 hover:text-blue-900"
+                  >
+                    eTax.zh / ZHservices Portal &rarr;
+                  </a>{' '}
+                  or print and mail the signed Tax Return Summary PDF to your local municipal tax administration ({taxReturn.municipality_name || 'Gemeindesteueramt'}).
+                </p>
+              </div>
             ) : taxReturn.canton_code === 'BE' ? (
-              <p className="text-blue-900 leading-relaxed">
-                In Canton Bern (BE), tax declaration can be completed online via TaxMe-Online (BE-Login), or by printing and submitting the signed Tax Return Summary PDF alongside your original salary slip.
-              </p>
+              <div className="space-y-1">
+                <p className="text-blue-900 leading-relaxed">
+                  In Canton Bern (BE), tax declaration can be completed online via{' '}
+                  <a
+                    href="https://www.taxme.ch"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline font-bold text-blue-700 hover:text-blue-900"
+                  >
+                    TaxMe-Online via BE-Login (taxme.ch) &rarr;
+                  </a>{' '}
+                  or by printing and mailing the signed Tax Return Summary PDF alongside your original salary slip.
+                </p>
+              </div>
+            ) : taxReturn.canton_code === 'ZG' ? (
+              <div className="space-y-1">
+                <p className="text-blue-900 leading-relaxed">
+                  In Canton Zug (ZG), submit online via{' '}
+                  <a
+                    href="https://zg.ch/de/steuern-finanzen/steuern/steuererklaerung-natuerliche-personen"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline font-bold text-blue-700 hover:text-blue-900"
+                  >
+                    eTax.zug Portal &rarr;
+                  </a>{' '}
+                  or mail the signed declaration to the Zug Cantonal Tax Administration.
+                </p>
+              </div>
+            ) : taxReturn.canton_code === 'BS' ? (
+              <div className="space-y-1">
+                <p className="text-blue-900 leading-relaxed">
+                  In Canton Basel-Stadt (BS), submit electronically via{' '}
+                  <a
+                    href="https://www.steuerverwaltung.bs.ch"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline font-bold text-blue-700 hover:text-blue-900"
+                  >
+                    BalTax Online Portal &rarr;
+                  </a>{' '}
+                  or send the signed summary by mail.
+                </p>
+              </div>
             ) : (
               <p className="text-blue-900 leading-relaxed">
                 Submit your official tax return via your canton&apos;s designated tax portal, or print and mail the signed Tax Return Summary PDF with your original salary certificate (Lohnausweis) and bank statements to your communal tax office.
               </p>
             )}
-            <p className="text-[11px] text-blue-800 italic pt-1">
-              Note: SunTax provides draft structured data and calculation summaries; direct automated transmission to cantonal tax servers is not performed.
+            <p className="text-[10px] text-blue-700 italic pt-1">
+              Filing packages (eCH-0196 XML + Summary PDF) are generated below for direct transmission or postal submission.
             </p>
           </div>
 

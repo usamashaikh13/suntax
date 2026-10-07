@@ -16,8 +16,11 @@ Endpoints:
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
-from datetime import timedelta
+import math
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -32,31 +35,41 @@ from app.core.security import (
     create_access_token,
     create_email_token,
     create_refresh_token,
+    create_temp_2fa_token,
+    decode_temp_2fa_token,
     decode_token,
+    generate_totp_secret,
     get_current_user,
+    get_totp_uri,
     hash_password,
     is_token_denylisted,
     is_refresh_token_active,
     store_email_token,
     store_refresh_token,
     verify_password,
+    verify_totp_code,
     revoke_refresh_token,
     revoke_all_user_refresh_tokens,
 )
 from app.models.audit_log import AuditLog
 from app.models.user import User
 from app.schemas.auth import (
+    EmailVerificationRequest,
     MessageResponse,
     PasswordChangeRequest,
     PasswordResetConfirmRequest,
     PasswordResetRequest,
     RefreshTokenRequest,
+    SecurityStatusResponse,
     TokenResponse,
+    TwoFactorDisableRequest,
+    TwoFactorLoginRequest,
+    TwoFactorSetupResponse,
+    TwoFactorVerifyRequest,
     UserLoginRequest,
     UserRegisterRequest,
     UserResponse,
     UserUpdateRequest,
-    EmailVerificationRequest,
 )
 from app.services.email_service import EmailService
 
@@ -245,7 +258,7 @@ async def verify_email_post(
 @router.post(
     "/login",
     response_model=TokenResponse,
-    summary="Authenticate and receive JWT tokens",
+    summary="Authenticate and receive JWT tokens or 2FA challenge",
 )
 async def login(
     payload: UserLoginRequest,
@@ -254,16 +267,60 @@ async def login(
 ) -> TokenResponse:
     """
     Authenticate with email and password.
-
-    Returns short-lived access token and longer-lived refresh token.
+    Enforces automated 15-minute account lockout after 5 failed attempts,
+    new-device detection, and 2FA challenge dispatch.
     """
     result = await db.execute(select(User).where(User.email == payload.email))
     user = result.scalar_one_or_none()
 
     ip = _client_ip(request)
-    ua = request.headers.get("User-Agent")
+    ua = request.headers.get("User-Agent") or "Unknown Device"
+    now_utc = datetime.now(timezone.utc)
 
+    # 1. Automated Account Lockout Check (FDPIC brute-force mitigation)
+    if user and user.locked_until:
+        locked_time = user.locked_until
+        if locked_time.tzinfo is None:
+            locked_time = locked_time.replace(tzinfo=timezone.utc)
+
+        if locked_time > now_utc:
+            diff_secs = (locked_time - now_utc).total_seconds()
+            mins_left = max(1, math.ceil(diff_secs / 60))
+            await _write_audit(
+                db,
+                user_id=str(user.id),
+                action="user.login.blocked_locked",
+                ip_address=ip,
+                user_agent=ua,
+                success=False,
+                error_message=f"account locked for {mins_left} more minutes",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_423_LOCKED,
+                detail=f"Account temporarily locked due to 5 consecutive failed login attempts. Please try again in {mins_left} minute(s).",
+            )
+        else:
+            # Lockout expired
+            user.locked_until = None
+            user.failed_login_attempts = 0
+
+    # 2. Credential Verification
     if user is None or not verify_password(payload.password, user.hashed_password):
+        if user:
+            user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+            if user.failed_login_attempts >= 5:
+                user.locked_until = now_utc + timedelta(minutes=15)
+                await _write_audit(
+                    db,
+                    user_id=str(user.id),
+                    action="user.account.locked",
+                    ip_address=ip,
+                    user_agent=ua,
+                    success=False,
+                    error_message="Account locked for 15 minutes due to 5 failed attempts",
+                )
+            await db.commit()
+
         await _write_audit(
             db,
             user_id=str(user.id) if user else None,
@@ -285,6 +342,53 @@ async def login(
             detail="Account is deactivated. Contact support.",
         )
 
+    # 3. Two-Factor Authentication (2FA Challenge)
+    if user.totp_enabled and user.totp_secret:
+        temp_token = create_temp_2fa_token(str(user.id), user.email)
+        await _write_audit(
+            db,
+            user_id=str(user.id),
+            action="user.login.2fa_required",
+            ip_address=ip,
+            user_agent=ua,
+        )
+        return TokenResponse(two_factor_required=True, temp_token=temp_token)
+
+    # 4. Successful Direct Login (Reset Lockout Counters & Inspect Device)
+    user.failed_login_attempts = 0
+    user.locked_until = None
+
+    # New-Device / Unusual Device Detection
+    try:
+        device_fingerprint = hashlib.sha256(f"{ip}:{ua}".encode("utf-8")).hexdigest()[:16]
+        known_devices_list = []
+        if user.known_devices:
+            known_devices_list = json.loads(user.known_devices)
+        
+        known_ids = {d.get("id") for d in known_devices_list if isinstance(d, dict)}
+        if device_fingerprint not in known_ids:
+            # Alert on new device access
+            new_entry = {
+                "id": device_fingerprint,
+                "ip": ip,
+                "ua": ua[:128],
+                "first_seen": now_utc.isoformat(),
+            }
+            known_devices_list.append(new_entry)
+            user.known_devices = json.dumps(known_devices_list[-10:])
+            await _write_audit(
+                db,
+                user_id=str(user.id),
+                action="user.login.new_device_detected",
+                ip_address=ip,
+                user_agent=ua,
+            )
+            logger.info("Security Alert: New device login for %s from IP %s", user.email, ip)
+    except Exception as dev_err:
+        logger.warning("Device fingerprint tracking error: %s", dev_err)
+
+    await db.commit()
+
     token_data = {"sub": str(user.id)}
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
@@ -300,7 +404,175 @@ async def login(
         user_agent=ua,
     )
 
-    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        two_factor_required=False,
+    )
+
+
+@router.post(
+    "/login/2fa",
+    response_model=TokenResponse,
+    summary="Submit 2FA TOTP code to finalize authentication",
+)
+async def login_2fa(
+    payload: TwoFactorLoginRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """Verify 6-digit TOTP code and issue final access and refresh JWT tokens."""
+    challenge_payload = decode_temp_2fa_token(payload.temp_token)
+    user_id = challenge_payload["sub"]
+
+    result = await db.execute(select(User).where(User.id == str(user_id)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
+
+    ip = _client_ip(request)
+    ua = request.headers.get("User-Agent") or "Unknown Device"
+
+    if not verify_totp_code(user.totp_secret or "", payload.code):
+        user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+        if user.failed_login_attempts >= 5:
+            user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+        await db.commit()
+        await _write_audit(
+            db,
+            user_id=str(user.id),
+            action="user.login.2fa_failed",
+            ip_address=ip,
+            user_agent=ua,
+            success=False,
+            error_message="Invalid 2FA code",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid 2FA verification code. Please check your authenticator app.",
+        )
+
+    # 2FA Success: reset counters
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    await db.commit()
+
+    token_data = {"sub": str(user.id)}
+    access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
+    await store_refresh_token(str(user.id), refresh_token)
+
+    await _write_audit(
+        db,
+        user_id=str(user.id),
+        action="user.login.2fa_success",
+        resource_type="user",
+        resource_id=str(user.id),
+        ip_address=ip,
+        user_agent=ua,
+    )
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        two_factor_required=False,
+    )
+
+
+@router.post(
+    "/2fa/setup",
+    response_model=TwoFactorSetupResponse,
+    summary="Initiate Two-Factor Authentication setup",
+)
+async def setup_2fa(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> TwoFactorSetupResponse:
+    """Generate Base32 secret and provisioning URI for authenticator app configuration."""
+    secret = generate_totp_secret()
+    current_user.totp_secret = secret
+    await db.commit()
+
+    uri = get_totp_uri(secret, current_user.email)
+    return TwoFactorSetupResponse(secret=secret, provisioning_uri=uri)
+
+
+@router.post(
+    "/2fa/verify",
+    response_model=MessageResponse,
+    summary="Confirm and activate Two-Factor Authentication",
+)
+async def verify_2fa(
+    payload: TwoFactorVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Confirm user has successfully paired their authenticator app by verifying one code."""
+    if not current_user.totp_secret:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="2FA setup not initiated. Please call /auth/2fa/setup first.",
+        )
+
+    if not verify_totp_code(current_user.totp_secret, payload.code):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid verification code. Please try again.",
+        )
+
+    current_user.totp_enabled = True
+    await db.commit()
+    return MessageResponse(message="Two-Factor Authentication (2FA) is now active on your account.")
+
+
+@router.post(
+    "/2fa/disable",
+    response_model=MessageResponse,
+    summary="Disable Two-Factor Authentication",
+)
+async def disable_2fa(
+    payload: TwoFactorDisableRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Disable 2FA after password confirmation."""
+    if not verify_password(payload.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect password",
+        )
+
+    current_user.totp_enabled = False
+    current_user.totp_secret = None
+    await db.commit()
+    return MessageResponse(message="Two-Factor Authentication has been disabled.")
+
+
+@router.get(
+    "/security-status",
+    response_model=SecurityStatusResponse,
+    summary="Get user security and FDPIC compliance status",
+)
+async def security_status(
+    current_user: User = Depends(get_current_user),
+) -> SecurityStatusResponse:
+    """Return security posture details (2FA, lockout status, encryption standard)."""
+    now_utc = datetime.now(timezone.utc)
+    is_locked = False
+    if current_user.locked_until:
+        l_time = current_user.locked_until
+        if l_time.tzinfo is None:
+            l_time = l_time.replace(tzinfo=timezone.utc)
+        is_locked = l_time > now_utc
+
+    return SecurityStatusResponse(
+        two_factor_enabled=bool(current_user.totp_enabled),
+        account_locked=is_locked,
+        failed_login_attempts=current_user.failed_login_attempts or 0,
+        token_lifetime_minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+        encryption_standard="AES-256-GCM (File-Level Envelope Encryption with KMS)",
+        data_protection_act="Swiss Federal Act on Data Protection (nDSG / FDPIC Compliant)",
+    )
 
 
 @router.post(

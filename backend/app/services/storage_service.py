@@ -15,6 +15,7 @@ from functools import partial
 from typing import Optional
 
 from app.core.config import settings
+from app.services.envelope_encryption import envelope_service
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +38,18 @@ class _LocalStorageService:
     async def upload_file(self, file_bytes: bytes, key: str, content_type: str = "") -> str:
         p = _local_key_to_path(key)
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_bytes(file_bytes)
+        # Apply multi-layer AES-256-GCM envelope encryption (FDPIC / nDSG compliant)
+        encrypted_bytes = envelope_service.encrypt_document(file_bytes)
+        p.write_bytes(encrypted_bytes)
         return key
 
     async def download_file(self, key: str) -> bytes:
         p = _local_key_to_path(key)
         if not p.exists():
             raise FileNotFoundError(f"Dev storage: '{key}' not found")
-        return p.read_bytes()
+        encrypted_payload = p.read_bytes()
+        # Transparently decrypt envelope with KMS-managed DEK
+        return envelope_service.decrypt_document(encrypted_payload)
 
     async def generate_presigned_url(self, key: str, expires_seconds: int = 600) -> str:
         # Return a local URL; the /dev-files route in main.py serves these
@@ -107,6 +112,8 @@ class _S3StorageService:
 
     async def upload_file(self, file_bytes: bytes, key: str, content_type: str = "application/octet-stream") -> str:
         extra_args: dict[str, str] = {"ContentType": content_type}
+        # Multi-layer AES-256-GCM envelope encryption at the file level
+        encrypted_bytes = envelope_service.encrypt_document(file_bytes)
         # Enable AES-256 server-side encryption for production compliance
         if getattr(settings, "STORAGE_SERVER_SIDE_ENCRYPTION", None):
             extra_args["ServerSideEncryption"] = settings.STORAGE_SERVER_SIDE_ENCRYPTION
@@ -115,7 +122,7 @@ class _S3StorageService:
 
         await self._run_sync(
             self._client.upload_fileobj,
-            io.BytesIO(file_bytes),
+            io.BytesIO(encrypted_bytes),
             self._bucket,
             key,
             ExtraArgs=extra_args,
@@ -132,7 +139,7 @@ class _S3StorageService:
                 raise FileNotFoundError(f"Object '{key}' not found")
             raise
         buf.seek(0)
-        return buf.read()
+        return envelope_service.decrypt_document(buf.read())
 
     async def generate_presigned_url(self, key: str, expires_seconds: int = 600) -> str:
         url: str = await self._run_sync(

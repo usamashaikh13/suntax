@@ -38,8 +38,10 @@ export function useAuth(): UseAuthReturn {
       setError(null);
       try {
         const response = await authApi.login({ email, password });
-        setUser(response.user);
-        setCurrentUser(response.user);
+        if (response.user) {
+          setUser(response.user);
+          setCurrentUser(response.user);
+        }
         router.push('/dashboard');
         router.refresh();
       } catch (err: unknown) {

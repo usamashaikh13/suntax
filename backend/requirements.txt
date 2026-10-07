@@ -34,3 +34,5 @@ clamd==1.0.2
 Pillow==10.4.0
 pymupdf==1.24.10
 pillow-heif>=0.18.0
+pyotp>=2.9.0
+argon2-cffi>=23.1.0

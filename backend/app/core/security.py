@@ -31,9 +31,11 @@ from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
 
-# ── Passlib context ───────────────────────────────────────────────────────────
+import pyotp
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# ── Passlib context (Argon2id primary, bcrypt fallback) ───────────────────────
+
+_pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 # ── HTTP Bearer scheme (optional – won't auto-raise 401) ─────────────────────
 
@@ -82,26 +84,91 @@ def _get_redis() -> Optional[aioredis.Redis]:
     return _redis_client
 
 
-# ── Password helpers ──────────────────────────────────────────────────────────
+# ── Password helpers (Argon2id / FDPIC-compliant memory-hard hashing) ─────────
 
 
 def hash_password(password: str) -> str:
-    """Return a bcrypt hash of *password*. Enforces maximum 72-byte limit to prevent silent truncation collision."""
+    """Return an Argon2id memory-hard hash of *password*."""
     pw_bytes = password.encode("utf-8")
-    if len(pw_bytes) > 72:
-        raise ValueError("Password exceeds 72-byte limit for bcrypt hashing.")
+    if len(pw_bytes) > 256:
+        raise ValueError("Password exceeds maximum allowed length.")
     return _pwd_context.hash(password)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Return True if *plain_password* matches *hashed_password*. Rejects passwords > 72 bytes."""
+    """Return True if *plain_password* matches *hashed_password*."""
     pw_bytes = plain_password.encode("utf-8")
-    if len(pw_bytes) > 72:
+    if len(pw_bytes) > 256:
         return False
     try:
         return _pwd_context.verify(plain_password, hashed_password)
     except Exception:
         return False
+
+
+# ── TOTP Two-Factor Authentication (2FA) ──────────────────────────────────────
+
+
+def generate_totp_secret() -> str:
+    """Generate a random Base32 TOTP secret for authenticator apps."""
+    return pyotp.random_base32()
+
+
+def get_totp_uri(secret: str, email: str) -> str:
+    """Return otpauth:// URI for QR code provisioning in Google/Microsoft Authenticator."""
+    return pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name="SunTax")
+
+
+def verify_totp_code(secret: str, code: str) -> bool:
+    """Verify 6-digit TOTP code with a ±1 time step window (30-second leeway)."""
+    if not secret or not code:
+        return False
+    clean_code = str(code).strip().replace(" ", "")
+    try:
+        totp = pyotp.TOTP(secret)
+        return bool(totp.verify(clean_code, valid_window=1))
+    except Exception as exc:
+        logger.warning("TOTP verification error: %s", exc)
+        return False
+
+
+def create_temp_2fa_token(user_id: str, email: str) -> str:
+    """Create a 5-minute temporary JWT token for completing the 2FA login challenge."""
+    expire = _utc_now() + timedelta(minutes=5)
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "type": "2fa_pending",
+        "exp": expire,
+        "iat": _utc_now(),
+    }
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def decode_temp_2fa_token(token: str) -> dict[str, Any]:
+    """Decode and validate a 2FA challenge token."""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+        )
+        if payload.get("type") != "2fa_pending":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid 2FA challenge token",
+            )
+        return payload
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="2FA challenge token expired. Please log in again.",
+        )
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid 2FA challenge token",
+        )
 
 
 # ── JWT helpers ───────────────────────────────────────────────────────────────

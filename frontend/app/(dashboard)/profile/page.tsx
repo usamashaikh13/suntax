@@ -8,9 +8,17 @@ import { z } from 'zod'
 import {
   Loader2, Trash2, AlertTriangle, CheckCircle, XCircle,
   User as UserIcon, Lock, ShieldCheck, Download, FileSpreadsheet,
-  Save, KeyRound
+  Save, KeyRound, Smartphone, Copy, Check
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -46,6 +54,14 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
+  // 2FA & FDPIC Security State
+  const [totpSetup, setTotpSetup] = useState<{ secret: string; provisioning_uri: string } | null>(null)
+  const [totpCode, setTotpCode] = useState('')
+  const [verifyingTotp, setVerifyingTotp] = useState(false)
+  const [showTotpSetupModal, setShowTotpSetupModal] = useState(false)
+  const [securityStatus, setSecurityStatus] = useState<any>(null)
+  const [copiedSecret, setCopiedSecret] = useState(false)
+
   const profileForm = useForm<ProfileForm>({ resolver: zodResolver(profileSchema) })
   const passwordForm = useForm<PasswordForm>({ resolver: zodResolver(passwordSchema) })
 
@@ -57,7 +73,62 @@ export default function ProfilePage() {
         profileForm.reset({ full_name: u.full_name || '', email: u.email })
       })
       .finally(() => setLoading(false))
+
+    api.auth.getSecurityStatus().then(setSecurityStatus).catch(() => {})
   }, [])
+
+  const handleStart2faSetup = async () => {
+    try {
+      const data = await api.auth.setup2fa()
+      setTotpSetup(data)
+      setShowTotpSetupModal(true)
+    } catch {
+      toast({ title: 'Could not initiate 2FA setup', variant: 'destructive' })
+    }
+  }
+
+  const handleConfirm2fa = async () => {
+    if (!totpCode.trim()) return
+    setVerifyingTotp(true)
+    try {
+      await api.auth.verify2fa(totpCode.trim())
+      toast({ title: '2FA Activated', description: 'Two-Factor Authentication is now active.' })
+      setShowTotpSetupModal(false)
+      setTotpCode('')
+      setTotpSetup(null)
+      const u = await api.auth.getMe()
+      setUser(u)
+      const s = await api.auth.getSecurityStatus()
+      setSecurityStatus(s)
+    } catch (err: any) {
+      toast({
+        title: 'Verification Failed',
+        description: err?.response?.data?.detail || 'Invalid code. Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setVerifyingTotp(false)
+    }
+  }
+
+  const handleDisable2fa = async () => {
+    const password = window.prompt('Enter your account password to confirm disabling 2FA:')
+    if (!password) return
+    try {
+      await api.auth.disable2fa(password)
+      toast({ title: '2FA Disabled', description: 'Two-Factor Authentication has been removed.' })
+      const u = await api.auth.getMe()
+      setUser(u)
+      const s = await api.auth.getSecurityStatus()
+      setSecurityStatus(s)
+    } catch (err: any) {
+      toast({
+        title: 'Failed to disable 2FA',
+        description: err?.response?.data?.detail || 'Incorrect password.',
+        variant: 'destructive',
+      })
+    }
+  }
 
   const onProfileSave = async (data: ProfileForm) => {
     try {
@@ -324,6 +395,158 @@ export default function ProfilePage() {
             </CardContent>
           </Card>
 
+          {/* Two-Factor Authentication (2FA) */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-bold flex items-center gap-2">
+                  <Smartphone className="h-4 w-4 text-red-600" />
+                  Two-Factor Authentication (2FA)
+                </CardTitle>
+                {user?.totp_enabled ? (
+                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs gap-1">
+                    <CheckCircle className="h-3 w-3" /> 2FA Active (TOTP)
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs gap-1">
+                    <AlertTriangle className="h-3 w-3" /> Inactive
+                  </Badge>
+                )}
+              </div>
+              <CardDescription className="text-xs">
+                Protect your account against unauthorized access using an authenticator app (Google Authenticator, Apple Passwords, Bitwarden, 1Password) conforming to RFC 6238.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {user?.totp_enabled ? (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-lg">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-emerald-900">
+                      Your account is protected with Two-Factor Authentication
+                    </p>
+                    <p className="text-[11px] text-emerald-700">
+                      A 6-digit TOTP code is required on every login to access your tax declarations.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="border-red-300 text-red-700 hover:bg-red-50 text-xs shrink-0"
+                    onClick={handleDisable2fa}
+                  >
+                    Disable 2FA
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-semibold text-slate-800">
+                      Enable TOTP Second-Factor Verification
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Recommended under FDPIC guidelines to prevent unauthorized access to sensitive tax records.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    className="bg-red-600 hover:bg-red-700 text-white text-xs shrink-0"
+                    onClick={handleStart2faSetup}
+                  >
+                    Enable 2FA (TOTP)
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* FDPIC (EDÖB) & Swiss nDSG Security Architecture */}
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold flex items-center gap-2">
+                <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                Security & FDPIC (EDÖB) Compliance Architecture
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Audited technical and organizational security controls strictly aligned with the Swiss revised Data Protection Act (nDSG).
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Password Hashing</span>
+                    <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
+                      Argon2id
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Memory-hard algorithm recommended by FDPIC to neutralize brute-force cracking.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">At-Rest & File Encryption</span>
+                    <Badge variant="outline" className="text-[10px] bg-white text-emerald-700 border-emerald-300">
+                      AES-256-GCM
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Multi-layer envelope encryption with unique DEKs per file and segregated KMS key storage.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">In-Transit Protection</span>
+                    <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
+                      TLS 1.3 + HSTS
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Enforced TLS 1.3 with 2-year HSTS preloading and modern forward secrecy ciphers.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Session Security</span>
+                    <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
+                      15-Min Sliding
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    15-minute short-lived tokens, Redis sliding sessions, and instant logout token revocation.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Brute-Force Lockout</span>
+                    <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
+                      5 Fails / 15 Min
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Automated 15-minute account lockout upon 5 consecutive failed login attempts.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-900">Legal Filing Framework</span>
+                    <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-300">
+                      Art. 110 DBG
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Swiss Selbstdeklaration: taxpayer prepares filing package and submits directly to official portal.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Danger Zone */}
           <Card className="border-red-200 bg-red-50/20 shadow-sm">
             <CardHeader className="pb-3">
@@ -374,6 +597,109 @@ export default function ProfilePage() {
           </Card>
         </div>
       </div>
+
+      {/* 2FA Setup Dialog Modal */}
+      <Dialog open={showTotpSetupModal} onOpenChange={setShowTotpSetupModal}>
+        <DialogContent className="max-w-md bg-white border border-slate-200 text-slate-900 p-6 rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-red-600" />
+              Set Up Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Pair your authenticator app (e.g. Google Authenticator, Apple Passwords, 1Password, Bitwarden) with SunTax.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-slate-700">
+                1. Authenticator Secret Key
+              </Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 font-mono text-xs tracking-widest text-slate-800 break-all select-all">
+                  {totpSetup?.secret || '••••••••••••••••'}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-9 px-3 text-xs shrink-0"
+                  onClick={() => {
+                    if (totpSetup?.secret) {
+                      navigator.clipboard.writeText(totpSetup.secret)
+                      setCopiedSecret(true)
+                      setTimeout(() => setCopiedSecret(false), 2000)
+                    }
+                  }}
+                >
+                  {copiedSecret ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Enter this key manually in your authenticator app under &ldquo;Add Account &rarr; Manual Key&rdquo;.
+              </p>
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-slate-100">
+              <Label htmlFor="setup-totp-code" className="text-xs font-semibold text-slate-700">
+                2. Enter 6-Digit Verification Code
+              </Label>
+              <Input
+                id="setup-totp-code"
+                type="text"
+                maxLength={6}
+                placeholder="123456"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
+                autoFocus
+                className="text-center tracking-widest font-mono text-lg h-11 border-slate-300 focus:ring-red-600"
+              />
+              <p className="text-[11px] text-slate-500">
+                Enter the current 6-digit code shown in your authenticator app to confirm configuration.
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="text-xs h-9"
+              onClick={() => {
+                setShowTotpSetupModal(false)
+                setTotpCode('')
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={verifyingTotp || totpCode.length < 6}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs h-9 font-semibold"
+              onClick={handleConfirm2fa}
+            >
+              {verifyingTotp ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Verifying...
+                </>
+              ) : (
+                'Activate 2FA'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

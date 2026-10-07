@@ -104,7 +104,10 @@ def generate_ech_xml(tax_return: Any, profile: Any, calculation: Any) -> str:
     # 2. Header
     header = _sub(root, "declarationHeader")
     _sub(header, "returnId", tr_id)
-    _sub(header, "generator", "SunTax AI Platform")
+    _sub(header, "generator", "SunTax Platform")
+    _sub(header, "legalFilingMechanism", "Selbstdeklaration pursuant to Art. 110 DBG")
+    _sub(header, "submissionType", "DirectTaxpayerFiling")
+    _sub(header, "complianceAuthority", "ESTV / Eidgenoessische Steuerverwaltung")
     _sub(header, "cantonCode", canton_code)
     _sub(header, "municipality", municipality)
     _sub(header, "taxYear", tax_year)
