@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   FileText,
   Trash2,
@@ -14,6 +14,7 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Sparkles,
+  RefreshCw,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -54,6 +55,23 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [reviewingDoc, setReviewingDoc] = useState<TaxDocument | null>(null);
+
+  // Auto-poll document list while any document is in processing or queued status
+  useEffect(() => {
+    const hasActive = documents.some(
+      (d) =>
+        d.processing_status === 'processing' ||
+        d.processing_status === 'queued' ||
+        d.processing_status === 'pending'
+    );
+    if (!hasActive) return;
+
+    const timer = setInterval(() => {
+      onRefresh?.();
+    }, 2500);
+
+    return () => clearInterval(timer);
+  }, [documents, onRefresh]);
 
   const handleDelete = async (id: string, filename: string) => {
     if (!confirm(`Are you sure you want to remove "${filename}"? This will unlink extracted fields.`)) {
@@ -178,6 +196,18 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
             <option value="pending">Pending</option>
             <option value="failed">Failed</option>
           </select>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onRefresh?.()}
+            title="Refresh document status"
+            className="h-9 px-2.5 text-xs text-gray-700 hover:text-red-600 hover:bg-red-50 flex items-center gap-1.5 shrink-0"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Refresh</span>
+          </Button>
         </div>
       </div>
 

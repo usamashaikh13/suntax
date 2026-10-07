@@ -216,6 +216,9 @@ export function DocumentUploader({
         title: 'Upload successful',
         description: 'Uploaded documents are now being analyzed by the OCR extraction engine.',
       });
+      // Fire staged refreshes so the UI automatically catches background completion
+      setTimeout(() => onUploadComplete?.(), 2500);
+      setTimeout(() => onUploadComplete?.(), 5500);
     }
   };
 

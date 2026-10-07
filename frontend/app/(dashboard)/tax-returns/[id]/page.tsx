@@ -85,6 +85,22 @@ export default function TaxReturnDetailPage() {
     loadData()
   }, [id])
 
+  useEffect(() => {
+    const hasActiveProcessing = documents.some(
+      d =>
+        d.processing_status === 'processing' ||
+        d.processing_status === 'queued' ||
+        d.processing_status === 'pending'
+    )
+    if (!hasActiveProcessing) return
+
+    const timer = setInterval(() => {
+      loadData()
+    }, 2500)
+
+    return () => clearInterval(timer)
+  }, [documents, id])
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">

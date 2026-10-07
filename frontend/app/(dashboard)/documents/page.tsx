@@ -50,6 +50,22 @@ export default function DocumentsPage() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    const hasActiveProcessing = documents.some(
+      d =>
+        d.processing_status === 'processing' ||
+        d.processing_status === 'queued' ||
+        d.processing_status === 'pending'
+    )
+    if (!hasActiveProcessing) return
+
+    const timer = setInterval(() => {
+      load()
+    }, 2500)
+
+    return () => clearInterval(timer)
+  }, [documents])
+
   const filteredDocs = useMemo(() => {
     return documents.filter(d => {
       const matchesType = typeFilter === 'all' || d.document_type === typeFilter
