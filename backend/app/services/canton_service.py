@@ -137,6 +137,7 @@ _MUNICIPALITIES: Dict[str, List[tuple[str, str]]] = {
         ("1319", "Unteriberg"),
         ("1320", "Wangen (SZ)"),
         ("1321", "Wollerau"),
+        ("1322", "Lachen"),
     ],
     "OW": [
         ("1406", "Sarnen"),

@@ -187,7 +187,7 @@ export function DocumentReviewModal({
 
       fields.forEach((f) => {
         fieldValues[f.fieldName] = f.currentValue;
-        fieldStatuses[f.fieldName] = f.status;
+        fieldStatuses[f.fieldName] = andApply ? (f.status === 'rejected' ? 'rejected' : 'approved') : f.status;
       });
 
       await api.documents.review(doc.id, {

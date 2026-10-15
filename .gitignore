@@ -73,3 +73,7 @@ media/
 jira_evidence_screenshots/
 frontend/inspect_return.png
 frontend/test_output.pdf
+record_*.js
+test_header_footer.js
+generate_user_manual_pdf.js
+

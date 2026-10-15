@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle,
   CheckCircle,
@@ -14,11 +14,12 @@ import {
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
-import { TaxReturn, TaxProfile } from '@/types';
+import { TaxReturn, TaxProfile, User } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/utils';
 
 interface Props {
@@ -40,10 +41,16 @@ export function FinalReview({
   onNavigateTab,
 }: Props) {
   const { toast } = useToast();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState<'pdf' | 'xml' | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+
+  useEffect(() => {
+    api.auth.getMe().then(setCurrentUser).catch(() => {});
+  }, []);
 
   const isReady = Boolean(profile && calculation);
   const isAlreadyConfirmed = taxReturn.status === 'confirmed';
@@ -128,9 +135,18 @@ export function FinalReview({
   const handleConfirm = async () => {
     if (!canConfirm) return;
 
+    if (currentUser?.totp_enabled && twoFactorCode.trim().length !== 6) {
+      toast({
+        title: 'Security Code Required',
+        description: 'Please enter your 6-digit authenticator code to authorize submission.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await api.taxEngine.confirm(taxReturn.id, CONFIRMATION_TEXT);
+      await api.taxEngine.confirm(taxReturn.id, CONFIRMATION_TEXT, twoFactorCode.trim() || undefined);
       toast({
         title: 'Tax return draft confirmed',
         description: 'Your tax return draft has been finalized.',
@@ -505,15 +521,52 @@ export function FinalReview({
       {showConfirmDialog && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4">
-            <h3 className="text-base font-bold text-gray-900">Confirm Tax Return Draft?</h3>
+            <div className="flex items-center gap-2 text-gray-900 font-bold text-base">
+              <ShieldCheck className="h-5 w-5 text-red-600" />
+              <h3>Confirm Tax Return Draft</h3>
+            </div>
             <p className="text-xs text-gray-600 leading-relaxed">
               Are you sure you want to finalize this tax return draft? Once confirmed, the data is marked final and calculations are locked.
             </p>
+
+            {currentUser?.totp_enabled && (
+              <div className="space-y-3 pt-1">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-900 space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5 text-red-800">
+                    <Lock className="h-3.5 w-3.5 text-red-600" />
+                    <span>Two-Factor Authorization Required</span>
+                  </div>
+                  <p className="text-[11px] text-red-700 leading-snug">
+                    Two-Factor Authentication is active on your account. Enter the 6-digit code from your authenticator app to authorize and seal this legal declaration.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="confirm2fa" className="text-xs font-semibold text-gray-700 block">
+                    6-Digit Security Code
+                  </label>
+                  <Input
+                    id="confirm2fa"
+                    type="text"
+                    maxLength={6}
+                    placeholder="123456"
+                    value={twoFactorCode}
+                    onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                    autoFocus
+                    className="text-center tracking-widest font-mono text-lg h-11 border-gray-300 focus:border-red-500 focus:ring-red-500"
+                  />
+                </div>
+              </div>
+            )}
+
             <div className="flex gap-3 pt-2">
               <Button
                 variant="outline"
                 className="flex-1 text-xs"
-                onClick={() => setShowConfirmDialog(false)}
+                onClick={() => {
+                  setShowConfirmDialog(false);
+                  setTwoFactorCode('');
+                }}
                 disabled={submitting}
               >
                 Cancel
@@ -521,10 +574,10 @@ export function FinalReview({
               <Button
                 className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold"
                 onClick={handleConfirm}
-                disabled={submitting}
+                disabled={submitting || (Boolean(currentUser?.totp_enabled) && twoFactorCode.trim().length !== 6)}
               >
                 {submitting && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
-                Yes, Confirm Draft
+                {currentUser?.totp_enabled ? 'Authorize & Confirm' : 'Yes, Confirm Draft'}
               </Button>
             </div>
           </div>

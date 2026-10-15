@@ -149,16 +149,18 @@ export const authApi = {
    * Authenticates the user and stores tokens.
    */
   async login(data: LoginRequest): Promise<LoginResponse> {
-    // The FastAPI endpoint accepts a JSON `UserLoginRequest`, not an OAuth2
-    // form payload. Sending JSON keeps client and server validation aligned.
     const response = await apiClient.post<LoginResponse>('/auth/login', data);
+    if (response.data.two_factor_required) {
+      return response.data;
+    }
     const { access_token, refresh_token } = response.data;
-    setTokens(access_token, refresh_token);
-    // The token endpoint deliberately returns credentials only. Fetching the
-    // current user afterwards keeps browser state aligned with the API.
-    const userResponse = await apiClient.get<User>('/auth/me');
-    setCurrentUser(userResponse.data);
-    return { ...response.data, user: userResponse.data };
+    if (access_token && refresh_token) {
+      setTokens(access_token, refresh_token);
+      const userResponse = await apiClient.get<User>('/auth/me');
+      setCurrentUser(userResponse.data);
+      return { ...response.data, user: userResponse.data };
+    }
+    return response.data;
   },
 
   /**
@@ -355,12 +357,13 @@ export const taxReturnsApi = {
   /**
    * Confirms the tax return draft.
    */
-  async confirm(id: string, confirmationText?: string): Promise<{ message: string; status: string }> {
+  async confirm(id: string, confirmationText?: string, two_factor_code?: string): Promise<{ message: string; status: string }> {
     const response = await apiClient.post<{ message: string; status: string }>(
       `/tax-returns/${id}/confirm`,
       {
         confirmation_text: confirmationText || "I have reviewed my tax return and confirm that all information provided is complete and accurate. I accept full responsibility for the information submitted.",
         confirmed: true,
+        two_factor_code,
       },
     );
     return response.data;
@@ -676,10 +679,10 @@ export const taxEngineApi = {
     return response.data;
   },
 
-  async confirm(taxReturnId: string, confirmation_text: string): Promise<{ message: string; status: string }> {
+  async confirm(taxReturnId: string, confirmation_text: string, two_factor_code?: string): Promise<{ message: string; status: string }> {
     const response = await apiClient.post<{ message: string; status: string }>(
       `/tax-returns/${taxReturnId}/confirm`,
-      { confirmation_text, confirmed: true },
+      { confirmation_text, confirmed: true, two_factor_code },
     );
     return response.data;
   },

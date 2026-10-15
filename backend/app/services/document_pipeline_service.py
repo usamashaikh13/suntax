@@ -388,12 +388,13 @@ class DocumentPipelineService:
         def is_approved(fld: str) -> bool:
             rev = reviews.get(fld)
             if isinstance(rev, dict):
-                return rev.get("status") in ("approved", "edited")
+                st = rev.get("status")
+                return st in ("approved", "edited") or (st != "rejected" and rev.get("value") is not None)
             fld_meta = fields_dict.get(fld)
             if isinstance(fld_meta, dict):
                 st = fld_meta.get("review_status") or fld_meta.get("status")
-                return st in ("approved", "edited")
-            return False
+                return st in ("approved", "edited") or (st != "rejected" and fld_meta.get("value") is not None)
+            return True
 
         # Load copies of JSON profile structures
         income = dict(profile.income_data or {})

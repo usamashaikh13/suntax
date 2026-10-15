@@ -27,7 +27,7 @@ from app.services.tax_engine_service import (
 )
 from app.services.pdf_export_service import generate_tax_return_pdf
 from app.services.xml_export_service import generate_ech_xml
-from app.schemas.tax_calculation import TaxCalculationResult
+import pyotp
 
 logger = logging.getLogger(__name__)
 
@@ -460,6 +460,21 @@ async def confirm_tax_return(
             detail="Invalid confirmation text. The confirmation statement must be acknowledged.",
         )
 
+    # ── Two-Factor Authentication Check (Step-Up Authorization) ───────────────
+    if current_user.totp_enabled and current_user.totp_secret:
+        two_factor_code = str(body.get("two_factor_code") or "").strip()
+        if not two_factor_code:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Two-Factor Authentication is required to legally confirm and finalize this tax return. Please enter your 6-digit security code.",
+            )
+        totp = pyotp.TOTP(current_user.totp_secret)
+        if not totp.verify(two_factor_code, valid_window=1):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid 6-digit Two-Factor security code. Please check your authenticator app.",
+            )
+
     tr = await _get_tax_return(tax_return_id, db, current_user)
 
     if tr.status == "confirmed":
@@ -533,7 +548,7 @@ async def confirm_tax_return(
 @router.post(
     "/tax-returns/{tax_return_id}/reopen",
     tags=["Tax Engine"],
-    summary="Reopen a confirmed tax return for editing",
+    summary="Reopen a confirmed tax return for editing (Administrator only)",
 )
 async def reopen_tax_return(
     tax_return_id: str,
@@ -541,14 +556,26 @@ async def reopen_tax_return(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Reopen a previously confirmed tax return back to draft status
-    so the taxpayer can make amendments and recalculate.
+    Reopen a previously confirmed tax return back to draft status.
+    In compliance with Art. 110 DBG (Swiss Self-Declaration), confirmed filings
+    are strictly locked and can ONLY be unlocked by an authorized Administrator.
     """
-    tr = await _get_tax_return(tax_return_id, db, current_user)
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Tax returns are legally locked upon confirmation pursuant to Art. 110 DBG. Only a system administrator can unlock a confirmed filing for revision.",
+        )
+
+    # Admin can look up any tax return by id
+    q = select(TaxReturn).where(TaxReturn.id == tax_return_id)
+    tr = (await db.execute(q)).scalar_one_or_none()
+    if not tr:
+        raise HTTPException(status_code=404, detail="Tax return not found")
+
     if tr.status != "confirmed":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Tax return is not confirmed (current status: '{tr.status}'). Only confirmed returns can be reopened.",
+            detail=f"Tax return is not confirmed (current status: '{tr.status}'). Only confirmed returns can be unlocked.",
         )
 
     tr.status = "draft"
@@ -562,10 +589,22 @@ async def reopen_tax_return(
         c.is_final = False
         c.status = "stale"
 
+    # Audit log entry for legal accountability
+    from app.models.audit_log import AuditLog
+    audit = AuditLog(
+        user_id=current_user.id,
+        action="admin_unlock_tax_return",
+        resource_type="tax_return",
+        resource_id=str(tr.id),
+        details={"unlocked_by": current_user.email, "target_user_id": str(tr.user_id)},
+    )
+    db.add(audit)
     await db.commit()
+
     return {
-        "message": "Tax return reopened successfully. You may now make modifications and recalculate.",
+        "message": "Tax return unlocked by administrator. Filing has returned to draft status for amendment.",
         "status": "draft",
+        "unlocked_by": current_user.email,
     }
 
 

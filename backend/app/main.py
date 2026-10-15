@@ -169,6 +169,38 @@ async def api_health():
 
 
 # ---------------------------------------------------------------------------
+# Dev storage file preview / download (decrypts AES-256-GCM envelope)
+# ---------------------------------------------------------------------------
+@app.get("/dev-files/{file_key}", tags=["storage"])
+async def serve_dev_file(file_key: str):
+    import mimetypes
+    from pathlib import Path
+    from fastapi.responses import Response
+    from app.services.envelope_encryption import envelope_service
+
+    file_path = Path("./dev_storage") / file_key
+    if not file_path.exists():
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="File not found")
+
+    encrypted_bytes = file_path.read_bytes()
+    try:
+        decrypted_bytes = envelope_service.decrypt_document(encrypted_bytes)
+    except Exception:
+        decrypted_bytes = encrypted_bytes
+
+    content_type, _ = mimetypes.guess_type(file_key)
+    if not content_type:
+        content_type = "application/octet-stream"
+
+    return Response(
+        content=decrypted_bytes,
+        media_type=content_type,
+        headers={"Content-Disposition": f"inline; filename={file_key.split('_')[-1]}"},
+    )
+
+
+# ---------------------------------------------------------------------------
 # WebSocket – document processing status
 # ---------------------------------------------------------------------------
 @app.websocket("/ws/{tax_return_id}")

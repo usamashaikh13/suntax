@@ -75,7 +75,7 @@ export default function LoginPage() {
         title: 'Authentication Verified',
         description: 'Two-Factor Authentication successful. Welcome back!',
       })
-      router.push('/dashboard')
+      window.location.href = '/dashboard'
     } catch (error: any) {
       toast({
         title: '2FA Verification Failed',

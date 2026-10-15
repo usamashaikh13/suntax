@@ -251,3 +251,67 @@ async def admin_audit_logs(
         page=page,
         page_size=page_size,
     )
+
+
+class UnlockRequest(BaseModel):
+    reason: Optional[str] = "Administrative amendment requested by taxpayer"
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/unlock",
+    summary="[Admin] Unlock a confirmed tax return",
+    tags=["Admin"],
+)
+async def admin_unlock_tax_return(
+    tax_return_id: str,
+    payload: Optional[UnlockRequest] = None,
+    admin: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Legally unlock a confirmed tax return back to draft status.
+    Only authorized administrators can perform this unlock.
+    """
+    q = select(TaxReturn).where(TaxReturn.id == tax_return_id)
+    tr = (await db.execute(q)).scalar_one_or_none()
+    if not tr:
+        raise HTTPException(status_code=404, detail="Tax return not found")
+
+    if tr.status != "confirmed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tax return is currently '{tr.status}'. Only confirmed filings can be unlocked.",
+        )
+
+    tr.status = "draft"
+    tr.confirmed_at = None
+
+    from app.models.tax_calculation import TaxCalculation
+    calcs = await db.execute(
+        select(TaxCalculation).where(TaxCalculation.tax_return_id == str(tr.id))
+    )
+    for c in calcs.scalars().all():
+        c.is_final = False
+        c.status = "stale"
+
+    reason_str = payload.reason if payload and payload.reason else "Administrative unlock"
+    audit = AuditLog(
+        user_id=admin.id,
+        action="admin_unlock_tax_return",
+        resource_type="tax_return",
+        resource_id=str(tr.id),
+        details={
+            "unlocked_by": admin.email,
+            "target_user_id": str(tr.user_id),
+            "reason": reason_str,
+        },
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "message": f"Tax return {tax_return_id} successfully unlocked and returned to draft.",
+        "status": "draft",
+        "unlocked_by": admin.email,
+        "reason": reason_str,
+    }
