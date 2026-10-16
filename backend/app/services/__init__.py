@@ -6,6 +6,7 @@ from app.services.commuting_service import CommutingService
 from app.services.ictax_service import ICTaxService
 from app.services.crypto_service import CryptoTaxService
 from app.services.email_service import EmailService
+from app.services.sms_service import SMSService, sms_service
 from app.services.storage_service import StorageService
 from app.services.tax_engine_service import TaxCalculationEngine, TaxRuleLoader
 
@@ -15,6 +16,8 @@ __all__ = [
     "ICTaxService",
     "CryptoTaxService",
     "EmailService",
+    "SMSService",
+    "sms_service",
     "StorageService",
     "TaxCalculationEngine",
     "TaxRuleLoader",

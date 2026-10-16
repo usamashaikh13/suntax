@@ -32,29 +32,27 @@ class EmailService:
     """
 
     def __init__(self) -> None:
-        self._api_key = settings.RESEND_API_KEY
+        self._resend_api_key = settings.RESEND_API_KEY
+        self._sendgrid_api_key = settings.TWILIO_SENDGRID_API_KEY
         self._from_address = settings.EMAIL_FROM
         self._is_dev = settings.ENVIRONMENT in ("development", "test")
 
     def _should_use_console(self) -> bool:
-        """Return True when we should print to console instead of calling Resend."""
+        """Return True when we should print to console instead of external APIs."""
         if self._is_dev:
             return True
-        if not self._api_key or self._api_key.startswith("re_your_"):
-            return True
-        return False
+        has_sendgrid = bool(self._sendgrid_api_key and not self._sendgrid_api_key.startswith("SG.your_"))
+        has_resend = bool(self._resend_api_key and not self._resend_api_key.startswith("re_your_"))
+        return not (has_sendgrid or has_resend)
 
     async def _send(self, to: str, subject: str, html: str) -> bool:
         """
-        Send an email via the Resend API.
+        Send an email via Twilio SendGrid or Resend API.
 
         In development mode, or when no API key is configured, prints the
         email details to the console and returns True immediately.
-
-        Returns True on success, False on failure (non-raising).
         """
         if self._should_use_console():
-            # Extract a plain-text preview from HTML (very rough)
             import re
             plain = re.sub(r"<[^>]+>", "", html).strip()
             plain_preview = " ".join(plain.split())[:300]
@@ -74,13 +72,47 @@ class EmailService:
             )
             return True
 
+        # 1. Try Twilio SendGrid if configured
+        if self._sendgrid_api_key and not self._sendgrid_api_key.startswith("SG.your_"):
+            try:
+                # Extract clean email address if in "Name <email@domain>" format
+                import re
+                match = re.search(r"<([^>]+)>", self._from_address)
+                from_email = match.group(1) if match else self._from_address.strip()
+                from_name = self._from_address.split("<")[0].strip() or "SunTax"
+
+                sg_payload = {
+                    "personalizations": [{"to": [{"email": to}]}],
+                    "from": {"email": from_email, "name": from_name},
+                    "subject": subject,
+                    "content": [{"type": "text/html", "value": html}],
+                }
+                sg_headers = {
+                    "Authorization": f"Bearer {self._sendgrid_api_key}",
+                    "Content-Type": "application/json",
+                }
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.post(
+                        "https://api.sendgrid.com/v3/mail/send",
+                        json=sg_payload,
+                        headers=sg_headers,
+                    )
+                    if resp.status_code in (200, 202):
+                        logger.info("Email sent via Twilio SendGrid to %s", to)
+                        return True
+                    else:
+                        logger.error("Twilio SendGrid error %d: %s", resp.status_code, resp.text)
+            except Exception as exc:
+                logger.error("Twilio SendGrid dispatch failed: %s", exc)
+
+        # 2. Fallback to Resend API
         payload = {
             "from": self._from_address,
             "to": [to],
             "subject": subject,
             "html": html,
         }
-        headers = {"Authorization": f"Bearer {self._api_key}"}
+        headers = {"Authorization": f"Bearer {self._resend_api_key}"}
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:

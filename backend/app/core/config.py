@@ -116,9 +116,15 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
-    # ── Email (Resend) ────────────────────────────────────────────────────────
+    # ── Email (Resend & Twilio SendGrid) ──────────────────────────────────────
     EMAIL_FROM: str = "SunTax <noreply@suntax.ch>"
     RESEND_API_KEY: str = "re_your_resend_api_key"
+    TWILIO_SENDGRID_API_KEY: Optional[str] = None
+
+    # ── Twilio (SMS & Phone Text Messages) ────────────────────────────────────
+    TWILIO_ACCOUNT_SID: Optional[str] = None
+    TWILIO_AUTH_TOKEN: Optional[str] = None
+    TWILIO_FROM_PHONE_NUMBER: Optional[str] = None  # E.164 format, e.g. +41791234567
 
     # ── Rate limiting ─────────────────────────────────────────────────────────
     RATE_LIMIT_LOGIN: str = "10/minute"
