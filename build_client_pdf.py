@@ -2,7 +2,8 @@
 """
 SunTax Platform — Executive Client Handover & Demo Dossier PDF
 Generates an executive, Swiss-themed PDF document detailing live URLs, GitHub repository,
-APIs, database specifications, credentials, and step-by-step testing instructions.
+APIs, database specifications, credentials, step-by-step testing instructions,
+and production storage & deployment platform recommendations.
 """
 
 import os
@@ -49,7 +50,7 @@ class NumberedCanvas(canvas.Canvas):
 
         # Top Running Header (page 2+)
         if self._pageNumber > 1:
-            self.drawString(36, 810, "SunTax CH — Client Handover & Testing Guide")
+            self.drawString(36, 810, "SunTax CH — Client Handover, Testing & Architecture Guide")
             self.drawRightString(559, 810, "CONFIDENTIAL")
             self.setStrokeColor(BORDER_COLOR)
             self.setLineWidth(0.5)
@@ -99,11 +100,22 @@ def build_pdf(target_path: str):
         'SectionHeading',
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
-        fontSize=12,
-        leading=16,
+        fontSize=11.5,
+        leading=15,
         textColor=DARK_SLATE,
-        spaceBefore=10,
-        spaceAfter=6,
+        spaceBefore=9,
+        spaceAfter=5,
+    )
+
+    sub_heading = ParagraphStyle(
+        'SubHeading',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=9.5,
+        leading=13,
+        textColor=DARK_SLATE,
+        spaceBefore=5,
+        spaceAfter=3,
     )
 
     body_style = ParagraphStyle(
@@ -111,7 +123,7 @@ def build_pdf(target_path: str):
         parent=styles['Normal'],
         fontName='Helvetica',
         fontSize=8.5,
-        leading=12,
+        leading=11.5,
         textColor=DARK_SLATE,
     )
 
@@ -120,7 +132,7 @@ def build_pdf(target_path: str):
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
         fontSize=8.5,
-        leading=12,
+        leading=11.5,
         textColor=DARK_SLATE,
     )
 
@@ -129,7 +141,7 @@ def build_pdf(target_path: str):
         parent=styles['Normal'],
         fontName='Courier',
         fontSize=8,
-        leading=11,
+        leading=10.5,
         textColor=DARK_SLATE,
     )
 
@@ -138,7 +150,7 @@ def build_pdf(target_path: str):
         parent=styles['Normal'],
         fontName='Helvetica-Bold',
         fontSize=8.5,
-        leading=12,
+        leading=11.5,
         textColor=SWISS_RED,
     )
 
@@ -147,17 +159,21 @@ def build_pdf(target_path: str):
         parent=styles['Normal'],
         fontName='Helvetica',
         fontSize=8,
-        leading=12,
+        leading=11.5,
         textColor=colors.HexColor("#1E40AF"),
     )
 
     story = []
 
-    # ── HEADER BANNER ──────────────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════════════
+    # PAGE 1: SYSTEM OVERVIEW, URLS, GITHUB & DATABASE
+    # ══════════════════════════════════════════════════════════════════════════════
+
+    # Header Banner
     header_data = [
         [
             Paragraph("<b>SunTax</b> <font color='#D52B1E'><b>CH</b></font>", title_style),
-            Paragraph("<b>Client Evaluation Release</b><br/><font color='#64748B'>Date: October 2026</font>", ParagraphStyle('HMeta', parent=body_style, alignment=2))
+            Paragraph("<b>Client Evaluation Dossier</b><br/><font color='#64748B'>Date: October 2026</font>", ParagraphStyle('HMeta', parent=body_style, alignment=2))
         ],
         [
             Paragraph("Next-Generation AI Swiss Tax Platform • System Architecture & Client Demo Handover", tagline_style),
@@ -173,10 +189,10 @@ def build_pdf(target_path: str):
         ('RIGHTPADDING', (0, 0), (-1, -1), 0),
     ]))
     story.append(header_table)
-    story.append(Spacer(1, 4))
-    story.append(HRFlowable(width="100%", thickness=1.5, color=SWISS_RED, spaceBefore=4, spaceAfter=12))
+    story.append(Spacer(1, 3))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=SWISS_RED, spaceBefore=3, spaceAfter=10))
 
-    # ── SECTION 1: LIVE DEPLOYED URLS ──────────────────────────────────────────
+    # SECTION 1: LIVE DEPLOYED URLS
     story.append(Paragraph("1. Live Cloud Endpoints", section_heading))
 
     endpoints_data = [
@@ -217,14 +233,14 @@ def build_pdf(target_path: str):
         ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
         ('TEXTCOLOR', (0, 0), (-1, 0), DARK_SLATE),
         ('GRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4.5),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_LIGHT]),
     ]))
     story.append(t_endpoints)
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 3))
 
     callout_data = [[
         Paragraph("<b>NOTE — Cloud Performance on Render Free Tier:</b> The backend operates on Render free instance. If the service has been idle, the initial request awakens the container in ~45-60 seconds. All subsequent operations execute at sub-150ms latency.", callout_style)
@@ -233,15 +249,15 @@ def build_pdf(target_path: str):
     t_callout.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor("#EFF6FF")),
         ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor("#BFDBFE")),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ('LEFTPADDING', (0, 0), (-1, -1), 8),
         ('RIGHTPADDING', (0, 0), (-1, -1), 8),
     ]))
     story.append(t_callout)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
 
-    # ── SECTION 2: GITHUB REPOSITORY ───────────────────────────────────────────
+    # SECTION 2: GITHUB REPOSITORY
     story.append(Paragraph("2. GitHub Repository & Codebase Structure", section_heading))
 
     repo_data = [
@@ -277,9 +293,9 @@ def build_pdf(target_path: str):
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_LIGHT]),
     ]))
     story.append(t_repo)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
 
-    # ── SECTION 3: DATABASE ARCHITECTURE & FILES ──────────────────────────────
+    # SECTION 3: DATABASE ARCHITECTURE
     story.append(Paragraph("3. Database Architecture & Database File", section_heading))
 
     db_data = [
@@ -321,10 +337,12 @@ def build_pdf(target_path: str):
     ]))
     story.append(t_db)
 
-    # ── PAGE BREAK ─────────────────────────────────────────────────────────────
+    # ══════════════════════════════════════════════════════════════════════════════
+    # PAGE 2: DEMO ACCOUNTS, TEST GUIDE & CORE APIS
+    # ══════════════════════════════════════════════════════════════════════════════
     story.append(PageBreak())
 
-    # ── PAGE 2: DEMO ACCOUNTS & TESTING GUIDE ──────────────────────────────────
+    # SECTION 4: DEMO ACCOUNTS
     story.append(Paragraph("4. Pre-Configured Demo Accounts", section_heading))
 
     accounts_data = [
@@ -351,16 +369,16 @@ def build_pdf(target_path: str):
     t_accounts.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
         ('GRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 6),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ('TOPPADDING', (0, 0), (-1, -1), 5.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5.5),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_LIGHT]),
     ]))
     story.append(t_accounts)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
 
-    # ── SECTION 5: STEP-BY-STEP TESTING GUIDE ──────────────────────────────────
+    # SECTION 5: STEP-BY-STEP TESTING GUIDE
     story.append(Paragraph("5. Step-by-Step Client Testing Guide (5-Minute Verification)", section_heading))
 
     steps_data = [
@@ -392,16 +410,16 @@ def build_pdf(target_path: str):
     t_steps = Table(steps_data, colWidths=[130, 393])
     t_steps.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
-        ('TOPPADDING', (0, 0), (-1, -1), 5),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ('TOPPADDING', (0, 0), (-1, -1), 4.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4.5),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, BG_LIGHT]),
     ]))
     story.append(t_steps)
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 6))
 
-    # ── SECTION 6: CORE API ENDPOINTS REFERENCE ────────────────────────────────
+    # SECTION 6: CORE API ENDPOINTS REFERENCE
     story.append(Paragraph("6. Key API Endpoints Reference", section_heading))
 
     api_data = [
@@ -445,13 +463,179 @@ def build_pdf(target_path: str):
     t_api.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
         ('GRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+        ('TOPPADDING', (0, 0), (-1, -1), 3.8),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3.8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_LIGHT]),
+    ]))
+    story.append(t_api)
+
+    # ══════════════════════════════════════════════════════════════════════════════
+    # PAGE 3: BEST PLATFORM RECOMMENDATIONS (STORAGE & DEPLOYMENT)
+    # ══════════════════════════════════════════════════════════════════════════════
+    story.append(PageBreak())
+
+    story.append(Paragraph("7. Best Platform Recommendations: Storage & Deployment", section_heading))
+    story.append(Paragraph(
+        "For Swiss tax, financial, and wealth advisory software, infrastructure selection is heavily dictated by <b>data sovereignty</b>, <b>compliance with the Swiss Federal Act on Data Protection (FADP / nDSG)</b>, and <b>FINMA Circular 2018/3 (Outsourcing)</b>. Below is the expert evaluation of optimal hosting and storage tiers for SunTax production rollout.",
+        body_style
+    ))
+    story.append(Spacer(1, 4))
+
+    # Subsection A: Object Storage
+    story.append(Paragraph("A. Document Vault & Object Storage Recommendations", sub_heading))
+
+    storage_data = [
+        [
+            Paragraph("<b>Platform Provider</b>", body_bold),
+            Paragraph("<b>Swiss Data Residency</b>", body_bold),
+            Paragraph("<b>Security & Compliance Features</b>", body_bold),
+            Paragraph("<b>Recommendation Level</b>", body_bold),
+        ],
+        [
+            Paragraph("<b>Infomaniak Swiss S3</b><br/><font color='#64748B'>Geneva &amp; Winterthur, CH</font>", body_style),
+            Paragraph("<b>100% Swiss Sovereign</b><br/>Zero foreign CLOUD Act exposure", body_style),
+            Paragraph("Native S3 REST API, AES-256 server-side encryption, ISO 27001, immutable object locks, Tier III+ data centers. Pricing: ~CHF 0.01/GB.", body_style),
+            Paragraph("<font color='#15803D'><b>Top Recommendation</b><br/>(Best Swiss Compliance &amp; Value)</font>", body_style)
+        ],
+        [
+            Paragraph("<b>Exoscale Object Storage</b><br/><font color='#64748B'>Zürich &amp; Geneva, CH</font>", body_style),
+            Paragraph("<b>100% Swiss Sovereign</b><br/>Regulated Swiss entity", body_style),
+            Paragraph("FINMA-ready, ISO 27001 / 27018 compliant, multi-zone Zurich replication, high throughput for financial institutions.", body_style),
+            Paragraph("<font color='#15803D'><b>Top Enterprise Choice</b><br/>(Swiss Banking Grade)</font>", body_style)
+        ],
+        [
+            Paragraph("<b>AWS S3 (Zurich Region)</b><br/><font color='#64748B'>Region: eu-central-2</font>", body_style),
+            Paragraph("<b>Swiss Data Center</b><br/>(Subject to US CLOUD Act)", body_style),
+            Paragraph("AWS KMS with customer-managed keys (CMK), S3 Glacier Instant Retrieval for historical declarations, 99.999999999% durability.", body_style),
+            Paragraph("<font color='#1D4ED8'><b>Enterprise Scaler</b><br/>(If corporate AWS in place)</font>", body_style)
+        ],
+        [
+            Paragraph("<b>Self-Hosted MinIO</b><br/><font color='#64748B'>On-Prem / Private VPS</font>", body_style),
+            Paragraph("<b>Customer Controlled</b><br/>(Bare-metal / Private Cloud)", body_style),
+            Paragraph("Open-source S3 compatible, full control over hardware keys and network perimeters. Requires internal maintenance.", body_style),
+            Paragraph("<font color='#64748B'><b>Private Sovereign</b><br/>(On-premise setups)</font>", body_style)
+        ],
+    ]
+
+    t_storage = Table(storage_data, colWidths=[120, 110, 193, 100])
+    t_storage.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
         ('TOPPADDING', (0, 0), (-1, -1), 4),
         ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ('LEFTPADDING', (0, 0), (-1, -1), 6),
         ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_LIGHT]),
     ]))
-    story.append(t_api)
+    story.append(t_storage)
+    story.append(Spacer(1, 6))
+
+    # Subsection B: Application & Database Deployment
+    story.append(Paragraph("B. Application & Database Deployment Recommendations", sub_heading))
+
+    compute_data = [
+        [
+            Paragraph("<b>Platform &amp; Role</b>", body_bold),
+            Paragraph("<b>Architecture Pattern</b>", body_bold),
+            Paragraph("<b>Operational Benefits &amp; Scalability</b>", body_bold),
+            Paragraph("<b>Best Suited For</b>", body_bold),
+        ],
+        [
+            Paragraph("<b>Vercel Enterprise / Pro</b><br/><font color='#64748B'>Frontend Web Layer</font>", body_style),
+            Paragraph("Edge SSR (Frankfurt/Zurich)", body_style),
+            Paragraph("Instant atomic deployments, global AnyCast CDN, automatic HTTPS, sub-50ms TTFB for Swiss taxpayers.", body_style),
+            Paragraph("<font color='#15803D'><b>Recommended Frontend</b><br/>(Zero devops overhead)</font>", body_style)
+        ],
+        [
+            Paragraph("<b>Exoscale SKS / Cloud VPS</b><br/><font color='#64748B'>Backend &amp; Celery Workers</font>", body_style),
+            Paragraph("Managed K8s / Linux in Zürich", body_style),
+            Paragraph("Pure Swiss hosting, high CPU for PyMuPDF OCR & PDF generation, zero egress fees to Swiss S3 storage.", body_style),
+            Paragraph("<font color='#15803D'><b>Recommended Backend</b><br/>(Swiss Sovereign Stack)</font>", body_style)
+        ],
+        [
+            Paragraph("<b>AWS ECS Fargate + RDS</b><br/><font color='#64748B'>Full-Stack Swiss Region</font>", body_style),
+            Paragraph("Serverless Containers in Zurich", body_style),
+            Paragraph("Aurora PostgreSQL with automatic failover, serverless container auto-scaling during peak Swiss tax season (Jan–Mar).", body_style),
+            Paragraph("<font color='#1D4ED8'><b>High-Volume Enterprise</b><br/>(Scaling &gt; 50k filings)</font>", body_style)
+        ],
+        [
+            Paragraph("<b>Hetzner Cloud (EU)</b><br/><font color='#64748B'>Staging &amp; Bootstrapped Prod</font>", body_style),
+            Paragraph("Docker Compose / Swarm", body_style),
+            Paragraph("Unbeatable price-to-performance ratio (~€15–40/month), fast NVMe disks, GDPR-compliant German data centers.", body_style),
+            Paragraph("<font color='#64748B'><b>Cost Optimization</b><br/>(Startups &amp; MVP stages)</font>", body_style)
+        ],
+    ]
+
+    t_compute = Table(compute_data, colWidths=[120, 110, 193, 100])
+    t_compute.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, BG_LIGHT]),
+    ]))
+    story.append(t_compute)
+    story.append(Spacer(1, 6))
+
+    # Subsection C: Recommended Blueprint Summary
+    story.append(Paragraph("C. Optimal Production Blueprint for SunTax (Swiss Sovereign Stack)", sub_heading))
+
+    blueprint_data = [
+        [
+            Paragraph("<b>Stack Component</b>", body_bold),
+            Paragraph("<b>Selected Provider</b>", body_bold),
+            Paragraph("<b>Configuration Specification</b>", body_bold),
+            Paragraph("<b>Est. Cost (SaaS Stage)</b>", body_bold),
+        ],
+        [
+            Paragraph("<b>User Interface</b>", body_style),
+            Paragraph("Vercel Pro (Edge)", body_style),
+            Paragraph("Next.js 14 SSR, custom domain <code>app.suntax.ch</code>, HSTS + CSP headers.", body_style),
+            Paragraph("CHF ~20 / month", body_style)
+        ],
+        [
+            Paragraph("<b>API &amp; OCR Engine</b>", body_style),
+            Paragraph("Exoscale SKS (Zürich)", body_style),
+            Paragraph("FastAPI 4-worker container + Celery background processor (2x vCPU, 4GB RAM).", body_style),
+            Paragraph("CHF ~38 / month", body_style)
+        ],
+        [
+            Paragraph("<b>Relational Database</b>", body_style),
+            Paragraph("Managed PostgreSQL 16", body_style),
+            Paragraph("Encrypted at rest, automated daily snapshots, Row-Level Security (RLS).", body_style),
+            Paragraph("CHF ~45 / month", body_style)
+        ],
+        [
+            Paragraph("<b>Document Vault</b>", body_style),
+            Paragraph("Infomaniak Swiss S3", body_style),
+            Paragraph("S3 bucket located in Geneva/Winterthur, client-side AES-256 encryption.", body_style),
+            Paragraph("CHF ~5–10 / month", body_style)
+        ],
+        [
+            Paragraph("<b>Total Projected Cost</b>", body_bold),
+            Paragraph("<b>Sovereign Swiss Stack</b>", body_bold),
+            Paragraph("<b>Full FADP / nDSG compliance with &lt;100ms Swiss roundtrip latency</b>", body_bold),
+            Paragraph("<b>CHF ~108–120 / mo</b>", body_bold)
+        ],
+    ]
+
+    t_blueprint = Table(blueprint_data, colWidths=[100, 115, 208, 100])
+    t_blueprint.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), BG_LIGHT),
+        ('GRID', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, BG_LIGHT]),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor("#FEF2F2")),
+        ('TEXTCOLOR', (0, -1), (-1, -1), SWISS_RED),
+    ]))
+    story.append(t_blueprint)
 
     doc.build(story, canvasmaker=NumberedCanvas)
     print(f"Generated PDF: {target_path}")
