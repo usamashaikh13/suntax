@@ -80,17 +80,24 @@ class _S3StorageService:
         import boto3
         from botocore.config import Config
 
-        protocol = "https" if settings.MINIO_USE_SSL else "http"
+        endpoint = settings.MINIO_ENDPOINT.strip()
+        if not endpoint.startswith("http://") and not endpoint.startswith("https://"):
+            protocol = "https" if settings.MINIO_USE_SSL else "http"
+            endpoint = f"{protocol}://{endpoint}"
+
+        region = settings.STORAGE_REGION or "auto"
+
         self._client = boto3.client(
             "s3",
-            endpoint_url=f"{protocol}://{settings.MINIO_ENDPOINT}",
+            endpoint_url=endpoint,
             aws_access_key_id=settings.MINIO_ACCESS_KEY,
             aws_secret_access_key=settings.MINIO_SECRET_KEY,
             config=Config(
                 signature_version="s3v4",
                 retries={"max_attempts": 3, "mode": "adaptive"},
+                s3={"addressing_style": "virtual" if "r2.cloudflarestorage.com" in endpoint else "auto"},
             ),
-            region_name=settings.STORAGE_REGION,
+            region_name=region,
         )
         self._bucket = settings.MINIO_BUCKET_NAME
         self._ensure_bucket()
@@ -114,19 +121,34 @@ class _S3StorageService:
         extra_args: dict[str, str] = {"ContentType": content_type}
         # Multi-layer AES-256-GCM envelope encryption at the file level
         encrypted_bytes = envelope_service.encrypt_document(file_bytes)
-        # Enable AES-256 server-side encryption for production compliance
+        # Enable AES-256 server-side encryption for production compliance if specified
         if getattr(settings, "STORAGE_SERVER_SIDE_ENCRYPTION", None):
             extra_args["ServerSideEncryption"] = settings.STORAGE_SERVER_SIDE_ENCRYPTION
             if getattr(settings, "STORAGE_ENCRYPTION_KEY_ID", None):
                 extra_args["SSEKMSKeyId"] = settings.STORAGE_ENCRYPTION_KEY_ID
 
-        await self._run_sync(
-            self._client.upload_fileobj,
-            io.BytesIO(encrypted_bytes),
-            self._bucket,
-            key,
-            ExtraArgs=extra_args,
-        )
+        try:
+            await self._run_sync(
+                self._client.upload_fileobj,
+                io.BytesIO(encrypted_bytes),
+                self._bucket,
+                key,
+                ExtraArgs=extra_args,
+            )
+        except Exception as exc:
+            # Cloudflare R2 automatically encrypts at rest and may reject AWS-specific SSE headers
+            if "ServerSideEncryption" in extra_args or "SSEKMSKeyId" in extra_args:
+                extra_args.pop("ServerSideEncryption", None)
+                extra_args.pop("SSEKMSKeyId", None)
+                await self._run_sync(
+                    self._client.upload_fileobj,
+                    io.BytesIO(encrypted_bytes),
+                    self._bucket,
+                    key,
+                    ExtraArgs=extra_args,
+                )
+            else:
+                raise exc
         return key
 
     async def download_file(self, key: str) -> bytes:
