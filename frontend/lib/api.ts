@@ -86,7 +86,8 @@ apiClient.interceptors.response.use(
       _retry?: boolean;
     };
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isSignInRequest = originalRequest?.url?.startsWith('/auth/login');
+    if (error.response?.status === 401 && !isSignInRequest && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -149,7 +150,7 @@ export const authApi = {
    * Authenticates the user and stores tokens.
    */
   async login(data: LoginRequest): Promise<LoginResponse> {
-    const response = await apiClient.post<LoginResponse>('/auth/login', data);
+    const response = await apiClient.post<LoginResponse>('/auth/login', data, { timeout: 120_000 });
     if (response.data.two_factor_required) {
       return response.data;
     }
@@ -233,7 +234,7 @@ export const authApi = {
    * Submit 2FA challenge code to finalize login.
    */
   async login2fa(temp_token: string, code: string): Promise<LoginResponse> {
-    const response = await apiClient.post<LoginResponse>('/auth/login/2fa', { temp_token, code });
+    const response = await apiClient.post<LoginResponse>('/auth/login/2fa', { temp_token, code }, { timeout: 120_000 });
     if (response.data.access_token && response.data.refresh_token) {
       setTokens(response.data.access_token, response.data.refresh_token);
       const userResponse = await apiClient.get<User>('/auth/me');

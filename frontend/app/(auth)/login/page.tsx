@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -21,6 +21,42 @@ const loginSchema = z.object({
 })
 
 type LoginForm = z.infer<typeof loginSchema>
+
+function signInError(error: any, fallback: string): string {
+  if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
+    return 'The server did not respond in time. Please try again; it may still be starting up.'
+  }
+  if (!error?.response) return 'Unable to reach the server. Check your connection and try again.'
+  if (error.response.status >= 500) return 'The server is temporarily unavailable. Please try again shortly.'
+  const detail = error.response.data?.detail
+  return typeof detail === 'string' ? detail : fallback
+}
+
+function SignInProgress() {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const start = Date.now()
+    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+  const slow = elapsed >= 5
+  return (
+    <div className="mt-4 flex items-start gap-3 rounded-lg border border-sky-800/50 bg-sky-950/40 p-4 text-sm text-sky-100">
+      <Loader2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 animate-spin motion-reduce:animate-none" />
+      <div>
+        <p role="status" aria-live="polite" className="font-medium">
+          {slow ? 'Getting the server ready. Please wait…' : 'Connecting securely…'}
+        </p>
+        <p className="mt-1 text-xs text-slate-300">
+          {slow ? 'The server may be waking up. This can take up to 2 minutes. You don’t need to submit again.' : 'Please keep this page open while we sign you in.'}
+        </p>
+        <p aria-live="off" className="mt-2 font-mono text-xs tabular-nums text-sky-300">
+          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} elapsed
+        </p>
+      </div>
+    </div>
+  )
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -55,10 +91,9 @@ export default function LoginPage() {
       })
       router.push('/dashboard')
     } catch (error: any) {
-      const detail = error?.response?.data?.detail
       toast({
         title: error?.response?.status === 423 ? 'Account Locked' : 'Sign in failed',
-        description: detail || 'Invalid email or password. Please try again.',
+        description: signInError(error, 'Invalid email or password. Please try again.'),
         variant: 'destructive',
       })
     }
@@ -66,7 +101,7 @@ export default function LoginPage() {
 
   const handle2faSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!tempToken || !twoFactorCode.trim()) return
+    if (submitting2fa || !tempToken || !twoFactorCode.trim()) return
     setSubmitting2fa(true)
     try {
       const response = await api.auth.login2fa(tempToken, twoFactorCode.trim())
@@ -79,7 +114,7 @@ export default function LoginPage() {
     } catch (error: any) {
       toast({
         title: '2FA Verification Failed',
-        description: error?.response?.data?.detail || 'Invalid code. Please try again.',
+        description: signInError(error, 'Invalid code. Please try again.'),
         variant: 'destructive',
       })
     } finally {
@@ -144,6 +179,7 @@ export default function LoginPage() {
 
             <button
               type="button"
+              disabled={submitting2fa}
               onClick={() => {
                 setIs2faStep(false)
                 setTempToken(null)
@@ -227,6 +263,7 @@ export default function LoginPage() {
           </Button>
         </form>
         )}
+        {(isSubmitting || submitting2fa) && <SignInProgress />}
       </CardContent>
 
       <CardFooter className="pt-2 pb-6 border-t border-slate-800/80 flex flex-col gap-3">
