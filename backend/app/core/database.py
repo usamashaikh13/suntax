@@ -89,13 +89,24 @@ async def set_rls_user_id(session: AsyncSession, user_id: UUID | str) -> None:
     Set the PostgreSQL session-local variable consumed by RLS policies.
     No-op for SQLite (used in local dev mode).
     """
+    try:
+        bind = session.bind or session.get_bind()
+        if bind and getattr(bind.dialect, "name", "") == "sqlite":
+            return
+    except Exception:
+        pass
     if _is_sqlite:
         return  # SQLite has no RLS support
     uid = str(user_id)
-    await session.execute(
-        text("SELECT set_config('app.current_user_id', :uid, true)"),
-        {"uid": uid},
-    )
+    try:
+        await session.execute(
+            text("SELECT set_config('app.current_user_id', :uid, true)"),
+            {"uid": uid},
+        )
+    except Exception as exc:
+        if "no such function: set_config" in str(exc).lower():
+            return
+        raise
 
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────

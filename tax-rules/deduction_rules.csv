@@ -1,0 +1,31 @@
+canton,tax_year,level,code,form_field,type,value,min,max,base,conditions,depends_on,source_url,source_page,status
+ZH,2025,canton,commute_total,2.1,cap,,,5200,actual_costs,no company car,,https://www.zh.ch/de/steuern-finanzen/steuern/quellensteuer/berufskosten.html,Wegleitung S. 12,checked
+ZH,2025,federal,commute_total,2.1,cap,,,3300,actual_costs,no company car,,https://www.estv.admin.ch,DBG Art. 26,checked
+ZH,2025,canton,commute_bike,2.1,flat,700,,,,,,,Wegleitung S. 13,checked
+ZH,2025,federal,commute_bike,2.1,flat,700,,,,,,,DBG Art. 26,checked
+ZH,2025,canton,commute_car,2.1,per_km,0.70,,,km_per_day,max 240 days,,Wegleitung S. 12,Wegleitung S. 12,checked
+ZH,2025,federal,commute_car,2.1,per_km,0.70,,,km_per_day,max 240 days,,https://www.estv.admin.ch,DBG Art. 26,checked
+ZH,2025,canton,work_expenses_flat,2.3,rate,0.03,2000,4000,net_salary,,,Wegleitung S. 14,Wegleitung S. 14,checked
+ZH,2025,federal,work_expenses_flat,2.3,rate,0.03,2000,4000,net_salary,,,https://www.estv.admin.ch,DBG Art. 26,checked
+ZH,2025,canton,meal_deduction_full,2.2,flat,3200,,,,no canteen,,Wegleitung S. 13,Wegleitung S. 13,checked
+ZH,2025,federal,meal_deduction_full,2.2,flat,3200,,,,no canteen,,https://www.estv.admin.ch,DBG Art. 26,checked
+ZH,2025,canton,meal_deduction_canteen,2.2,flat,1600,,,,canteen vouchers,,Wegleitung S. 13,Wegleitung S. 13,checked
+ZH,2025,federal,meal_deduction_canteen,2.2,flat,1600,,,,canteen vouchers,,https://www.estv.admin.ch,DBG Art. 26,checked
+ZH,2025,canton,pillar3a_employed,10.1,cap,,,7258,contribution_amount,,employed,https://www.bsv.admin.ch,BVG/3a 2025,checked
+ZH,2025,federal,pillar3a_employed,10.1,cap,,,7258,contribution_amount,,employed,https://www.bsv.admin.ch,BVG/3a 2025,checked
+ZH,2025,canton,pillar3a_self_employed,10.1,cap,,,36288,contribution_amount,,self_employed,https://www.bsv.admin.ch,BVG/3a 2025,checked
+ZH,2025,federal,pillar3a_self_employed,10.1,cap,,,36288,contribution_amount,,self_employed,https://www.bsv.admin.ch,BVG/3a 2025,checked
+ZH,2025,canton,health_insurance_single,11.1,cap,,,2600,premium_paid,,single,Wegleitung S. 19,Wegleitung S. 19,checked
+ZH,2025,federal,health_insurance_single,11.1,cap,,,2800,premium_paid,,single,https://www.estv.admin.ch,DBG Art. 33,checked
+ZH,2025,canton,health_insurance_married,11.1,cap,,,5200,premium_paid,,married,Wegleitung S. 19,Wegleitung S. 19,checked
+ZH,2025,federal,health_insurance_married,11.1,cap,,,5600,premium_paid,,married,https://www.estv.admin.ch,DBG Art. 33,checked
+ZH,2025,canton,health_insurance_child,11.1,cap,,,1300,premium_paid,,children,Wegleitung S. 19,Wegleitung S. 19,checked
+ZH,2025,federal,health_insurance_child,11.1,cap,,,700,premium_paid,,children,https://www.estv.admin.ch,DBG Art. 33,checked
+ZH,2025,canton,child_deduction,16.1,flat,9000,,,,per child,children,Wegleitung S. 24,Wegleitung S. 24,checked
+ZH,2025,federal,child_deduction,16.1,flat,6700,,,,per child,children,https://www.estv.admin.ch,DBG Art. 35,checked
+ZH,2025,canton,childcare_costs,16.2,cap,,,10100,actual_costs,,children,Wegleitung S. 25,Wegleitung S. 25,checked
+ZH,2025,federal,childcare_costs,16.2,cap,,,25500,actual_costs,,children,https://www.estv.admin.ch,DBG Art. 33,checked
+ZH,2025,canton,donations,14.1,rate,0.20,100,,net_salary,,,Wegleitung S. 22,Wegleitung S. 22,checked
+ZH,2025,federal,donations,14.1,rate,0.20,100,,net_salary,,,https://www.estv.admin.ch,DBG Art. 33a,checked
+ZH,2025,canton,medical_expenses,13.1,rate,0.05,,,net_salary,excess only,,Wegleitung S. 21,Wegleitung S. 21,checked
+ZH,2025,federal,medical_expenses,13.1,rate,0.05,,,net_salary,excess only,,https://www.estv.admin.ch,DBG Art. 33,checked

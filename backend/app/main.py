@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 
 from app.core.config import settings
 from app.core.database import engine
-from app.api.v1 import auth, tax_returns, documents, admin, tax_engine, ai_assistant
+from app.api.v1 import auth, tax_returns, documents, admin, tax_engine, ai_assistant, rules
 from app.models import Base
 
 logger = logging.getLogger(__name__)
@@ -76,6 +76,17 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         logger.info("Database schema initialized successfully.")
+
+        # Auto-seed deduction rules and question info texts
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.services.deduction_rules_service import deduction_rules_service
+            from app.services.question_info_service import question_info_service
+            async with AsyncSessionLocal() as session:
+                await deduction_rules_service.seed_from_csv(session)
+                await question_info_service.seed_defaults(session)
+        except Exception as seed_err:
+            logger.warning("Could not auto-seed rules/info texts: %s", seed_err)
     except Exception as exc:
         logger.error("Database schema initialization error: %s", exc)
     yield
@@ -140,6 +151,7 @@ app.include_router(auth.router, prefix=PREFIX, tags=["auth"])
 app.include_router(tax_returns.router, prefix=PREFIX, tags=["tax-returns"])
 app.include_router(documents.router, prefix=PREFIX, tags=["documents"])
 app.include_router(tax_engine.router, prefix=PREFIX, tags=["tax-engine"])
+app.include_router(rules.router, prefix=PREFIX, tags=["rules"])
 app.include_router(ai_assistant.router, prefix=PREFIX, tags=["ai-assistant"])
 app.include_router(admin.router, prefix=PREFIX, tags=["admin"])
 

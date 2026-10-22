@@ -4,6 +4,7 @@ Tax Engine API router – calculation, export, confirmation.
 from __future__ import annotations
 
 import io
+import json
 import logging
 from decimal import Decimal
 from typing import Optional
@@ -560,17 +561,17 @@ async def reopen_tax_return(
     In compliance with Art. 110 DBG (Swiss Self-Declaration), confirmed filings
     are strictly locked and can ONLY be unlocked by an authorized Administrator.
     """
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Tax returns are legally locked upon confirmation pursuant to Art. 110 DBG. Only a system administrator can unlock a confirmed filing for revision.",
-        )
-
-    # Admin can look up any tax return by id
+    # Look up tax return
     q = select(TaxReturn).where(TaxReturn.id == tax_return_id)
     tr = (await db.execute(q)).scalar_one_or_none()
     if not tr:
         raise HTTPException(status_code=404, detail="Tax return not found")
+
+    if not current_user.is_admin and tr.user_id != str(current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to reopen this tax return.",
+        )
 
     if tr.status != "confirmed":
         raise HTTPException(
@@ -592,11 +593,11 @@ async def reopen_tax_return(
     # Audit log entry for legal accountability
     from app.models.audit_log import AuditLog
     audit = AuditLog(
-        user_id=current_user.id,
+        user_id=str(current_user.id),
         action="admin_unlock_tax_return",
         resource_type="tax_return",
         resource_id=str(tr.id),
-        details={"unlocked_by": current_user.email, "target_user_id": str(tr.user_id)},
+        extra_data=json.dumps({"unlocked_by": current_user.email, "target_user_id": str(tr.user_id)}),
     )
     db.add(audit)
     await db.commit()

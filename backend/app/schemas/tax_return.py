@@ -64,6 +64,10 @@ class TaxReturnResponse(BaseModel):
     tax_year: int
     status: str
     confirmed_at: Optional[datetime]
+    payment_status: Optional[str] = "pending"
+    payment_method: Optional[str] = None
+    payment_amount: Optional[float] = 39.0
+    paid_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

@@ -339,3 +339,171 @@ class TestMilestone3BlockerFixes:
                 assert calc_res.results_dict["cantonal_income_tax"] > 0
                 assert calc_res.results_dict["municipal_income_tax"] > 0
 
+
+class TestMilestone2Requirements:
+    """Tests for Milestone 2 features: Dual-run deductions, 3% on Nettolohn, Box F/G, exact sums."""
+
+    def test_dual_run_deductions_different_caps(self, zh_rules_2025):
+        """Commuting cap is 5200 in ZH, 3300 in Federal. Dual run outputs separate values."""
+        engine = TaxCalculationEngine(zh_rules_2025)
+
+        class CommuteProfile:
+            personal_data = {"marital_status": "single"}
+            income = {"total_employment_income": 100000, "net_salary": 90000}
+            wealth = {"bank_accounts": []}
+            deductions = {
+                "commuting_total": 7000,  # High commute expense above both caps
+                "pillar3a_total": 7258,
+            }
+            liabilities = {}
+            securities = []
+            real_estate = []
+
+        class TR:
+            canton_code = "ZH"
+            municipality_code = "261"
+            municipality_name = "Zürich"
+            tax_year = 2025
+
+        res = engine.calculate(CommuteProfile(), TR())
+        # Canton commuting cap is 5200, Federal is 3300
+        # Canton deductions total should be strictly greater than Federal deductions total
+        assert res.canton_deductions_total > res.federal_deductions_total
+        # Federal taxable income should be strictly greater than Canton taxable income
+        assert res.federal_taxable_income > res.canton_taxable_income
+        # Exact sum property verified
+        assert res.canton_deductions_total == sum(d["amount"] for d in res.canton_deductions_list)
+        assert res.federal_deductions_total == sum(d["amount"] for d in res.federal_deductions_list)
+
+    def test_work_expenses_3_pct_on_net_salary(self, zh_rules_2025):
+        """Part A4: 3% professional expenses flat rate must be calculated on net salary (Nettolohn)."""
+        engine = TaxCalculationEngine(zh_rules_2025)
+
+        class NettoProfile:
+            personal_data = {"marital_status": "single"}
+            income = {
+                "total_employment_income": 120000,  # Gross: 120,000 (3% would be 3,600)
+                "net_salary": 80000,                # Netto: 80,000 (3% is 2,400)
+            }
+            wealth = {"bank_accounts": []}
+            deductions = {}
+            liabilities = {}
+            securities = []
+            real_estate = []
+
+        class TR:
+            canton_code = "ZH"
+            municipality_code = "261"
+            municipality_name = "Zürich"
+            tax_year = 2025
+
+        res = engine.calculate(NettoProfile(), TR())
+        prof_item = next(d for d in res.canton_deductions_list if d["code"] == "work_expenses_flat")
+        # 3% of 80,000 = 2,400 CHF (bounded between 2,000 and 4,000)
+        assert prof_item["amount"] == Decimal("2400.00")
+
+    def test_box_f_company_car_zero_commute_deduction(self, zh_rules_2025):
+        """Part B3: Box F (company car / unentgeltliche Beförderung) means commute deduction is CHF 0."""
+        engine = TaxCalculationEngine(zh_rules_2025)
+
+        class CompanyCarProfile:
+            personal_data = {"marital_status": "single"}
+            income = {
+                "total_employment_income": 100000,
+                "net_salary": 90000,
+                "has_company_car": True,  # Box F
+            }
+            wealth = {"bank_accounts": []}
+            deductions = {
+                "commuting_total": 4000,  # Claimed 4000, but Box F is ticked!
+            }
+            liabilities = {}
+            securities = []
+            real_estate = []
+
+        class TR:
+            canton_code = "ZH"
+            municipality_code = "261"
+            municipality_name = "Zürich"
+            tax_year = 2025
+
+        res = engine.calculate(CompanyCarProfile(), TR())
+        # Commute item should not be in active deductions or must have amount 0
+        commute_items = [d for d in res.canton_deductions_list if "commute" in d["code"]]
+        assert len(commute_items) == 0 or all(d["amount"] == Decimal("0") for d in commute_items)
+
+    def test_box_g_canteen_reduced_meal_deduction(self, zh_rules_2025):
+        """Part B3: Box G (canteen / Lunch-Check) reduces meal deduction to CHF 1'600."""
+        engine = TaxCalculationEngine(zh_rules_2025)
+
+        class CanteenProfile:
+            personal_data = {"marital_status": "single"}
+            income = {
+                "total_employment_income": 90000,
+                "net_salary": 80000,
+                "has_canteen": True,  # Box G
+            }
+            wealth = {"bank_accounts": []}
+            deductions = {}
+            liabilities = {}
+            securities = []
+            real_estate = []
+
+        class TR:
+            canton_code = "ZH"
+            municipality_code = "261"
+            municipality_name = "Zürich"
+            tax_year = 2025
+
+        res = engine.calculate(CanteenProfile(), TR())
+        meal_item = next(d for d in res.canton_deductions_list if "meal" in d["code"])
+        assert meal_item["amount"] == Decimal("1600.00")
+
+    def test_commute_mode_bike_flat_rate(self, zh_rules_2025):
+        """Part B4: Velo / Bike gets flat CHF 700 deduction."""
+        engine = TaxCalculationEngine(zh_rules_2025)
+
+        class BikeProfile:
+            personal_data = {"marital_status": "single"}
+            income = {"total_employment_income": 80000, "net_salary": 75000}
+            wealth = {"bank_accounts": []}
+            deductions = {"commute_mode": "bike"}
+            liabilities = {}
+            securities = []
+            real_estate = []
+
+        class TR:
+            canton_code = "ZH"
+            municipality_code = "261"
+            municipality_name = "Zürich"
+            tax_year = 2025
+
+        res = engine.calculate(BikeProfile(), TR())
+        bike_item = next(d for d in res.canton_deductions_list if d["code"] == "commute_bike")
+        assert bike_item["amount"] == Decimal("700.00")
+
+    def test_estimate_label_and_display(self, zh_rules_2025):
+        """Part A3 & A4: Tax totals must strictly be labeled « ca. CHF … »."""
+        engine = TaxCalculationEngine(zh_rules_2025)
+
+        class SimpleProfile:
+            personal_data = {"marital_status": "single"}
+            income = {"total_employment_income": 85000, "net_salary": 78000}
+            wealth = {"bank_accounts": []}
+            deductions = {"pillar3a_total": 7258}
+            liabilities = {}
+            securities = []
+            real_estate = []
+
+        class TR:
+            canton_code = "ZH"
+            municipality_code = "261"
+            municipality_name = "Zürich"
+            tax_year = 2025
+
+        res = engine.calculate(SimpleProfile(), TR())
+        assert res.estimate_label == "ca. CHF"
+        assert res.total_tax_display.startswith("« ca. CHF")
+        assert res.total_tax_display.endswith("»")
+
+

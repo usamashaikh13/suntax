@@ -397,6 +397,44 @@ export const taxReturnsApi = {
     );
     return response.data;
   },
+
+  /**
+   * Creates a payment checkout session for the CHF 39 filing fee (TWINT or Card).
+   */
+  async createPaymentCheckout(taxReturnId: string, method: string = 'twint'): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${taxReturnId}/payment/checkout`, { method });
+    return response.data;
+  },
+
+  /**
+   * Confirms payment of CHF 39 fee.
+   */
+  async confirmPayment(taxReturnId: string, method: string = 'twint'): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${taxReturnId}/payment/confirm`, { method });
+    return response.data;
+  },
+
+  /**
+   * Gets payment status for tax return.
+   */
+  async getPaymentStatus(taxReturnId: string): Promise<{ payment_status: string; is_paid: boolean; amount_chf: number }> {
+    const response = await apiClient.get(`/tax-returns/${taxReturnId}/payment/status`);
+    return response.data;
+  },
+
+  /**
+   * Suggests default tax year, canton, and municipality.
+   */
+  async suggestDefaults(): Promise<{
+    suggested_tax_year: number;
+    suggested_canton: string;
+    suggested_municipality_code: string;
+    suggested_municipality_name: string;
+    reason: string;
+  }> {
+    const response = await apiClient.get('/tax-returns/suggest-defaults');
+    return response.data;
+  },
 };
 
 // ─── Cantons API ──────────────────────────────────────────────────────────────
@@ -700,6 +738,20 @@ export const taxEngineApi = {
 
   async evaluateCrypto(taxReturnId: string, payload: { symbol: string; quantity: number }): Promise<any> {
     const response = await apiClient.post(`/tax-returns/${taxReturnId}/tools/crypto`, payload);
+    return response.data;
+  },
+
+  async getInfoTexts(canton: string = 'ZH', taxYear: number = 2025): Promise<Record<string, any>> {
+    const response = await apiClient.get('/rules/info-texts', {
+      params: { canton, tax_year: taxYear },
+    });
+    return response.data;
+  },
+
+  async getDeductionRules(canton: string = 'ZH', taxYear: number = 2025): Promise<any> {
+    const response = await apiClient.get('/rules/deduction-rules', {
+      params: { canton, tax_year: taxYear },
+    });
     return response.data;
   },
 };

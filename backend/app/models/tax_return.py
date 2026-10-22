@@ -36,6 +36,12 @@ class TaxReturn(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # Milestone 2 Part B6: CHF 39 fee payment tracking
+    payment_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")  # pending, paid
+    payment_method: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # twint, credit_card
+    payment_amount: Mapped[Optional[float]] = mapped_column(nullable=True, default=39.0)
+    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 

@@ -127,6 +127,10 @@ export interface TaxReturn {
   municipality_name?: string;
   tax_year: number;
   status: TaxReturnStatus;
+  payment_status?: string;
+  payment_method?: string;
+  payment_amount?: number;
+  paid_at?: string;
   created_at: string;
   updated_at: string;
   submitted_at?: string;
@@ -263,15 +267,16 @@ export interface DeductionsData {
   // Other
   other_deductions: ExtractedField<number>;
   total_deductions: ExtractedField<number>;
+  [key: string]: any;
 }
 
 export interface TaxProfile {
   id: string;
   tax_return_id: string;
-  personal_data: Partial<PersonalData>;
-  income_data: Partial<IncomeData>;
-  wealth_data: Partial<WealthData>;
-  deductions_data: Partial<DeductionsData>;
+  personal_data: Partial<PersonalData> | Record<string, any>;
+  income_data: Partial<IncomeData> | Record<string, any>;
+  wealth_data: Partial<WealthData> | Record<string, any>;
+  deductions_data: Partial<DeductionsData> | Record<string, any>;
   liabilities_data?: Record<string, unknown> | null;
   tax_questions?: TaxQuestion[] | null;
   tax_flags?: TaxFlag[] | null;

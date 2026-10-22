@@ -138,17 +138,48 @@ class TaxCalculationResult(BaseModel):
     taxable_income: Decimal = Field(..., ge=0, description="Net taxable income after all deductions (CHF, min 0)")
     taxable_wealth: Decimal = Field(..., ge=0, description="Net taxable wealth after liabilities and social deductions (CHF, min 0)")
 
+    # Milestone 2: Dual-run separate taxable incomes and deductions (Canton vs Federal)
+    canton_taxable_income: Optional[Decimal] = Field(None, ge=0, description="Taxable income for Cantonal tax")
+    federal_taxable_income: Optional[Decimal] = Field(None, ge=0, description="Taxable income for Direct Federal tax")
+    canton_deductions_total: Optional[Decimal] = Field(None, ge=0, description="Exact sum of all Canton deductions")
+    federal_deductions_total: Optional[Decimal] = Field(None, ge=0, description="Exact sum of all Federal deductions")
+    canton_deductions_list: list[dict[str, Any]] = Field(default_factory=list, description="Canton deduction items with rule and source")
+    federal_deductions_list: list[dict[str, Any]] = Field(default_factory=list, description="Federal deduction items with rule and source")
+
     # Income taxes
     federal_income_tax: Decimal = Field(..., ge=0, description="Direct federal tax (DBG) on income (CHF)")
     cantonal_income_tax: Decimal = Field(..., ge=0, description="Cantonal income tax before municipal multiplier (CHF)")
     municipal_income_tax: Decimal = Field(..., ge=0, description="Municipal income tax = cantonal × (multiplier / 100) (CHF)")
+    church_tax: Decimal = Field(default=Decimal("0"), ge=0, description="Church tax if customer is a registered member (CHF)")
 
     # Wealth taxes
     wealth_tax_canton: Decimal = Field(..., ge=0, description="Cantonal wealth tax (CHF)")
     wealth_tax_municipal: Decimal = Field(..., ge=0, description="Municipal wealth tax = cantonal × (multiplier / 100) (CHF)")
 
-    # Totals
+    # Totals & Estimate Labeling (Milestone 2: strictly labeled « ca. CHF … »)
     total_tax: Decimal = Field(..., ge=0, description="Sum of all taxes (income + wealth, federal + canton + municipal)")
+    estimate_label: str = Field(default="ca. CHF", description="Swiss estimate label prefix")
+
+    @property
+    def total_tax_display(self) -> str:
+        """Display label required by spec: « ca. CHF … »."""
+        val = f"{self.total_tax:,.0f}".replace(",", "'")
+        return f"« ca. CHF {val} »"
+
+    @property
+    def federal_tax_display(self) -> str:
+        val = f"{self.federal_income_tax:,.0f}".replace(",", "'")
+        return f"« ca. CHF {val} »"
+
+    @property
+    def cantonal_tax_display(self) -> str:
+        val = f"{self.cantonal_income_tax:,.0f}".replace(",", "'")
+        return f"« ca. CHF {val} »"
+
+    @property
+    def municipal_tax_display(self) -> str:
+        val = f"{self.municipal_income_tax:,.0f}".replace(",", "'")
+        return f"« ca. CHF {val} »"
 
     # Detailed breakdowns
     deductions_applied: TaxDeductionsApplied = Field(..., description="Itemised deduction amounts actually applied")
@@ -161,6 +192,7 @@ class TaxCalculationResult(BaseModel):
             self.federal_income_tax
             + self.cantonal_income_tax
             + self.municipal_income_tax
+            + (self.church_tax or Decimal("0"))
             + self.wealth_tax_canton
             + self.wealth_tax_municipal
         )

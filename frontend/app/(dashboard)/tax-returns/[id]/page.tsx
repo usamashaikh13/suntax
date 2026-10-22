@@ -16,6 +16,7 @@ import { TaxProfileViewer } from '@/components/tax-profile/TaxProfileViewer'
 import { TaxQuestions } from '@/components/tax-profile/TaxQuestions'
 import { TaxCalculationDisplay } from '@/components/calculation/TaxCalculationDisplay'
 import { TaxOpportunities } from '@/components/calculation/TaxOpportunities'
+import { LiveTaxCounter } from '@/components/calculation/LiveTaxCounter'
 import { FinalReview } from '@/components/review/FinalReview'
 import { TaxAssistant } from '@/components/tax-assistant/TaxAssistant'
 import { AiSubmissionGuide } from '@/components/tax-assistant/AiSubmissionGuide'
@@ -235,6 +236,18 @@ export default function TaxReturnDetailPage() {
         ))}
       </div>
 
+      {/* ── Sticky Live Deductions & Savings Counter (Part B5) ─────────────── */}
+      <LiveTaxCounter
+        cantonDeductionsTotal={
+          calculation?.canton_deductions_total ??
+          (calculation?.breakdown || [])
+            .filter((b: any) => Number(b.amount) < 0 || b.rule_key?.includes('deduction'))
+            .reduce((acc: number, item: any) => acc + Math.abs(Number(item.amount)), 0)
+        }
+        totalTax={calculation?.total_tax ?? calculation?.results?.total_tax ?? null}
+        cantonCode={taxReturn.canton_code}
+      />
+
       {/* ── Tabs Navigation & Content ───────────────────────────────────── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid grid-cols-3 sm:grid-cols-7 w-full bg-slate-100 p-1 rounded-xl h-auto gap-1">
@@ -243,13 +256,13 @@ export default function TaxReturnDetailPage() {
             AI Guide
           </TabsTrigger>
           <TabsTrigger value="documents" className="text-xs font-semibold py-2">
-            Documents ({documents.length})
+            Dokumente ({documents.length})
           </TabsTrigger>
           <TabsTrigger value="profile" className="text-xs font-semibold py-2">
-            Tax Profile
+            Steuerprofil
           </TabsTrigger>
           <TabsTrigger value="questions" className="relative text-xs font-semibold py-2">
-            Questions
+            Fragen
             {unansweredQuestions > 0 && (
               <span className="ml-1.5 bg-red-600 text-white rounded-full text-[10px] w-4 h-4 inline-flex items-center justify-center font-bold">
                 {unansweredQuestions}
@@ -257,13 +270,13 @@ export default function TaxReturnDetailPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="opportunities" className="text-xs font-semibold py-2">
-            Opportunities
+            Optimierung
           </TabsTrigger>
           <TabsTrigger value="calculation" className="text-xs font-semibold py-2">
-            Calculation
+            Berechnung
           </TabsTrigger>
           <TabsTrigger value="review" className="text-xs font-semibold py-2">
-            Review &amp; Export
+            Abschluss &amp; Filing
           </TabsTrigger>
         </TabsList>
 
@@ -294,12 +307,12 @@ export default function TaxReturnDetailPage() {
             <Card className="border-slate-200">
               <CardContent className="py-16 text-center text-slate-500 space-y-3">
                 <FileText className="h-10 w-10 text-slate-300 mx-auto" />
-                <p className="text-sm font-semibold text-slate-800">No tax profile generated yet</p>
+                <p className="text-sm font-semibold text-slate-800">Noch kein Steuerprofil generiert</p>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Upload your tax documents (salary certificate, bank statement, pillar 3a) to populate your profile automatically.
+                  Laden Sie Ihre Steuerdokumente (Lohnausweis, Bankbelege, Säule 3a) hoch, um Ihr Profil automatisch auszufüllen.
                 </p>
                 <Button size="sm" onClick={() => setActiveTab('documents')} className="bg-red-600 hover:bg-red-700 text-white text-xs">
-                  Upload Documents
+                  Dokumente hochladen
                 </Button>
               </CardContent>
             </Card>
@@ -309,14 +322,20 @@ export default function TaxReturnDetailPage() {
         {/* Tab 4: Questions */}
         <TabsContent value="questions">
           {profile ? (
-            <TaxQuestions profile={profile} taxReturnId={id} onUpdate={loadData} />
+            <TaxQuestions
+              profile={profile}
+              taxReturnId={id}
+              cantonCode={taxReturn.canton_code}
+              taxYear={taxReturn.tax_year}
+              onUpdate={loadData}
+            />
           ) : (
             <Card className="border-slate-200">
               <CardContent className="py-16 text-center text-slate-500 space-y-3">
                 <FileText className="h-10 w-10 text-slate-300 mx-auto" />
-                <p className="text-sm font-semibold text-slate-800">No clarification questions pending</p>
+                <p className="text-sm font-semibold text-slate-800">Keine offenen Fragen</p>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  The AI tax engine automatically generates deduction questions once your tax documents are uploaded.
+                  Die Fragen zur Steueroptimierung werden aktiv, sobald ein Steuerprofil vorhanden ist.
                 </p>
               </CardContent>
             </Card>

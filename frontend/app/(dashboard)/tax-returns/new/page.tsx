@@ -2,9 +2,11 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import {
   Check, ChevronRight, Loader2, Search, ArrowLeft,
-  Building2, Calendar, ShieldCheck, Sparkles, MapPin
+  Building2, Calendar, ShieldCheck, Sparkles, MapPin,
+  HelpCircle, AlertTriangle, CheckCircle2, XCircle
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -14,24 +16,38 @@ import { api } from '@/lib/api'
 import { Canton, Municipality } from '@/types'
 import { cn } from '@/lib/utils'
 
-const STEPS = ['Select Canton', 'Select Municipality', 'Select Tax Year', 'Review & Start']
+const STEPS = [
+  'Eignungsprüfung',
+  'Kanton & Gemeinde',
+  'Steuerjahr',
+  'Zusammenfassung',
+]
 
-const CANTON_LANGUAGES: Record<string, string> = {
-  ZH: 'de', BE: 'de/fr', LU: 'de', UR: 'de', SZ: 'de', OW: 'de', NW: 'de',
-  GL: 'de', ZG: 'de', FR: 'fr/de', SO: 'de', BS: 'de', BL: 'de', SH: 'de',
-  AR: 'de', AI: 'de', SG: 'de', GR: 'de/rm/it', AG: 'de', TG: 'de', TI: 'it',
-  VD: 'fr', VS: 'fr/de', NE: 'fr', GE: 'fr', JU: 'fr',
+const CANTON_NAMES: Record<string, string> = {
+  ZH: 'Zürich', BE: 'Bern', LU: 'Luzern', UR: 'Uri', SZ: 'Schwyz', OW: 'Obwalden',
+  NW: 'Nidwalden', GL: 'Glarus', ZG: 'Zug', FR: 'Freiburg', SO: 'Solothurn',
+  BS: 'Basel-Stadt', BL: 'Basel-Landschaft', SH: 'Schaffhausen', AR: 'Appenzell Ausserrhoden',
+  AI: 'Appenzell Innerrhoden', SG: 'St. Gallen', GR: 'Graubünden', AG: 'Aargau',
+  TG: 'Thurgau', TI: 'Tessin', VD: 'Waadt', VS: 'Wallis', NE: 'Neuenburg',
+  GE: 'Genf', JU: 'Jura',
 }
-
-const LOW_TAX_CANTONS = new Set(['ZG', 'SZ', 'NW', 'OW', 'UR'])
 
 export default function NewTaxReturnPage() {
   const router = useRouter()
   const { toast } = useToast()
+
+  // Pre-check state (Part B2: «Passt SunTax zu Ihnen?»)
+  const [preCheckAnswers, setPreCheckAnswers] = useState({
+    employed: true,
+    no_quellensteuer: true,
+    no_real_estate: true,
+    no_self_employed: true,
+  })
+  const [preCheckPassed, setPreCheckPassed] = useState(false)
+
   const [step, setStep] = useState(0)
   const [cantons, setCantons] = useState<Canton[]>([])
   const [cantonSearch, setCantonSearch] = useState('')
-  const [cantonFilter, setCantonFilter] = useState<'all' | 'low_tax' | 'de' | 'fr'>('all')
 
   const [municipalities, setMunicipalities] = useState<Municipality[]>([])
   const [municipalitySearch, setMunicipalitySearch] = useState('')
@@ -41,8 +57,18 @@ export default function NewTaxReturnPage() {
   const [submitting, setSubmitting] = useState(false)
   const [loadingMunicipalities, setLoadingMunicipalities] = useState(false)
 
+  // Load defaults and cantons on mount
   useEffect(() => {
     api.cantons.list().then(setCantons).catch(console.error)
+
+    // Load auto-suggested defaults
+    api.taxReturns.suggestDefaults()
+      .then(data => {
+        if (data.suggested_tax_year) {
+          setSelectedYear(data.suggested_tax_year)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -52,7 +78,14 @@ export default function NewTaxReturnPage() {
       setMunicipalitySearch('')
       api.cantons
         .getMunicipalities(selectedCanton.code)
-        .then(setMunicipalities)
+        .then(mList => {
+          setMunicipalities(mList)
+          // Default to first municipality or capital if matching
+          if (mList.length > 0) {
+            const capital = mList.find(m => m.name.toLowerCase() === selectedCanton.name.toLowerCase()) || mList[0] || null
+            setSelectedMunicipality(capital)
+          }
+        })
         .catch(console.error)
         .finally(() => setLoadingMunicipalities(false))
     }
@@ -60,16 +93,11 @@ export default function NewTaxReturnPage() {
 
   const filteredCantons = useMemo(() => {
     return cantons.filter(c => {
-      const matchesSearch = c.name.toLowerCase().includes(cantonSearch.toLowerCase()) ||
-                            c.code.toLowerCase().includes(cantonSearch.toLowerCase())
-      if (!matchesSearch) return false
-
-      if (cantonFilter === 'low_tax') return LOW_TAX_CANTONS.has(c.code)
-      if (cantonFilter === 'de') return (CANTON_LANGUAGES[c.code] || '').includes('de')
-      if (cantonFilter === 'fr') return (CANTON_LANGUAGES[c.code] || '').includes('fr')
-      return true
+      const name = CANTON_NAMES[c.code] || c.name
+      return name.toLowerCase().includes(cantonSearch.toLowerCase()) ||
+             c.code.toLowerCase().includes(cantonSearch.toLowerCase())
     })
-  }, [cantons, cantonSearch, cantonFilter])
+  }, [cantons, cantonSearch])
 
   const filteredMunicipalities = useMemo(() => {
     return municipalities.filter(m =>
@@ -77,6 +105,23 @@ export default function NewTaxReturnPage() {
       m.code.includes(municipalitySearch)
     )
   }, [municipalities, municipalitySearch])
+
+  // Pre-check evaluation
+  const isEligible = preCheckAnswers.employed &&
+                     preCheckAnswers.no_quellensteuer &&
+                     preCheckAnswers.no_real_estate &&
+                     preCheckAnswers.no_self_employed
+
+  const handlePreCheckProceed = () => {
+    if (!isEligible) return
+    setPreCheckPassed(true)
+    // Pre-select Zurich by default per requirements
+    const zh = cantons.find(c => c.code === 'ZH')
+    if (zh && !selectedCanton) {
+      setSelectedCanton(zh)
+    }
+    setStep(1)
+  }
 
   const handleCreate = async () => {
     if (!selectedCanton || !selectedMunicipality || !selectedYear) return
@@ -89,14 +134,14 @@ export default function NewTaxReturnPage() {
         tax_year: selectedYear,
       })
       toast({
-        title: 'Tax return initialized!',
-        description: `Created for ${selectedCanton.name} (${selectedMunicipality.name}) – ${selectedYear}.`,
+        title: 'Steuererklärung erfolgreich eröffnet!',
+        description: `Dossier für ${selectedCanton.name} (${selectedMunicipality.name}) – Steuerjahr ${selectedYear} erstellt.`,
       })
       router.push(`/tax-returns/${tr.id}`)
     } catch (error: any) {
       toast({
-        title: 'Failed to create tax return',
-        description: error?.response?.data?.detail || 'Please check your inputs and try again.',
+        title: 'Erstellung fehlgeschlagen',
+        description: error?.response?.data?.detail || 'Bitte überprüfen Sie Ihre Auswahl.',
         variant: 'destructive',
       })
     } finally {
@@ -108,346 +153,431 @@ export default function NewTaxReturnPage() {
     <div className="max-w-3xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2 mb-1.5">
           <Badge variant="outline" className="text-red-600 border-red-200 text-xs">
-            Official ESTV Engine
+            Offizielle ESTV-Tarife 2025
           </Badge>
           <span className="text-xs text-slate-400">•</span>
-          <span className="text-xs text-slate-500 font-medium">All 26 Swiss Cantons Supported</span>
+          <span className="text-xs text-slate-500 font-medium">Alle 26 Schweizer Kantone</span>
         </div>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-          Create New Tax Declaration
+          Neue Steuererklärung erstellen
         </h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Configure your cantonal and municipal tax residency to load deterministic statutory rules.
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
+          Schritt für Schritt zu Ihrer rechtskonformen Schweizer Steuererklärung
         </p>
       </div>
 
-      {/* Stepper Navigation */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
-        <div className="flex items-center justify-between">
-          {STEPS.map((stepName, i) => {
-            const isCompleted = i < step
-            const isCurrent = i === step
-
-            return (
-              <div key={stepName} className="flex items-center flex-1 last:flex-none">
-                <div className="flex items-center gap-2.5">
-                  <div
-                    className={cn(
-                      'h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold transition-all',
-                      isCompleted
-                        ? 'bg-emerald-600 text-white'
-                        : isCurrent
-                        ? 'bg-red-600 text-white ring-4 ring-red-100 shadow-sm'
-                        : 'bg-slate-100 text-slate-400'
-                    )}
-                  >
-                    {isCompleted ? <Check className="h-4 w-4" /> : i + 1}
-                  </div>
-                  <span
-                    className={cn(
-                      'text-xs hidden md:block font-medium',
-                      isCurrent ? 'text-slate-900 font-bold' : isCompleted ? 'text-slate-700' : 'text-slate-400'
-                    )}
-                  >
-                    {stepName}
-                  </span>
-                </div>
-                {i < STEPS.length - 1 && (
-                  <div className="flex-1 mx-3 h-0.5 bg-slate-200 hidden sm:block" />
-                )}
-              </div>
-            )
-          })}
-        </div>
+      {/* Progress Steps */}
+      <div className="grid grid-cols-4 gap-2 border-b border-slate-200 pb-4">
+        {STEPS.map((s, idx) => (
+          <div key={s} className="space-y-1">
+            <div className={cn(
+              'h-1.5 rounded-full transition-all duration-300',
+              step > idx ? 'bg-emerald-500' : step === idx ? 'bg-red-600' : 'bg-slate-200'
+            )} />
+            <span className={cn(
+              'text-[11px] font-medium block truncate',
+              step === idx ? 'text-red-700 font-bold' : step > idx ? 'text-emerald-700' : 'text-slate-400'
+            )}>
+              {idx + 1}. {s}
+            </span>
+          </div>
+        ))}
       </div>
 
-      {/* STEP 0: CANTON SELECTION */}
+      {/* STEP 0: Pre-Check Questionnaire (Part B2) */}
       {step === 0 && (
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">Select Your Tax Residence Canton</CardTitle>
-            <CardDescription>
-              Select the canton where you had your main tax residence on December 31st.
-            </CardDescription>
-
-            {/* Search and Filters */}
-            <div className="pt-3 flex flex-col sm:flex-row gap-2.5">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Search canton name or code (e.g. Zurich, ZG, Geneva)..."
-                  value={cantonSearch}
-                  onChange={e => setCantonSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-600"
-                />
+          <CardHeader className="border-b bg-slate-50/60 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold">
+                <HelpCircle className="h-5 w-5" />
               </div>
-
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg flex-shrink-0">
-                {[
-                  { id: 'all', label: 'All (26)' },
-                  { id: 'low_tax', label: 'Low-Tax' },
-                  { id: 'de', label: 'German' },
-                  { id: 'fr', label: 'French' },
-                ].map(filter => (
-                  <button
-                    key={filter.id}
-                    onClick={() => setCantonFilter(filter.id as any)}
-                    className={cn(
-                      'px-2.5 py-1 text-xs font-semibold rounded-md transition-all',
-                      cantonFilter === filter.id
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
-                    )}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-900">
+                  Passt SunTax zu Ihnen?
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500">
+                  Kurzer Vorab-Check (4 Fragen), um sicherzustellen, dass SunTax optimal für Sie ist.
+                </CardDescription>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent>
-            {cantons.length === 0 ? (
-              <div className="flex justify-center py-12">
-                <Loader2 className="h-7 w-7 animate-spin text-red-600" />
+          <CardContent className="pt-6 space-y-4">
+            {[
+              {
+                id: 'employed',
+                question: '1. Sind Sie im Angestelltenverhältnis tätig?',
+                detail: 'Lohnempfänger mit Lohnausweis (Peter Group, Migros, Banken, Gewerbe etc.)',
+                current: preCheckAnswers.employed,
+                expected: true,
+              },
+              {
+                id: 'no_quellensteuer',
+                question: '2. Werden Sie ordentlich veranlagt (KEINE Quellensteuer)?',
+                detail: 'Schweizer Bürger oder Inhaber einer C-Niederlassungsbewilligung (oder Antrag auf NOVA)',
+                current: preCheckAnswers.no_quellensteuer,
+                expected: true,
+              },
+              {
+                id: 'no_real_estate',
+                question: '3. Besitzen Sie KEINE Liegenschaften oder Immobilien?',
+                detail: 'Sie wohnen zur Miete und besitzen kein Wohneigentum in der Schweiz oder im Ausland',
+                current: preCheckAnswers.no_real_estate,
+                expected: true,
+              },
+              {
+                id: 'no_self_employed',
+                question: '4. Üben Sie KEINE selbstständige Erwerbstätigkeit aus?',
+                detail: 'Keine Einzelfirma, GmbH-Geschäftsführung oder freiberufliche Praxis',
+                current: preCheckAnswers.no_self_employed,
+                expected: true,
+              },
+            ].map(item => (
+              <div
+                key={item.id}
+                className="p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">{item.question}</h4>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{item.detail}</p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setPreCheckAnswers(prev => ({ ...prev, [item.id]: true }))}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5',
+                      item.current === true
+                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    )}
+                  >
+                    <Check className="h-3.5 w-3.5" /> Ja
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreCheckAnswers(prev => ({ ...prev, [item.id]: false }))}
+                    className={cn(
+                      'px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all flex items-center gap-1.5',
+                      item.current === false
+                        ? 'bg-red-600 text-white border-red-600 shadow-xs'
+                        : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+                    )}
+                  >
+                    <XCircle className="h-3.5 w-3.5" /> Nein
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {/* Assessment Feedback Card */}
+            {isEligible ? (
+              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-900 flex items-start gap-3 mt-4">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-xs sm:text-sm font-bold">Perfekt! SunTax ist ideal für Ihre Situation.</h4>
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    Als angestellte Person ohne Liegenschaften profitieren Sie von unserer automatischen Lohnausweis-Erkennung,
+                    der Pauschaloptimierung für Pendeln und Verpflegung sowie der direkten Säule-3a-Anrechnung.
+                  </p>
+                </div>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {filteredCantons.map(canton => {
-                  const isLowTax = LOW_TAX_CANTONS.has(canton.code)
-                  const isSelected = selectedCanton?.code === canton.code
+              <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-950 flex items-start gap-3 mt-4">
+                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-xs sm:text-sm font-bold">Hinweis zur Eignung</h4>
+                  <p className="text-xs text-amber-900 leading-relaxed">
+                    SunTax ist aktuell auf angestellte Steuerpflichtige mit einfacher bis moderater Situation fokussiert.
+                    Für Selbstständige, Liegenschaftsbesitzer oder quellensteuerpflichtige Personen empfehlen wir die persönliche
+                    Beratung durch einen zugelassenen Treuhänder.
+                  </p>
+                  <p className="text-[11px] text-amber-800 font-semibold mt-1">
+                    Es entstehen Ihnen bei SunTax selbstverständlich keinerlei Kosten.
+                  </p>
+                </div>
+              </div>
+            )}
 
+            <div className="flex justify-between items-center pt-4 border-t">
+              <Button asChild variant="outline" size="sm" className="text-xs">
+                <Link href="/dashboard">Zurück zur Übersicht</Link>
+              </Button>
+
+              <Button
+                onClick={handlePreCheckProceed}
+                disabled={!isEligible}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs h-9 px-5"
+              >
+                Weiter zu Schritt 2
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 1: Canton & Municipality */}
+      {step === 1 && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b bg-slate-50/60 pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold text-slate-900">
+                  Wohnsitzkanton & Gemeinde wählen
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500">
+                  Massgebend ist Ihr Wohnsitz per 31. Dezember des Steuerjahres.
+                </CardDescription>
+              </div>
+              <Badge className="bg-red-50 text-red-700 border-red-200 text-xs">
+                Vorschlag: Zürich (ZH)
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="pt-6 space-y-6">
+            {/* Canton Selector */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-900">
+                  Kanton auswählen
+                </label>
+                <div className="relative w-48">
+                  <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Kanton suchen..."
+                    value={cantonSearch}
+                    onChange={e => setCantonSearch(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:border-red-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 max-h-56 overflow-y-auto p-1 border rounded-xl">
+                {filteredCantons.map(c => {
+                  const isSelected = selectedCanton?.code === c.code
+                  const name = CANTON_NAMES[c.code] || c.name
                   return (
                     <button
-                      key={canton.code}
-                      onClick={() => {
-                        setSelectedCanton(canton)
-                        setStep(1)
-                      }}
+                      key={c.code}
+                      type="button"
+                      onClick={() => setSelectedCanton(c)}
                       className={cn(
-                        'p-3.5 rounded-xl border text-left transition-all duration-150 flex flex-col justify-between h-24 hover:scale-[1.02]',
+                        'p-2.5 rounded-lg border text-left transition-all flex items-center justify-between',
                         isSelected
-                          ? 'border-red-600 bg-red-50/70 shadow-sm ring-1 ring-red-600'
-                          : 'border-slate-200/90 bg-white hover:border-slate-300 hover:shadow-xs'
+                          ? 'border-red-600 bg-red-50/60 text-red-950 font-bold shadow-xs'
+                          : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                       )}
                     >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="h-7 w-8 rounded bg-slate-100 border border-slate-200/70 text-slate-900 font-extrabold text-xs flex items-center justify-center">
-                          {canton.code}
-                        </span>
-                        {isLowTax && (
-                          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.2 rounded">
-                            Low Tax
-                          </span>
-                        )}
+                      <div className="truncate">
+                        <span className="font-mono text-xs font-bold mr-1.5">{c.code}</span>
+                        <span className="text-xs">{name}</span>
                       </div>
-                      <p className="font-bold text-xs sm:text-sm text-slate-900 truncate">
-                        {canton.name}
-                      </p>
+                      {isSelected && <Check className="h-3.5 w-3.5 text-red-600 flex-shrink-0" />}
                     </button>
                   )
                 })}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* STEP 1: MUNICIPALITY SELECTION */}
-      {step === 1 && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Select Municipality (Commune)</CardTitle>
-                <CardDescription>
-                  Canton: <strong className="text-slate-900">{selectedCanton?.name} ({selectedCanton?.code})</strong>
-                </CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setStep(0)} className="text-xs">
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Change Canton
-              </Button>
             </div>
 
-            <div className="relative pt-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 mt-1" />
-              <input
-                type="text"
-                placeholder="Search municipality or BFS code (e.g. Zurich, 261)..."
-                value={municipalitySearch}
-                onChange={e => setMunicipalitySearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-red-600 mt-2"
-                autoFocus
-              />
-            </div>
-          </CardHeader>
+            {/* Municipality Selector */}
+            {selectedCanton && (
+              <div className="space-y-2 pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-900">
+                    Wohngemeinde im Kanton {CANTON_NAMES[selectedCanton.code] || selectedCanton.name}
+                  </label>
+                  <div className="relative w-48">
+                    <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Gemeinde suchen..."
+                      value={municipalitySearch}
+                      onChange={e => setMunicipalitySearch(e.target.value)}
+                      className="w-full pl-8 pr-3 py-1 text-xs rounded-lg border border-slate-200 focus:outline-hidden focus:border-red-500"
+                    />
+                  </div>
+                </div>
 
-          <CardContent className="space-y-4">
-            {loadingMunicipalities ? (
-              <div className="flex flex-col items-center justify-center py-12 space-y-2">
-                <Loader2 className="h-7 w-7 animate-spin text-red-600" />
-                <p className="text-xs text-slate-500">Loading official BFS municipalities for {selectedCanton?.name}...</p>
-              </div>
-            ) : (
-              <div className="max-h-72 overflow-y-auto space-y-1.5 pr-1">
-                {filteredMunicipalities.length === 0 ? (
-                  <p className="text-center text-slate-400 py-8 text-xs">
-                    No municipalities found matching &quot;{municipalitySearch}&quot;.
-                  </p>
+                {loadingMunicipalities ? (
+                  <div className="py-6 flex items-center justify-center text-xs text-slate-500 gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-red-600" />
+                    Gemeinden werden geladen...
+                  </div>
                 ) : (
-                  filteredMunicipalities.map(m => {
-                    const isSelected = selectedMunicipality?.code === m.code
-
-                    return (
-                      <button
-                        key={m.code}
-                        onClick={() => {
-                          setSelectedMunicipality(m)
-                          setStep(2)
-                        }}
-                        className={cn(
-                          'w-full text-left px-3.5 py-2.5 rounded-lg border text-xs sm:text-sm transition-all flex items-center justify-between',
-                          isSelected
-                            ? 'bg-red-50 text-red-700 border-red-300 font-bold'
-                            : 'bg-white border-slate-200/80 text-slate-800 hover:bg-slate-50 hover:border-slate-300'
-                        )}
-                      >
-                        <span className="font-medium">{m.name}</span>
-                        <span className="text-[11px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                          BFS #{m.code}
-                        </span>
-                      </button>
-                    )
-                  })
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-1 border rounded-xl">
+                    {filteredMunicipalities.map(m => {
+                      const isSelected = selectedMunicipality?.code === m.code
+                      return (
+                        <button
+                          key={m.code}
+                          type="button"
+                          onClick={() => setSelectedMunicipality(m)}
+                          className={cn(
+                            'p-2 rounded-lg border text-left text-xs transition-all flex items-center justify-between truncate',
+                            isSelected
+                              ? 'border-red-600 bg-red-50/60 text-red-950 font-bold'
+                              : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                          )}
+                        >
+                          <span className="truncate">{m.name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono ml-1">#{m.code}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             )}
-          </CardContent>
-        </Card>
-      )}
 
-      {/* STEP 2: TAX YEAR SELECTION */}
-      {step === 2 && (
-        <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">Select Tax Assessment Year</CardTitle>
-                <CardDescription>
-                  {selectedCanton?.name} – {selectedMunicipality?.name}
-                </CardDescription>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setStep(1)} className="text-xs">
-                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Back
+            <div className="flex justify-between items-center pt-4 border-t">
+              <Button variant="outline" size="sm" onClick={() => setStep(0)} className="text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Zurück
+              </Button>
+              <Button
+                onClick={() => setStep(2)}
+                disabled={!selectedCanton || !selectedMunicipality}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs h-9 px-5"
+              >
+                Weiter zum Steuerjahr
+                <ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
-          </CardHeader>
-
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[
-                {
-                  year: 2025,
-                  title: 'Tax Year 2025 (Active Filing)',
-                  desc: 'Standard filing season. Max Pillar 3a deduction CHF 7,258. Full inflation indexation brackets.',
-                  activeTag: 'Recommended'
-                },
-                {
-                  year: 2026,
-                  title: 'Tax Year 2026 (Provisional)',
-                  desc: 'Advance planning and withholding tax reconciliation for calendar year 2026.',
-                  activeTag: 'Advance'
-                },
-              ].map(item => (
-                <button
-                  key={item.year}
-                  onClick={() => {
-                    setSelectedYear(item.year)
-                    setStep(3)
-                  }}
-                  className={cn(
-                    'p-5 rounded-xl border-2 text-left transition-all duration-150 flex flex-col justify-between space-y-3',
-                    selectedYear === item.year
-                      ? 'border-red-600 bg-red-50/70 shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  )}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-2xl font-black text-slate-900">{item.year}</span>
-                    <Badge variant="outline" className="text-xs border-slate-300">
-                      {item.activeTag}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">{item.title}</p>
-                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">{item.desc}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* STEP 3: REVIEW & CREATE */}
-      {step === 3 && (
+      {/* STEP 2: Tax Year (Default 2025) */}
+      {step === 2 && (
         <Card className="border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle className="text-lg">Review Tax Declaration Parameters</CardTitle>
-            <CardDescription>
-              Please verify your selected residency and tax year before initializing your file.
+          <CardHeader className="border-b bg-slate-50/60 pb-4">
+            <CardTitle className="text-lg font-bold text-slate-900">
+              Steuerjahr auswählen
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">
+              In der Regel deklarieren Sie das soeben abgelaufene Steuerjahr (2025).
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-6">
-            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-3">
-              <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Canton of Residence</span>
-                <span className="font-bold text-slate-900">
-                  {selectedCanton?.name} ({selectedCanton?.code})
-                </span>
+          <CardContent className="pt-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              {[2025, 2024].map(year => (
+                <button
+                  key={year}
+                  type="button"
+                  onClick={() => setSelectedYear(year)}
+                  className={cn(
+                    'p-4 rounded-xl border text-left transition-all',
+                    selectedYear === year
+                      ? 'border-red-600 bg-red-50/60 text-red-950 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xl font-black">{year}</span>
+                    {year === 2025 && (
+                      <Badge className="bg-red-600 text-white text-[10px]">
+                        Aktuelles Steuerjahr
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {year === 2025
+                      ? 'Fällig per 31. März 2026. Gültige Tarife ESTV 2025 aktiv.'
+                      : 'Nachdeklaration oder Fristerstreckung für das Vorjahr.'}
+                  </p>
+                </button>
+              ))}
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t">
+              <Button variant="outline" size="sm" onClick={() => setStep(1)} className="text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Zurück
+              </Button>
+              <Button
+                onClick={() => setStep(3)}
+                className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs h-9 px-5"
+              >
+                Weiter zur Zusammenfassung
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* STEP 3: Review & Create */}
+      {step === 3 && (
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="border-b bg-slate-50/60 pb-4">
+            <CardTitle className="text-lg font-bold text-slate-900">
+              Steuererklärung bestätigen & eröffnen
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">
+              Überprüfen Sie Ihre Stammdaten vor dem Start des Erfassungsprozesses.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="pt-6 space-y-6">
+            <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 text-center">
+              <div>
+                <p className="text-[11px] text-slate-400 font-medium">Kanton</p>
+                <p className="text-base font-extrabold text-slate-900 mt-0.5">
+                  {selectedCanton?.code} ({CANTON_NAMES[selectedCanton?.code || ''] || selectedCanton?.name})
+                </p>
               </div>
-              <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Municipality (Commune)</span>
-                <span className="font-bold text-slate-900">
-                  {selectedMunicipality?.name} (BFS #{selectedMunicipality?.code})
-                </span>
+              <div className="border-x border-slate-200">
+                <p className="text-[11px] text-slate-400 font-medium">Wohngemeinde</p>
+                <p className="text-base font-extrabold text-slate-900 mt-0.5">
+                  {selectedMunicipality?.name}
+                </p>
+                <span className="text-[10px] text-slate-400 font-mono">BFS #{selectedMunicipality?.code}</span>
               </div>
-              <div className="flex justify-between items-center text-xs sm:text-sm py-1 border-b border-slate-200/60">
-                <span className="text-slate-500">Tax Assessment Year</span>
-                <span className="font-bold text-red-600">{selectedYear}</span>
-              </div>
-              <div className="flex justify-between items-center text-xs sm:text-sm py-1">
-                <span className="text-slate-500">Tax Engine Ruleset</span>
-                <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                  <ShieldCheck className="h-4 w-4" /> ESTV Verified Deterministic
-                </span>
+              <div>
+                <p className="text-[11px] text-slate-400 font-medium">Steuerjahr</p>
+                <p className="text-base font-extrabold text-red-600 mt-0.5">
+                  {selectedYear}
+                </p>
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setStep(2)}
-                className="flex-1 text-xs"
-              >
-                Back
+            <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/60 text-xs text-blue-900 space-y-1">
+              <h4 className="font-bold flex items-center gap-1.5">
+                <Sparkles className="h-4 w-4 text-blue-600" />
+                Nächster Schritt: Dokumente hochladen
+              </h4>
+              <p className="text-[11px] text-blue-800 leading-relaxed">
+                Nach dem Erstellen können Sie Ihren Lohnausweis (PDF oder Foto) sowie Bankauszüge hochladen.
+                SunTax extrahiert alle Ziffern automatisch und berechnet Ihre Abzüge nach kantonalem Recht.
+              </p>
+            </div>
+
+            <div className="flex justify-between items-center pt-4 border-t">
+              <Button variant="outline" size="sm" onClick={() => setStep(2)} className="text-xs">
+                <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Zurück
               </Button>
+
               <Button
                 onClick={handleCreate}
                 disabled={submitting}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold text-xs h-10 shadow-md shadow-red-600/20"
+                className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-10 px-6 shadow-md shadow-red-600/20"
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Initializing Tax File...
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Dossier wird angelegt...
                   </>
                 ) : (
-                  'Create Tax Return'
+                  <>
+                    Steuererklärung jetzt starten
+                    <ChevronRight className="h-4 w-4 ml-1.5" />
+                  </>
                 )}
               </Button>
             </div>

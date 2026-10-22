@@ -214,6 +214,18 @@ class TaxProfile:
     mortgage_balance: Decimal = Decimal("0")
     other_liabilities: Decimal = Decimal("0")
 
+    # --- Milestone 2 Specifics (Box F, Box G, Netto, Commute Mode, Church) ---
+    net_salary: Decimal = Decimal("0")                 # Ziffer 11 on Lohnausweis (for 3% professional expenses)
+    has_company_car: bool = False                      # Lohnausweis Box F (Fahrkosten unentgeltlich -> no commute deduction)
+    has_canteen: bool = False                          # Lohnausweis Box G (Kantine / Lunch-Check -> reduced meal deduction)
+    commute_mode: str = "pt"                           # "bike" | "car" | "pt" | "foot"
+    commute_km_per_day: Decimal = Decimal("0")         # km/day
+    working_days: int = 240                            # default standard 240 days
+    home_office_days: int = 0                          # days worked from home (reduces commute days)
+    holidays: int = 0                                  # holidays/vacation days beyond standard
+    is_church_member: bool = False                     # church tax liability
+    church_tax_rate: Decimal = Decimal("0.10")         # default approx 10% of cantonal simple tax if member
+
 
 # ---------------------------------------------------------------------------
 # Helper: bracket lookup
@@ -809,6 +821,41 @@ def _adapt_profile(profile: Any, rules: TaxRuleSet, tax_return: Any = None) -> T
     )
     prof_exp = _val(deductions.get("professional_expenses"))
 
+    net_salary = _val(
+        income.get("net_salary")
+        or income.get("net_employment_income")
+        or (gross_emp if gross_emp > Decimal("0") else Decimal("0"))
+    )
+    has_company_car = bool(
+        income.get("has_company_car")
+        or income.get("box_f")
+        or personal.get("has_company_car")
+        or deductions.get("has_company_car")
+    )
+    has_canteen = bool(
+        income.get("has_canteen")
+        or income.get("box_g")
+        or personal.get("has_canteen")
+        or deductions.get("has_canteen")
+    )
+    commute_mode = str(
+        deductions.get("commute_mode")
+        or personal.get("commute_mode")
+        or "pt"
+    ).lower()
+    commute_km = _val(
+        deductions.get("commute_km_per_day")
+        or deductions.get("commute_km")
+    )
+    home_office_days = int(deductions.get("home_office_days") or 0)
+    holidays = int(deductions.get("holidays") or 0)
+    confession = str(personal.get("confession") or personal.get("religion") or "").lower()
+    is_church_member = bool(
+        personal.get("is_church_member")
+        or confession in ("catholic", "reformed", "evangelical", "christian_catholic", "römisch-katholisch", "evangelisch-reformiert")
+    )
+    church_rate = _val(personal.get("church_tax_rate") or deductions.get("church_tax_rate") or Decimal("0.10"))
+
     children = personal.get("children", [])
     if isinstance(children, list):
         num_children = len(children)
@@ -844,6 +891,15 @@ def _adapt_profile(profile: Any, rules: TaxRuleSet, tax_return: Any = None) -> T
         other_assets=Decimal("0"),
         mortgage_balance=mortgage,
         other_liabilities=Decimal("0"),
+        net_salary=net_salary,
+        has_company_car=has_company_car,
+        has_canteen=has_canteen,
+        commute_mode=commute_mode,
+        commute_km_per_day=commute_km,
+        home_office_days=home_office_days,
+        holidays=holidays,
+        is_church_member=is_church_member,
+        church_tax_rate=church_rate,
     )
 
 
@@ -955,72 +1011,46 @@ class TaxCalculationEngine:
             "DBG Art. 16",
         )
 
-        # 1a. Commuting expenses
-        commuting_ded = self._commuting_deduction(
-            profile, rules, is_married, breakdown, _line
+        # -------------------------------------------------------------------
+        # 1. Dual-Run Deductions (Canton & Federal)
+        # -------------------------------------------------------------------
+        canton_ded_total, canton_ded_list, canton_dmap = self._compute_deductions_for_level(
+            profile, rules, "canton", gross_income, is_married
         )
+        canton_taxable_income = max(_chf(gross_income - canton_ded_total), _ZERO)
 
-        # 1b. Meal deductions
-        meal_ded = self._meal_deduction(profile, rules, breakdown, _line)
-
-        # 1c. Professional expenses (equipment + flat rate)
-        prof_ded = self._professional_expenses_deduction(
-            profile, rules, gross_income, breakdown, _line
+        federal_ded_total, federal_ded_list, federal_dmap = self._compute_deductions_for_level(
+            profile, rules, "federal", gross_income, is_married
         )
+        federal_taxable_income = max(_chf(gross_income - federal_ded_total), _ZERO)
 
-        # 1d. Pillar 3a
-        pillar3a_ded = self._pillar3a_deduction(profile, rules, breakdown, _line)
+        # Record Canton deductions in line-item audit trail
+        for item in canton_ded_list:
+            _line(
+                f"{item['label']} (Canton {rules.canton_code})",
+                -item["amount"],
+                item["code"],
+                item.get("source_ref") or f"StG {rules.canton_code}",
+                canton=rules.canton_code,
+            )
 
-        # 1e. Health insurance
-        health_ded = self._health_insurance_deduction(
-            profile, rules, is_married, breakdown, _line
-        )
-
-        # 1f. Medical expenses (above 5% threshold)
-        medical_ded = self._medical_expense_deduction(
-            profile, rules, gross_income, breakdown, _line
-        )
-
-        # 1g. Interest on debts
-        interest_ded = self._interest_deduction(profile, rules, breakdown, _line)
-
-        # 1h. Donations
-        donation_ded = self._donation_deduction(
-            profile, rules, gross_income, breakdown, _line
-        )
-
-        # 1i. Childcare
-        childcare_ded = self._childcare_deduction(profile, rules, breakdown, _line)
-
-        # 1j. Child deductions
-        child_ded = self._child_deduction(profile, rules, breakdown, _line)
-
-        # 1k. Other deductions
-        other_ded = min(profile.other_deductions, profile.other_deductions)  # no cap
-        if other_ded > _ZERO:
-            _line("Other Deductions", -other_ded, "other_deductions", "DBG Art. 33 ff.")
-
-        total_deductions = (
-            commuting_ded
-            + meal_ded
-            + prof_ded
-            + pillar3a_ded
-            + health_ded
-            + medical_ded
-            + interest_ded
-            + donation_ded
-            + (childcare_ded or _ZERO)
-            + (child_ded or _ZERO)
-            + other_ded
-        )
-
-        taxable_income = max(_chf(gross_income - total_deductions), _ZERO)
         _line(
-            "Taxable Income",
-            taxable_income,
-            "taxable_income",
+            f"Taxable Income Canton ({rules.canton_code})",
+            canton_taxable_income,
+            "canton_taxable_income",
+            f"StG {rules.canton_code}",
+            canton=rules.canton_code,
+        )
+
+        _line(
+            "Taxable Income Direct Federal (DBG)",
+            federal_taxable_income,
+            "federal_taxable_income",
             "DBG Art. 25",
         )
+
+        # Standard taxable income alias for single-figure displays
+        taxable_income = canton_taxable_income
 
         # ===================================================================
         # STEP 2: TAXABLE WEALTH
@@ -1064,19 +1094,19 @@ class TaxCalculationEngine:
         )
 
         # ===================================================================
-        # STEP 3: FEDERAL INCOME TAX
+        # STEP 3: FEDERAL INCOME TAX (Calculated on Federal Taxable Income)
         # ===================================================================
 
         federal_tax = self._compute_federal_income_tax(
-            taxable_income, rules, is_married, breakdown, _line
+            federal_taxable_income, rules, is_married, breakdown, _line
         )
 
         # ===================================================================
-        # STEP 4: CANTONAL INCOME TAX
+        # STEP 4: CANTONAL INCOME TAX (Calculated on Canton Taxable Income)
         # ===================================================================
 
         cantonal_income_tax = _chf(
-            _apply_progressive_bracket(taxable_income, rules.cantonal_income_brackets)
+            _apply_progressive_bracket(canton_taxable_income, rules.cantonal_income_brackets)
         )
         _line(
             f"Cantonal Income Tax ({rules.canton_code}) — basic tax",
@@ -1087,7 +1117,7 @@ class TaxCalculationEngine:
         )
 
         # ===================================================================
-        # STEP 5: MUNICIPAL INCOME TAX
+        # STEP 5: MUNICIPAL INCOME TAX & CHURCH TAX
         # ===================================================================
 
         muni_multiplier = Decimal(str(rules.municipality_multiplier))
@@ -1099,6 +1129,21 @@ class TaxCalculationEngine:
             f"Municipal tax multiplier {rules.municipality_name}",
             canton=rules.canton_code,
         )
+
+        # Church tax (if member)
+        church_tax = Decimal("0")
+        if profile.is_church_member:
+            ch_rate = profile.church_tax_rate
+            if ch_rate > Decimal("1.0"):
+                ch_rate = ch_rate / Decimal("100")
+            church_tax = _chf(cantonal_income_tax * ch_rate)
+            _line(
+                f"Church Tax ({rules.municipality_name}, {float(ch_rate*100):.1f}%)",
+                church_tax,
+                "church_tax",
+                "Kirchensteuergesetz",
+                canton=rules.canton_code,
+            )
 
         # ===================================================================
         # STEP 6: WEALTH TAX
@@ -1115,7 +1160,9 @@ class TaxCalculationEngine:
             canton=rules.canton_code,
         )
 
-        wealth_tax_canton = _chf(cantonal_wealth_simple * muni_multiplier / Decimal("100"))
+        wealth_tax_canton = cantonal_wealth_simple
+        wealth_tax_municipal = _chf(cantonal_wealth_simple * muni_multiplier / Decimal("100"))
+
         _line(
             f"Cantonal Wealth Tax ({rules.canton_code})",
             wealth_tax_canton,
@@ -1123,16 +1170,6 @@ class TaxCalculationEngine:
             f"StG {rules.canton_code}",
             canton=rules.canton_code,
         )
-
-        wealth_tax_municipal = _chf(cantonal_wealth_simple * muni_multiplier / Decimal("100"))
-        # NOTE: In most cantons, the municipal wealth tax uses the same simple cantonal
-        # wealth tax × municipal multiplier. The cantonal portion is the simple tax itself.
-        # We separate them for display purposes.
-        # Correct split: canton gets simple, municipality gets simple × (muni_mult/100)
-        # Total = simple × (1 + muni_mult/100)
-        wealth_tax_canton = cantonal_wealth_simple  # canton share = simple tax
-        wealth_tax_municipal = _chf(cantonal_wealth_simple * muni_multiplier / Decimal("100"))
-
         _line(
             f"Municipal Wealth Tax ({rules.municipality_name})",
             wealth_tax_municipal,
@@ -1142,30 +1179,31 @@ class TaxCalculationEngine:
         )
 
         # ===================================================================
-        # STEP 7: TOTALS
+        # STEP 7: TOTALS (Milestone 2: strictly labeled « ca. CHF … »)
         # ===================================================================
 
         total_tax = _chf(
             federal_tax
             + cantonal_income_tax
             + municipal_income_tax
+            + church_tax
             + wealth_tax_canton
             + wealth_tax_municipal
         )
-        _line("Total Tax", total_tax, "total_tax", "All levels")
+        _line("Total Tax (ca. CHF)", total_tax, "total_tax", "All levels")
 
         deductions_applied = TaxDeductionsApplied(
-            commuting=commuting_ded,
-            meals=meal_ded,
-            professional_expenses=prof_ded,
-            pillar3a=pillar3a_ded,
-            health_insurance=health_ded,
-            medical_expenses=medical_ded,
-            donations=donation_ded,
-            childcare=childcare_ded,
-            child_deduction=child_ded,
-            interest_expenses=interest_ded,
-            other=other_ded,
+            commuting=canton_dmap.get("commuting", _ZERO),
+            meals=canton_dmap.get("meals", _ZERO),
+            professional_expenses=canton_dmap.get("professional_expenses", _ZERO),
+            pillar3a=canton_dmap.get("pillar3a", _ZERO),
+            health_insurance=canton_dmap.get("health_insurance", _ZERO),
+            medical_expenses=canton_dmap.get("medical_expenses", _ZERO),
+            donations=canton_dmap.get("donations", _ZERO),
+            childcare=canton_dmap.get("childcare") if profile.num_children > 0 else None,
+            child_deduction=canton_dmap.get("child_deduction") if profile.num_children > 0 else None,
+            interest_expenses=canton_dmap.get("interest_expenses", _ZERO),
+            other=canton_dmap.get("other", _ZERO),
         )
 
         return TaxCalculationResult(
@@ -1176,17 +1214,291 @@ class TaxCalculationEngine:
             marital_status=profile.marital_status,
             rule_version=rules.version,
             calculated_at=datetime.utcnow(),
-            taxable_income=taxable_income,
+            taxable_income=canton_taxable_income,
             taxable_wealth=taxable_wealth,
+            canton_taxable_income=canton_taxable_income,
+            federal_taxable_income=federal_taxable_income,
+            canton_deductions_total=canton_ded_total,
+            federal_deductions_total=federal_ded_total,
+            canton_deductions_list=canton_ded_list,
+            federal_deductions_list=federal_ded_list,
             federal_income_tax=federal_tax,
             cantonal_income_tax=cantonal_income_tax,
             municipal_income_tax=municipal_income_tax,
+            church_tax=church_tax,
             wealth_tax_canton=wealth_tax_canton,
             wealth_tax_municipal=wealth_tax_municipal,
             total_tax=total_tax,
             deductions_applied=deductions_applied,
             breakdown=breakdown,
         )
+
+    # -----------------------------------------------------------------------
+    # Dual-Run Deduction Engine (Milestone 2, Part A2 & A4)
+    # -----------------------------------------------------------------------
+
+    def _compute_deductions_for_level(
+        self,
+        profile: TaxProfile,
+        rules: TaxRuleSet,
+        level: str,  # "canton" | "federal"
+        gross_income: Decimal,
+        is_married: bool,
+    ) -> tuple[Decimal, list[dict[str, Any]], dict[str, Decimal]]:
+        lvl = level.lower()
+        items: list[dict[str, Any]] = []
+        dmap: dict[str, Decimal] = {}
+
+        # 1. Commuting
+        commute_amt = _ZERO
+        commute_label = "Fahrkosten (Arbeitsweg)"
+        commute_code = "commute_total"
+        commute_ref = "DBG Art. 26" if lvl == "federal" else f"StG {rules.canton_code} § 26 / Wegleitung"
+        commute_type = "cap"
+        commute_expl = ""
+
+        if profile.has_company_car:
+            commute_amt = _ZERO
+            commute_label = "Fahrkosten (Box F: Firmenwagen / Unentgeltliche Beförderung)"
+            commute_expl = "Box F: Firmenwagen / Unentgeltliche Beförderung"
+        elif profile.commute_mode == "bike":
+            commute_amt = Decimal("700")
+            commute_label = "Fahrkosten (Velo-Pauschale)"
+            commute_code = "commute_bike"
+            commute_type = "flat"
+            commute_expl = "Pauschale für Velo / E-Bike"
+        elif profile.commute_mode == "foot":
+            commute_amt = _ZERO
+            commute_label = "Fahrkosten (Zu Fuss)"
+            commute_code = "commute_foot"
+            commute_type = "flat"
+            commute_expl = "Arbeitsweg zu Fuss"
+        elif profile.commute_mode == "car":
+            cap = Decimal("3300") if lvl == "federal" else rules.cantonal_deductions.commuting_max_chf
+            eff_days = max(0, profile.working_days - profile.home_office_days - profile.holidays)
+            calc_val = profile.commute_km_per_day * Decimal("0.70") * Decimal(str(eff_days))
+            commute_amt = _chf(min(calc_val, cap))
+            commute_label = f"Fahrkosten Auto ({profile.commute_km_per_day} km/Tag, {eff_days} Tage)"
+            commute_code = "commute_car"
+            commute_type = "per_km"
+            commute_expl = f"CHF 0.70/km x {profile.commute_km_per_day} km x {eff_days} Tage (max. CHF {cap:,.0f})"
+        else:
+            # pt / ÖV or claimed
+            cap = Decimal("3300") if lvl == "federal" else rules.cantonal_deductions.commuting_max_chf
+            claimed = profile.commuting_expense_claimed
+            commute_amt = _chf(min(claimed, cap))
+            commute_label = "Fahrkosten (ÖV)"
+            commute_code = "commute_total"
+            commute_expl = f"Effektive Kosten bis max. CHF {cap:,.0f}"
+
+        items.append({
+            "code": commute_code,
+            "label": commute_label,
+            "amount": commute_amt,
+            "level": lvl,
+            "form_field": "2.1",
+            "rule_type": commute_type,
+            "source_ref": commute_ref,
+            "explanation": commute_expl,
+        })
+        dmap["commuting"] = commute_amt
+
+        # 2. Meals
+        eff_days = max(0, profile.working_days - profile.home_office_days - profile.holidays)
+        meal_ref = "DBG Art. 26 Abs. 1 lit. b" if lvl == "federal" else f"StG {rules.canton_code} Wegleitung S. 13"
+        if profile.has_canteen:
+            max_canteen = Decimal("1600")
+            if profile.home_office_days > 0 or profile.holidays > 0:
+                meal_amt = _chf(min(Decimal("7.50") * Decimal(str(eff_days)), max_canteen))
+            else:
+                meal_amt = max_canteen
+            meal_label = f"Mehrkosten Verpflegung (Box G: Kantine/Beitrag, {eff_days} Tage)"
+            meal_code = "meal_deduction_canteen"
+            meal_expl = f"CHF 7.50 x {eff_days} Tage"
+        else:
+            max_full = Decimal("3200")
+            if profile.home_office_days > 0 or profile.holidays > 0:
+                calc_val = Decimal("15.00") * Decimal(str(eff_days))
+                meal_amt = _chf(min(calc_val, max_full))
+            else:
+                meal_amt = max_full
+            if profile.meals_expense_claimed > _ZERO:
+                meal_amt = _chf(min(profile.meals_expense_claimed, meal_amt))
+            meal_label = f"Mehrkosten Verpflegung ({eff_days} Tage)"
+            meal_code = "meal_deduction_full"
+            meal_expl = f"CHF 15.00 x {eff_days} Tage"
+
+        items.append({
+            "code": meal_code,
+            "label": meal_label,
+            "amount": meal_amt,
+            "level": lvl,
+            "form_field": "2.2",
+            "rule_type": "flat",
+            "source_ref": meal_ref,
+            "explanation": meal_expl,
+        })
+        dmap["meals"] = meal_amt
+
+        # 3. Professional expenses (3% flat rate on Netto salary, min 2000, max 4000)
+        net_base = profile.net_salary if profile.net_salary > _ZERO else profile.gross_employment_income
+        lim_min = Decimal("2000")
+        lim_max = Decimal("4000")
+        flat = _chf(net_base * Decimal("0.03"))
+        flat = max(min(flat, lim_max), lim_min)
+        actual = profile.equipment_expense_claimed
+        prof_amt = _chf(min(max(actual, flat), lim_max))
+        items.append({
+            "code": "work_expenses_flat",
+            "label": "Übrige Berufskosten",
+            "amount": prof_amt,
+            "level": lvl,
+            "form_field": "2.3",
+            "rule_type": "rate",
+            "source_ref": "DBG Art. 26" if lvl == "federal" else f"StG {rules.canton_code} Wegleitung S. 14",
+            "explanation": f"3% von Nettolohn (CHF {net_base:,.0f}), Min. CHF 2'000, Max. CHF 4'000",
+        })
+        dmap["professional_expenses"] = prof_amt
+
+        # 4. Pillar 3a
+        p3a_limit = Decimal("36288") if profile.is_self_employed else Decimal("7258")
+        p3a_amt = _chf(min(profile.pillar3a_contribution, p3a_limit))
+        items.append({
+            "code": "pillar3a",
+            "label": "Säule 3a",
+            "amount": p3a_amt,
+            "level": lvl,
+            "form_field": "10.1",
+            "rule_type": "cap",
+            "source_ref": "BVG Art. 82 / BVV3",
+            "explanation": f"Beiträge bis max. CHF {p3a_limit:,.0f}",
+        })
+        dmap["pillar3a"] = p3a_amt
+
+        # 5. Health insurance
+        if lvl == "canton":
+            hi_cap = (Decimal("5200") if is_married else Decimal("2600")) + Decimal("1300") * profile.num_children
+            hi_ref = f"StG {rules.canton_code} § Krankenkasse"
+        else:
+            hi_cap = (Decimal("5600") if is_married else Decimal("2800")) + Decimal("700") * profile.num_children
+            hi_ref = "DBG Art. 33"
+        hi_amt = _chf(min(profile.health_insurance_premium_paid, hi_cap))
+        items.append({
+            "code": "health_insurance",
+            "label": "Krankenkassenprämien",
+            "amount": hi_amt,
+            "level": lvl,
+            "form_field": "11.1",
+            "rule_type": "cap",
+            "source_ref": hi_ref,
+            "explanation": f"Prämien bis max. CHF {hi_cap:,.0f}",
+        })
+        dmap["health_insurance"] = hi_amt
+
+        # 6. Medical expenses (5% excess threshold)
+        net_threshold_base = profile.net_salary if profile.net_salary > _ZERO else gross_income
+        med_thresh = _chf(net_threshold_base * Decimal("0.05"))
+        med_amt = _chf(max(profile.medical_expenses_paid - med_thresh, _ZERO))
+        items.append({
+            "code": "medical_expenses",
+            "label": "Krankheits- und Unfallkosten",
+            "amount": med_amt,
+            "level": lvl,
+            "form_field": "13.1",
+            "rule_type": "rate",
+            "source_ref": "DBG Art. 33 lit. h" if lvl == "federal" else f"StG {rules.canton_code} § 33",
+            "explanation": f"Selbstbehalt 5% von Einkommen (CHF {med_thresh:,.0f})",
+        })
+        dmap["medical_expenses"] = med_amt
+
+        # 7. Interest on debts
+        debt_amt = _chf(profile.interest_on_debts)
+        items.append({
+            "code": "debt_interest",
+            "label": "Schuldzinsen",
+            "amount": debt_amt,
+            "level": lvl,
+            "form_field": "12.1",
+            "rule_type": "cap",
+            "source_ref": "DBG Art. 33 lit. a" if lvl == "federal" else f"StG {rules.canton_code}",
+            "explanation": "Tatsächlich bezahlte Schuldzinsen",
+        })
+        dmap["interest_expenses"] = debt_amt
+
+        # 8. Donations
+        if profile.donations >= Decimal("100"):
+            net_don_base = profile.net_salary if profile.net_salary > _ZERO else gross_income
+            don_max = _chf(net_don_base * Decimal("0.20"))
+            don_amt = _chf(min(profile.donations, don_max))
+        else:
+            don_amt = _ZERO
+        items.append({
+            "code": "donations",
+            "label": "Freiwillige Zuwendungen (Spenden)",
+            "amount": don_amt,
+            "level": lvl,
+            "form_field": "14.1",
+            "rule_type": "rate",
+            "source_ref": "DBG Art. 33a" if lvl == "federal" else f"StG {rules.canton_code}",
+            "explanation": "Mindestbetrag CHF 100, max. 20% des Einkommens",
+        })
+        dmap["donations"] = don_amt
+
+        # 9. Child deduction
+        if profile.num_children > 0:
+            per_child = Decimal("6700") if lvl == "federal" else Decimal("9000")
+            child_amt = _chf(per_child * Decimal(str(profile.num_children)))
+        else:
+            child_amt = _ZERO
+        items.append({
+            "code": "child_deduction",
+            "label": f"Kinderabzug ({profile.num_children} Kind(er))",
+            "amount": child_amt,
+            "level": lvl,
+            "form_field": "16.1",
+            "rule_type": "flat",
+            "source_ref": "DBG Art. 35" if lvl == "federal" else f"StG {rules.canton_code} § 35",
+            "explanation": f"CHF {per_child if profile.num_children > 0 else 0:,.0f} pro Kind",
+        })
+        dmap["child_deduction"] = child_amt
+
+        # 10. Childcare costs
+        if profile.num_children > 0 and profile.childcare_costs > _ZERO:
+            per_care = Decimal("25500") if lvl == "federal" else Decimal("10100")
+            care_cap = per_care * Decimal(str(profile.num_children))
+            care_amt = _chf(min(profile.childcare_costs, care_cap))
+        else:
+            care_amt = _ZERO
+        items.append({
+            "code": "childcare_costs",
+            "label": "Drittbetreuungskosten für Kinder",
+            "amount": care_amt,
+            "level": lvl,
+            "form_field": "16.2",
+            "rule_type": "cap",
+            "source_ref": "DBG Art. 33 Abs. 3" if lvl == "federal" else f"StG {rules.canton_code} § 33",
+            "explanation": f"Kosten bis max. CHF {per_care if profile.num_children > 0 else 0:,.0f} pro Kind",
+        })
+        dmap["childcare"] = care_amt
+
+        # 11. Other deductions
+        other_amt = _chf(profile.other_deductions)
+        items.append({
+            "code": "other_deductions",
+            "label": "Übrige Abzüge",
+            "amount": other_amt,
+            "level": lvl,
+            "form_field": "15.1",
+            "rule_type": "cap",
+            "source_ref": "DBG Art. 33 ff." if lvl == "federal" else f"StG {rules.canton_code}",
+            "explanation": "Weitere gesetzliche Abzüge",
+        })
+        dmap["other"] = other_amt
+
+        # Filter out 0 amounts from display items, but compute exact total
+        active_items = [it for it in items if it["amount"] > _ZERO]
+        total_ded = sum((it["amount"] for it in active_items), _ZERO)
+        return total_ded, active_items, dmap
 
     # -----------------------------------------------------------------------
     # Private helpers — one method per deduction type
@@ -1270,7 +1582,10 @@ class TaxCalculationEngine:
           - flat rate (3% of income, min/max bounded)
         """
         lim = rules.cantonal_deductions
-        flat = _chf(gross_income * lim.professional_expenses_flat_rate_pct)
+        net_base = getattr(profile, "net_salary", Decimal("0"))
+        if net_base <= Decimal("0"):
+            net_base = profile.gross_employment_income or gross_income
+        flat = _chf(net_base * lim.professional_expenses_flat_rate_pct)
         flat = max(min(flat, lim.professional_expenses_max), lim.professional_expenses_min)
 
         actual = profile.equipment_expense_claimed
@@ -1285,7 +1600,7 @@ class TaxCalculationEngine:
             )
         else:
             _line(
-                f"Professional expenses flat rate ({lim.professional_expenses_flat_rate_pct*100:.0f}% of CHF {gross_income:,.0f})",
+                f"Professional expenses flat rate ({lim.professional_expenses_flat_rate_pct*100:.0f}% of Netto CHF {net_base:,.0f})",
                 -deducted,
                 "professional_expenses_flat",
                 f"StG {rules.canton_code} / DBG Art. 26",
