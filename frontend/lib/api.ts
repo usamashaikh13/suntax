@@ -407,10 +407,14 @@ export const taxReturnsApi = {
   },
 
   /**
-   * Confirms payment of CHF 39 fee.
+   * Confirms payment of CHF 39 fee with payment provider verification.
    */
-  async confirmPayment(taxReturnId: string, method: string = 'twint'): Promise<any> {
-    const response = await apiClient.post(`/tax-returns/${taxReturnId}/payment/confirm`, { method });
+  async confirmPayment(
+    taxReturnId: string,
+    params: { method?: string; gateway_id?: string; transaction_id?: string } | string = 'twint'
+  ): Promise<any> {
+    const payload = typeof params === 'string' ? { method: params } : params;
+    const response = await apiClient.post(`/tax-returns/${taxReturnId}/payment/confirm`, payload);
     return response.data;
   },
 
@@ -435,6 +439,46 @@ export const taxReturnsApi = {
     const response = await apiClient.get('/tax-returns/suggest-defaults');
     return response.data;
   },
+
+  /**
+   * Invite Partner 2 for personal confirmation (Art. 113 DBG).
+   */
+  async partner2Invite(id: string, data: { email: string; phone?: string }): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${id}/partner2/invite`, data);
+    return response.data;
+  },
+
+  /**
+   * Check Partner 2 confirmation status.
+   */
+  async partner2Status(id: string): Promise<{
+    tax_return_id: string;
+    is_confirmed: boolean;
+    confirmed_at: string | null;
+    confirmed_name: string | null;
+    partner2_email: string | null;
+    token_expires_at: string | null;
+    is_token_expired: boolean;
+  }> {
+    const response = await apiClient.get(`/tax-returns/${id}/partner2/status`);
+    return response.data;
+  },
+
+  /**
+   * Public endpoint to load return summary for Partner 2.
+   */
+  async getPartnerReturn(token: string): Promise<any> {
+    const response = await apiClient.get(`/tax-returns/partner-confirm/${token}`);
+    return response.data;
+  },
+
+  /**
+   * Public endpoint for Partner 2 to confirm and sign.
+   */
+  async confirmPartnerReturn(token: string, data: { confirmed: boolean; full_name: string }): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/partner-confirm/${token}`, data);
+    return response.data;
+  },
 };
 
 // ─── Cantons API ──────────────────────────────────────────────────────────────
@@ -445,6 +489,20 @@ export const cantonsApi = {
    */
   async list(): Promise<Canton[]> {
     const response = await apiClient.get<Canton[]>('/cantons');
+    return response.data;
+  },
+
+  /**
+   * Resolves a Swiss postal code (PLZ) to canton and BFS municipality code.
+   */
+  async lookupPlz(plz: string): Promise<{
+    plz: string;
+    default_canton: string;
+    default_bfs: string;
+    default_name: string;
+    municipalities: Array<{ bfs: string; name: string; canton: string }>;
+  }> {
+    const response = await apiClient.get(`/cantons/plz/${plz}`);
     return response.data;
   },
 

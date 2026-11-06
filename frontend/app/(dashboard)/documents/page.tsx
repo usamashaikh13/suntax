@@ -2,12 +2,11 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import {
-  FileText, Filter, Upload, ShieldCheck, CheckCircle2,
-  Clock, AlertCircle, Sparkles, Plus, Search, FolderOpen
+  FileText, Upload, ShieldCheck, CheckCircle2,
+  FolderOpen, Search
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { DocumentList } from '@/components/document-upload/DocumentList'
 import { DocumentUploader } from '@/components/document-upload/DocumentUploader'
 import { useToast } from '@/components/ui/toast'
@@ -16,16 +15,16 @@ import { Document, DocumentType } from '@/types'
 import { cn } from '@/lib/utils'
 
 const DOC_TYPE_LABELS: Record<string, string> = {
-  salary_certificate: 'Salary Certificate (Lohnausweis)',
-  bank_statement: 'Bank Statement',
-  securities_statement: 'Securities Statement',
-  pillar3a: 'Pillar 3a Certificate',
-  insurance: 'Health Insurance Premium',
-  mortgage: 'Mortgage Interest Statement',
-  tax_assessment: 'Prior Tax Assessment',
-  donation_receipt: 'Donation Receipt',
-  medical_expense: 'Medical & Dental Bills',
-  other: 'Other Tax Receipt',
+  salary_certificate: 'Lohnausweis',
+  bank_statement: 'Bankauszug / e-Tax',
+  securities_statement: 'Wertschriftenverzeichnis',
+  pillar3a: 'Säule-3a-Bescheinigung',
+  insurance: 'Krankenkassen-Prämienabrechnung',
+  mortgage: 'Hypothekarzinsausweis',
+  tax_assessment: 'Vorjahres-Veranlagung',
+  donation_receipt: 'Spendenbescheinigung',
+  medical_expense: 'Krankheits- & Zahnarztkosten',
+  other: 'Weiterer Steuerbeleg',
 }
 
 export default function DocumentsPage() {
@@ -42,7 +41,7 @@ export default function DocumentsPage() {
       const list = Array.isArray(docs) ? docs : []
       setDocuments(list)
     } catch {
-      toast({ title: 'Failed to load documents', variant: 'destructive' })
+      toast({ title: 'Dokumente konnten nicht geladen werden', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -94,24 +93,24 @@ export default function DocumentsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-              Deterministic OCR & Field Extraction
+            <span className="text-[11px] font-bold text-primary bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              Automatisierte Beleg-Erkennung (OCR)
             </span>
             <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs text-slate-500 font-medium">End-to-End Encrypted</span>
+            <span className="text-xs text-slate-500 font-medium">AES-256 verschlüsselt</span>
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Documents Vault</h2>
+          <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Dokumenten-Tresor</h2>
           <p className="text-sm text-slate-500 mt-1">
-            Store and manage tax slips with automatic cantonal deduction and salary extraction.
+            Verwalte deine Steuerunterlagen mit automatischer Erkennung von Lohn und Abzügen.
           </p>
         </div>
 
         <Button
           onClick={() => setShowUploader(prev => !prev)}
-          className="bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-600/20 font-semibold h-10 px-4"
+          className="bg-primary hover:bg-primary-600 text-white shadow-sm font-semibold h-10 px-4"
         >
           <Upload className="h-4 w-4 mr-2" />
-          {showUploader ? 'Close Uploader' : 'Upload Documents'}
+          {showUploader ? 'Upload schliessen' : 'Dokumente hochladen'}
         </Button>
       </div>
 
@@ -124,7 +123,7 @@ export default function DocumentsPage() {
             </div>
             <div>
               <p className="text-xl font-bold text-slate-900">{stats.total}</p>
-              <p className="text-xs text-slate-500">Total Tax Files</p>
+              <p className="text-xs text-slate-500">Steuerdokumente gesamt</p>
             </div>
           </CardContent>
         </Card>
@@ -136,7 +135,7 @@ export default function DocumentsPage() {
             </div>
             <div>
               <p className="text-xl font-bold text-slate-900">{stats.completed}</p>
-              <p className="text-xs text-slate-500">AI Processed & Verified</p>
+              <p className="text-xs text-slate-500">Erkannt & Verifiziert</p>
             </div>
           </CardContent>
         </Card>
@@ -147,8 +146,8 @@ export default function DocumentsPage() {
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div>
-              <p className="text-xl font-bold text-slate-900">Zero Leakage</p>
-              <p className="text-xs text-slate-500">Swiss FADP Compliant</p>
+              <p className="text-xl font-bold text-slate-900">Schweizer nDSG</p>
+              <p className="text-xs text-slate-500">Volle Datensouveränität</p>
             </div>
           </CardContent>
         </Card>
@@ -156,14 +155,14 @@ export default function DocumentsPage() {
 
       {/* Upload Drawer (Collapsible) */}
       {showUploader && (
-        <Card className="border-red-200 bg-red-50/10 shadow-md">
+        <Card className="border-emerald-200 bg-emerald-50/20 shadow-md">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-900">
-              <Upload className="h-4 w-4 text-red-600" />
-              Upload Tax Documents
+              <Upload className="h-4 w-4 text-primary" />
+              Steuerdokumente hochladen
             </CardTitle>
             <CardDescription className="text-xs">
-              Upload PDF or image files (up to 50MB each). Lohnausweis, Pillar 3a, and bank statements are automatically classified.
+              Lade PDF- oder Bilddateien hoch (bis zu 50 MB pro Datei). Lohnausweise, Säule 3a und Bankauszüge werden automatisch erkannt.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -184,10 +183,10 @@ export default function DocumentsPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search documents by filename..."
+            placeholder="Dokumente nach Dateinamen durchsuchen..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-transparent rounded-lg border-none focus:outline-none focus:ring-1 focus:ring-red-600 text-slate-900 placeholder:text-slate-400"
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-transparent rounded-lg border-none focus:outline-none focus:ring-1 focus:ring-primary text-slate-900 placeholder:text-slate-400"
           />
         </div>
 
@@ -202,7 +201,7 @@ export default function DocumentsPage() {
                 : 'text-slate-600 hover:text-slate-900'
             )}
           >
-            All ({documents.length})
+            Alle ({documents.length})
           </button>
           {uniqueTypes.map(type => (
             <button
@@ -226,31 +225,31 @@ export default function DocumentsPage() {
         <CardContent className="p-5">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-2">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-red-600 border-t-transparent" />
-              <p className="text-xs text-slate-500 font-medium">Loading files...</p>
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+              <p className="text-xs text-slate-500 font-medium">Dokumente werden geladen...</p>
             </div>
           ) : filteredDocs.length === 0 ? (
             <div className="py-16 text-center space-y-4">
-              <div className="h-14 w-14 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto shadow-sm">
+              <div className="h-14 w-14 rounded-2xl bg-emerald-50 text-primary flex items-center justify-center mx-auto shadow-sm">
                 <FileText className="h-7 w-7" />
               </div>
               <div className="space-y-1">
                 <h3 className="text-base font-bold text-slate-900">
-                  {searchQuery || typeFilter !== 'all' ? 'No matching documents' : 'No documents uploaded yet'}
+                  {searchQuery || typeFilter !== 'all' ? 'Keine passenden Dokumente gefunden' : 'Noch keine Dokumente hochgeladen'}
                 </h3>
                 <p className="text-xs text-slate-500 max-w-sm mx-auto">
                   {searchQuery || typeFilter !== 'all'
-                    ? 'Try clearing your filter or searching for another file.'
-                    : 'Upload your Swiss salary certificates, bank statements, or insurance slips to extract numbers automatically.'}
+                    ? 'Versuche, den Suchfilter zurückzusetzen.'
+                    : 'Lade deine Lohnausweise, Bankauszüge oder Belege hoch, um die Beträge automatisch zu übernehmen.'}
                 </p>
               </div>
               {!searchQuery && typeFilter === 'all' && (
                 <Button
                   onClick={() => setShowUploader(true)}
-                  className="bg-red-600 hover:bg-red-700 text-white text-xs"
+                  className="bg-primary hover:bg-primary-600 text-white text-xs"
                 >
                   <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  Upload First Document
+                  Erstes Dokument hochladen
                 </Button>
               )}
             </div>

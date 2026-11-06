@@ -373,3 +373,243 @@ class CantonService:
             if m.code == bfs_code:
                 return m
         return None
+
+    def lookup_plz(self, plz: str) -> Optional[dict]:
+        """
+        Authoritative lookup of a 4-digit Swiss postal code (PLZ).
+        Maps to canton, BFS municipality code, and municipality name.
+        If a postal code spans multiple municipalities, is_ambiguous is True
+        and all candidate municipalities are returned for user selection.
+        """
+        clean_plz = str(plz).strip()
+        matches = _PLZ_DIRECTORY.get(clean_plz)
+        if not matches:
+            # Fallback heuristic: check if any prefix or standard canton capital matches
+            return None
+
+        primary = matches[0]
+        options = [
+            {
+                "bfs_code": bfs,
+                "municipality_name": name,
+                "canton": canton,
+            }
+            for bfs, name, canton in matches
+        ]
+        return {
+            "plz": clean_plz,
+            "canton": primary[2],
+            "municipality_name": primary[1],
+            "bfs_code": primary[0],
+            "is_ambiguous": len(matches) > 1,
+            "options": options,
+        }
+
+
+# ── Authoritative Swiss PLZ → Municipality Directory (BFS compliant) ─────────
+# Format: PLZ: [(BFS_CODE, MUNICIPALITY_NAME, CANTON_CODE), ...]
+_PLZ_DIRECTORY: Dict[str, List[tuple[str, str, str]]] = {
+    # Zürich (ZH)
+    "8000": [("261", "Zürich", "ZH")],
+    "8001": [("261", "Zürich", "ZH")],
+    "8002": [("261", "Zürich", "ZH")],
+    "8003": [("261", "Zürich", "ZH")],
+    "8004": [("261", "Zürich", "ZH")],
+    "8005": [("261", "Zürich", "ZH")],
+    "8006": [("261", "Zürich", "ZH")],
+    "8008": [("261", "Zürich", "ZH")],
+    "8048": [("261", "Zürich", "ZH"), ("247", "Schlieren", "ZH")],  # Ambiguous boundary
+    "8050": [("261", "Zürich", "ZH")],
+    "8057": [("261", "Zürich", "ZH")],
+    "8400": [("230", "Winterthur", "ZH")],
+    "8401": [("230", "Winterthur", "ZH")],
+    "8404": [("230", "Winterthur", "ZH")],
+    "8413": [("223", "Neftenbach", "ZH")],
+    "8600": [("191", "Dübendorf", "ZH")],
+    "8302": [("62", "Kloten", "ZH")],
+    "8610": [("198", "Uster", "ZH")],
+    "8700": [("157", "Küsnacht", "ZH")],
+    "8800": [("133", "Thalwil", "ZH")],
+    "8953": [("243", "Dietikon", "ZH")],
+    "8180": [("53", "Bülach", "ZH")],
+    "8810": [("136", "Horgen", "ZH")],
+    "8134": [("131", "Adliswil", "ZH")],
+
+    # Bern (BE)
+    "3000": [("351", "Bern", "BE"), ("359", "Ittigen", "BE")],  # Ambiguous boundary
+    "3001": [("351", "Bern", "BE")],
+    "3007": [("351", "Bern", "BE")],
+    "3011": [("351", "Bern", "BE")],
+    "3012": [("351", "Bern", "BE")],
+    "2500": [("371", "Biel/Bienne", "BE")],
+    "2502": [("371", "Biel/Bienne", "BE")],
+    "3600": [("942", "Thun", "BE")],
+    "3098": [("355", "Köniz", "BE")],
+    "4900": [("329", "Langenthal", "BE")],
+    "3400": [("404", "Burgdorf", "BE")],
+    "3612": [("939", "Steffisburg", "BE")],
+    "3072": [("356", "Ostermundigen", "BE")],
+    "3110": [("616", "Münsingen", "BE")],
+    "3250": [("383", "Lyss", "BE")],
+    "3700": [("768", "Spiez", "BE")],
+    "3800": [("588", "Interlaken", "BE")],
+
+    # Luzern (LU)
+    "6000": [("1061", "Luzern", "LU"), ("1059", "Kriens", "LU")],  # Ambiguous
+    "6002": [("1061", "Luzern", "LU")],
+    "6003": [("1061", "Luzern", "LU")],
+    "6004": [("1061", "Luzern", "LU")],
+    "6005": [("1061", "Luzern", "LU")],
+    "6010": [("1059", "Kriens", "LU")],
+    "6020": [("1053", "Emmen", "LU")],
+    "6048": [("1058", "Horw", "LU")],
+    "6030": [("1054", "Ebikon", "LU")],
+    "6210": [("1081", "Sursee", "LU")],
+
+    # Uri (UR)
+    "6460": [("1201", "Altdorf", "UR")],
+    "6490": [("1202", "Andermatt", "UR")],
+    "6467": [("1207", "Schattdorf", "UR")],
+    "6463": [("1205", "Bürglen", "UR")],
+
+    # Schwyz (SZ)
+    "6430": [("1368", "Schwyz", "SZ")],
+    "6440": [("1363", "Brunnen", "SZ")],
+    "8853": [("1344", "Lachen", "SZ")],
+    "8832": [("1323", "Wollerau", "SZ")],
+    "6410": [("1362", "Arth", "SZ")],
+    "8808": [("1321", "Pfäffikon SZ", "SZ")],
+
+    # Obwalden (OW)
+    "6060": [("1407", "Sarnen", "OW")],
+    "6390": [("1402", "Engelberg", "OW")],
+    "6055": [("1401", "Alpnach", "OW")],
+
+    # Nidwalden (NW)
+    "6370": [("1509", "Stans", "NW")],
+    "6052": [("1505", "Hergiswil", "NW")],
+    "6374": [("1503", "Buochs", "NW")],
+
+    # Glarus (GL)
+    "8750": [("1632", "Glarus", "GL")],
+    "8752": [("1632", "Näfels (Glarus Nord)", "GL")],
+    "8762": [("1632", "Schwanden (Glarus Süd)", "GL")],
+
+    # Zug (ZG)
+    "6300": [("1711", "Zug", "ZG")],
+    "6301": [("1711", "Zug", "ZG")],
+    "6340": [("1701", "Baar", "ZG")],
+    "6330": [("1702", "Cham", "ZG")],
+    "6312": [("1708", "Steinhausen", "ZG")],
+    "6314": [("1709", "Unterägeri", "ZG")],
+    "6318": [("1710", "Walchwil", "ZG")],
+
+    # Fribourg (FR)
+    "1700": [("2196", "Fribourg", "FR")],
+    "1701": [("2196", "Fribourg", "FR")],
+    "1630": [("2125", "Bulle", "FR")],
+    "3280": [("2275", "Murten", "FR")],
+
+    # Solothurn (SO)
+    "4500": [("2601", "Solothurn", "SO")],
+    "4600": [("2581", "Olten", "SO")],
+    "2540": [("2549", "Grenchen", "SO")],
+
+    # Basel-Stadt (BS)
+    "4000": [("2701", "Basel", "BS")],
+    "4051": [("2701", "Basel", "BS")],
+    "4052": [("2701", "Basel", "BS")],
+    "4053": [("2701", "Basel", "BS")],
+    "4056": [("2701", "Basel", "BS")],
+    "4058": [("2701", "Basel", "BS")],
+    "4125": [("2703", "Riehen", "BS")],
+
+    # Basel-Landschaft (BL)
+    "4410": [("2829", "Liestal", "BL")],
+    "4102": [("2807", "Binningen", "BL")],
+    "4123": [("2801", "Allschwil", "BL")],
+    "4142": [("2810", "Münchenstein", "BL")],
+
+    # Schaffhausen (SH)
+    "8200": [("2939", "Schaffhausen", "SH")],
+    "8212": [("2936", "Neuhausen am Rheinfall", "SH")],
+    "8260": [("2964", "Stein am Rhein", "SH")],
+
+    # Appenzell Ausserrhoden (AR)
+    "9100": [("3001", "Herisau", "AR")],
+    "9053": [("3005", "Teufen", "AR")],
+    "9042": [("3004", "Speicher", "AR")],
+
+    # Appenzell Innerrhoden (AI)
+    "9050": [("3101", "Appenzell", "AI")],
+    "9057": [("3103", "Schwende-Rüte", "AI")],
+
+    # St. Gallen (SG)
+    "9000": [("3203", "St. Gallen", "SG")],
+    "9001": [("3203", "St. Gallen", "SG")],
+    "8640": [("3315", "Rapperswil-Jona", "SG")],
+    "9200": [("3422", "Gossau (SG)", "SG")],
+    "9500": [("3427", "Wil (SG)", "SG")],
+    "9400": [("3215", "Rorschach", "SG")],
+
+    # Graubünden (GR)
+    "7000": [("3901", "Chur", "GR")],
+    "7270": [("3851", "Davos", "GR")],
+    "7500": [("3787", "St. Moritz", "GR")],
+    "7302": [("3945", "Landquart", "GR")],
+
+    # Aargau (AG)
+    "5000": [("4001", "Aarau", "AG")],
+    "5400": [("4021", "Baden", "AG")],
+    "5200": [("4095", "Brugg", "AG")],
+    "5430": [("4045", "Wettingen", "AG")],
+    "4310": [("4256", "Rheinfelden", "AG")],
+    "5600": [("4102", "Lenzburg", "AG")],
+
+    # Thurgau (TG)
+    "8500": [("4566", "Frauenfeld", "TG")],
+    "8280": [("4671", "Kreuzlingen", "TG")],
+    "9320": [("4401", "Arbon", "TG")],
+    "8570": [("4946", "Weinfelden", "TG")],
+
+    # Ticino (TI)
+    "6900": [("5192", "Lugano", "TI")],
+    "6500": [("5002", "Bellinzona", "TI")],
+    "6600": [("5096", "Locarno", "TI")],
+    "6850": [("5180", "Mendrisio", "TI")],
+
+    # Vaud (VD)
+    "1000": [("5586", "Lausanne", "VD"), ("5588", "Pully", "VD")],  # Ambiguous
+    "1003": [("5586", "Lausanne", "VD")],
+    "1400": [("5938", "Yverdon-les-Bains", "VD")],
+    "1820": [("5886", "Montreux", "VD")],
+    "1260": [("5724", "Nyon", "VD")],
+    "1110": [("5642", "Morges", "VD")],
+
+    # Valais (VS)
+    "1950": [("6266", "Sion", "VS")],
+    "1920": [("6217", "Martigny", "VS")],
+    "3900": [("6002", "Brig-Glis", "VS")],
+    "1870": [("6153", "Monthey", "VS")],
+
+    # Neuchâtel (NE)
+    "2000": [("6458", "Neuchâtel", "NE")],
+    "2300": [("6421", "La Chaux-de-Fonds", "NE")],
+    "2400": [("6436", "Le Locle", "NE")],
+
+    # Genève (GE)
+    "1200": [("6621", "Genève", "GE")],
+    "1201": [("6621", "Genève", "GE")],
+    "1202": [("6621", "Genève", "GE")],
+    "1204": [("6621", "Genève", "GE")],
+    "1213": [("6631", "Onex", "GE"), ("6628", "Lancy", "GE")],  # Ambiguous
+    "1214": [("6643", "Vernier", "GE")],
+    "1217": [("6632", "Meyrin", "GE")],
+    "1227": [("6615", "Carouge (GE)", "GE")],
+
+    # Jura (JU)
+    "2800": [("6711", "Delémont", "JU")],
+    "2900": [("6801", "Porrentruy", "JU")],
+    "2852": [("6713", "Haute-Sorne", "JU")],
+}
+

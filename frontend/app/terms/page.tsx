@@ -7,7 +7,7 @@ export default function TermsPage() {
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto bg-white p-8 sm:p-12 rounded-2xl shadow-sm border border-slate-200 space-y-8">
         <div className="flex items-center justify-between border-b pb-4">
-          <Link href="/" className="text-sm font-semibold text-red-600 hover:text-red-700 flex items-center gap-1.5">
+          <Link href="/" className="text-sm font-semibold text-primary hover:text-primary-600 flex items-center gap-1.5">
             <ArrowLeft className="h-4 w-4" /> Zurück zu SunTax
           </Link>
           <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
@@ -64,7 +64,7 @@ export default function TermsPage() {
         </section>
 
         <div className="pt-6 border-t flex justify-end">
-          <Button asChild className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs">
+          <Button asChild className="bg-primary hover:bg-primary-600 text-white font-semibold text-xs">
             <Link href="/register">Zurück zur Registrierung</Link>
           </Button>
         </div>

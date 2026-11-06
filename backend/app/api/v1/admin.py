@@ -315,3 +315,26 @@ async def admin_unlock_tax_return(
         "unlocked_by": admin.email,
         "reason": reason_str,
     }
+
+
+@router.post(
+    "/retention/inactivity-cleanup",
+    summary="Execute automated Swiss nDSG 2-year inactivity retention check & hard deletion",
+)
+async def trigger_inactivity_cleanup(
+    admin: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Triggers the nDSG retention cleanup process:
+      - Warns accounts inactive for >= 700 days (30 days advance notice)
+      - Permanently hard-deletes accounts inactive for >= 730 days (2 years)
+    """
+    from app.services.inactivity_service import inactivity_service
+    report = await inactivity_service.scan_and_process_inactive_accounts(db)
+    return {
+        "status": "completed",
+        "report": report,
+        "triggered_by": admin.email,
+    }
+

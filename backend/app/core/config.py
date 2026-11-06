@@ -126,6 +126,12 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: Optional[str] = None
     TWILIO_FROM_PHONE_NUMBER: Optional[str] = None  # E.164 format, e.g. +41791234567
 
+    # ── Payrexx (Swiss Payment Provider) ──────────────────────────────────────
+    PAYREXX_INSTANCE_NAME: Optional[str] = None  # e.g. "suntax" -> https://suntax.payrexx.com
+    PAYREXX_API_SECRET: Optional[str] = None     # Payrexx API secret key
+    PAYREXX_API_URL: str = "https://api.payrexx.com/v1.0"
+    PAYREXX_WEBHOOK_SECRET: Optional[str] = None # Secret used to verify webhook signatures
+
     # ── Rate limiting ─────────────────────────────────────────────────────────
     RATE_LIMIT_LOGIN: str = "10/minute"
     RATE_LIMIT_REGISTER: str = "5/minute"

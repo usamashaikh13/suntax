@@ -17,21 +17,30 @@ module.exports = {
     },
     extend: {
       colors: {
-        // Swiss red primary palette
+        // SunTax Swiss Green primary palette (#1E7B52)
         primary: {
-          DEFAULT: '#CC0000',
-          50: '#fff0f0',
-          100: '#ffdede',
-          200: '#ffbcbc',
-          300: '#ff8a8a',
-          400: '#ff4848',
-          500: '#ff1414',
-          600: '#CC0000',
-          700: '#a80000',
-          800: '#8a0000',
-          900: '#720000',
-          950: '#3d0000',
+          DEFAULT: '#1E7B52',
+          50: '#f0fdf4',
+          100: '#dcfce7',
+          200: '#bbf7d0',
+          300: '#86efac',
+          400: '#4ade80',
+          500: '#22c55e',
+          600: '#1E7B52',
+          700: '#165C3D',
+          800: '#11472f',
+          900: '#0c3523',
+          950: '#061e14',
           foreground: '#ffffff',
+        },
+        suntax: {
+          green: '#1E7B52',
+          hover: '#165C3D',
+          bg: '#F6F6F4',
+          card: '#FFFFFF',
+          border: '#ECE8DF',
+          text: '#14181F',
+          muted: '#777777',
         },
         // Neutral grays (secondary)
         secondary: {

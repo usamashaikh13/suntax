@@ -26,14 +26,14 @@ import { formatFileSize, formatDate } from '@/lib/utils';
 import { DocumentReviewModal } from './DocumentReviewModal';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
-  queued: { label: 'Queued', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: Loader2 },
-  pending: { label: 'Queued', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: Loader2 },
-  processing: { label: 'Processing...', color: 'bg-blue-100 text-blue-700 border-blue-200', icon: Loader2 },
-  needs_review: { label: 'Needs Review', color: 'bg-amber-100 text-amber-800 border-amber-200', icon: SlidersHorizontal },
-  completed: { label: 'Completed', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle },
-  done: { label: 'Completed', color: 'bg-green-100 text-green-700 border-green-200', icon: CheckCircle },
-  failed: { label: 'Failed', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertTriangle },
-  error: { label: 'Error', color: 'bg-red-100 text-red-700 border-red-200', icon: AlertTriangle },
+  queued: { label: 'In Warteschlange', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: Loader2 },
+  pending: { label: 'In Warteschlange', color: 'bg-yellow-50 text-yellow-700 border-yellow-200', icon: Loader2 },
+  processing: { label: 'liest …', color: 'bg-blue-50 text-blue-700 border-blue-200', icon: Loader2 },
+  needs_review: { label: 'Frage folgt', color: 'bg-amber-50 text-amber-800 border-amber-200', icon: SlidersHorizontal },
+  completed: { label: 'erkannt', color: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: CheckCircle },
+  done: { label: 'erkannt', color: 'bg-emerald-50 text-emerald-800 border-emerald-200', icon: CheckCircle },
+  failed: { label: 'nicht lesbar', color: 'bg-red-50 text-red-700 border-red-200', icon: AlertTriangle },
+  error: { label: 'Fehler', color: 'bg-red-50 text-red-700 border-red-200', icon: AlertTriangle },
 };
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {};
@@ -202,11 +202,11 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
             variant="outline"
             size="sm"
             onClick={() => onRefresh?.()}
-            title="Refresh document status"
-            className="h-9 px-2.5 text-xs text-gray-700 hover:text-red-600 hover:bg-red-50 flex items-center gap-1.5 shrink-0"
+            title="Dokumentenstatus aktualisieren"
+            className="h-9 px-2.5 text-xs text-slate-700 hover:text-primary hover:bg-emerald-50 flex items-center gap-1.5 shrink-0"
           >
             <RefreshCw className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">Aktualisieren</span>
           </Button>
         </div>
       </div>
@@ -260,7 +260,7 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
                 className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-white hover:border-gray-300 transition-colors shadow-sm"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="p-2 rounded-lg bg-red-50 text-red-600 flex-shrink-0">
+                  <div className="p-2 rounded-lg bg-emerald-50 text-primary flex-shrink-0">
                     <FileText className="h-5 w-5" />
                   </div>
 
@@ -313,10 +313,10 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
                     variant="outline"
                     size="sm"
                     onClick={() => setReviewingDoc(doc)}
-                    className="h-8 text-xs font-medium text-gray-700 hover:text-red-600 hover:bg-red-50 flex items-center gap-1"
+                    className="h-8 text-xs font-medium text-slate-700 hover:text-primary hover:bg-emerald-50 flex items-center gap-1"
                   >
                     <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Review Fields
+                    Felder prüfen
                   </Button>
 
                   {/* Preview Button */}
@@ -324,8 +324,8 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDownloadOrPreview(doc.id, doc.original_filename, true)}
-                    title="View Document"
-                    className="h-8 w-8 p-0 text-gray-500 hover:text-blue-600 hover:bg-blue-50"
+                    title="Dokument anzeigen"
+                    className="h-8 w-8 p-0 text-slate-500 hover:text-primary hover:bg-emerald-50"
                   >
                     <Eye className="h-4 w-4" />
                   </Button>
@@ -335,8 +335,8 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleDownloadOrPreview(doc.id, doc.original_filename, false)}
-                    title="Download Original"
-                    className="h-8 w-8 p-0 text-gray-500 hover:text-gray-900 hover:bg-gray-100"
+                    title="Original herunterladen"
+                    className="h-8 w-8 p-0 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
                   >
                     <Download className="h-4 w-4" />
                   </Button>
@@ -348,8 +348,8 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
                       size="sm"
                       onClick={() => handleRetryOcr(doc.id)}
                       disabled={retryingId === doc.id}
-                      title="Retry OCR Processing"
-                      className="h-8 w-8 p-0 text-gray-500 hover:text-amber-600 hover:bg-amber-50"
+                      title="OCR-Verarbeitung wiederholen"
+                      className="h-8 w-8 p-0 text-slate-500 hover:text-amber-600 hover:bg-amber-50"
                     >
                       {retryingId === doc.id ? (
                         <Loader2 className="h-4 w-4 animate-spin text-amber-600" />
@@ -365,11 +365,11 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
                     size="sm"
                     onClick={() => handleDelete(doc.id, doc.original_filename)}
                     disabled={deletingId === doc.id}
-                    title="Delete Document"
-                    className="h-8 w-8 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                    title="Dokument löschen"
+                    className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                   >
                     {deletingId === doc.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-red-600" />
+                      <Loader2 className="h-4 w-4 animate-spin text-rose-600" />
                     ) : (
                       <Trash2 className="h-4 w-4" />
                     )}

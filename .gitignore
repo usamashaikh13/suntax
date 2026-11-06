@@ -36,6 +36,7 @@ yarn-error.log*
 # Temporary & Output
 tmp/
 output/
+developer_packet/
 
 # Environment files (never commit secrets)
 .env

@@ -345,8 +345,8 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
-        <div className="animate-spin rounded-full h-9 w-9 border-2 border-red-600 border-t-transparent" />
-        <p className="text-xs font-medium text-slate-500">Loading your tax dashboard...</p>
+        <div className="animate-spin rounded-full h-9 w-9 border-2 border-primary border-t-transparent" />
+        <p className="text-xs font-medium text-slate-500">Deine Übersicht wird geladen...</p>
       </div>
     );
   }
@@ -355,30 +355,30 @@ export default function DashboardPage() {
     <div className="space-y-8 pb-12">
       {/* Hero Welcome Banner */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-6 sm:p-8 border border-slate-800 shadow-xl shadow-slate-950/10">
-        <div className="absolute right-0 top-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-red-600/10 blur-3xl pointer-events-none" />
-        <div className="absolute left-1/3 bottom-0 -mb-10 h-48 w-48 rounded-full bg-blue-600/10 blur-2xl pointer-events-none" />
+        <div className="absolute right-0 top-0 -mt-10 -mr-10 h-64 w-64 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+        <div className="absolute left-1/3 bottom-0 -mb-10 h-48 w-48 rounded-full bg-emerald-600/10 blur-2xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-semibold">
-              <span>Swiss Tax Filing Season 2025/2026</span>
+            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-primary/10 border border-primary/20 text-emerald-400 text-xs font-semibold">
+              <span>Schweizer Steuererklärung 2025/2026</span>
             </div>
             <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-              Grüezi, {user?.full_name?.split(' ')[0] || 'Taxpayer'}! 👋
+              Grüezi, {user?.full_name?.split(' ')[0] || 'Steuerzahler/in'}! 👋
             </h2>
             <p className="text-sm text-slate-300 max-w-xl leading-relaxed">
-              Upload your Swiss tax documents to automatically extract figures, clarify deductions, and compute statutory tax estimates for your canton.
+              Lade deine Steuerdokumente hoch, um Beträge automatisch auszulesen, Abzüge zu optimieren und deine Steuerrechnung für jeden Schweizer Kanton deterministisch zu berechnen.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
             <Button
               asChild
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold shadow-lg shadow-red-600/25 h-11 px-5"
+              className="bg-primary hover:bg-primary-700 text-white font-semibold shadow-xs h-11 px-5"
             >
               <Link href="/tax-returns/new">
                 <Plus className="h-4 w-4 mr-2" />
-                Start Tax Return
+                Neue Steuererklärung
               </Link>
             </Button>
             <Button
@@ -388,7 +388,7 @@ export default function DashboardPage() {
             >
               <Link href="/documents">
                 <FileText className="h-4 w-4 mr-2 text-slate-400" />
-                Upload Documents
+                Dokumente hochladen
               </Link>
             </Button>
           </div>
@@ -472,17 +472,17 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Next Best Action Card ─────────────────────────────────────────── */}
-      <div className="p-5 rounded-2xl bg-gradient-to-r from-red-600 to-red-700 text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="p-5 rounded-2xl bg-primary text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-start gap-3.5">
           <div className="p-2.5 rounded-xl bg-white/10 text-white flex-shrink-0 mt-0.5">
             <nextAction.icon className="h-6 w-6" />
           </div>
           <div>
             <span className="inline-block px-2 py-0.5 rounded-md bg-white/20 text-[10px] font-bold uppercase tracking-wider mb-1">
-              Next Recommended Step
+              Nächster empfohlener Schritt
             </span>
             <h4 className="text-base font-bold">{nextAction.title}</h4>
-            <p className="text-xs text-red-100 max-w-xl mt-0.5 leading-relaxed">
+            <p className="text-xs text-white/90 max-w-xl mt-0.5 leading-relaxed">
               {nextAction.description}
             </p>
           </div>
@@ -490,7 +490,7 @@ export default function DashboardPage() {
 
         <Button
           asChild
-          className="bg-white hover:bg-red-50 text-red-700 font-bold text-xs h-10 px-5 flex-shrink-0 shadow-xs"
+          className="bg-white hover:bg-emerald-50 text-primary font-bold text-xs h-10 px-5 flex-shrink-0 shadow-xs"
         >
           <Link href={nextAction.link}>
             {nextAction.buttonText} <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
@@ -502,47 +502,47 @@ export default function DashboardPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider">
-            Financial Overview ({activeReturn ? `${activeReturn.canton_code} ${activeReturn.tax_year}` : 'Draft'})
+            Finanzübersicht ({activeReturn ? `${activeReturn.canton_code} ${activeReturn.tax_year}` : 'Entwurf'})
           </h3>
           <span className="text-[11px] text-gray-400 italic">
-            All figures reflect draft extracted & confirmed amounts
+            Werte aus bestätigten Dokumenten und Angaben
           </span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
           {/* Income */}
           <div className="p-4 rounded-xl border bg-white shadow-xs">
-            <span className="text-[11px] text-gray-500 font-medium block mb-1">Gross Income</span>
+            <span className="text-[11px] text-gray-500 font-medium block mb-1">Bruttoeinkommen</span>
             <p className="text-base font-bold text-gray-900">{formatCurrency(grossIncome)}</p>
-            <span className="text-[10px] text-gray-400">Box 8 Salary slips</span>
+            <span className="text-[10px] text-gray-400">Lohnausweis Ziffer 8</span>
           </div>
 
           {/* Deductions */}
           <div className="p-4 rounded-xl border bg-white shadow-xs">
-            <span className="text-[11px] text-gray-500 font-medium block mb-1">Claimed Deductions</span>
+            <span className="text-[11px] text-gray-500 font-medium block mb-1">Geltend gemachte Abzüge</span>
             <p className="text-base font-bold text-emerald-700">-{formatCurrency(totalDeductions)}</p>
-            <span className="text-[10px] text-emerald-600">Pillar 3a, commute, ins.</span>
+            <span className="text-[10px] text-emerald-600">Säule 3a, Arbeitsweg, Vers.</span>
           </div>
 
           {/* Assets */}
           <div className="p-4 rounded-xl border bg-white shadow-xs">
-            <span className="text-[11px] text-gray-500 font-medium block mb-1">Taxable Assets</span>
+            <span className="text-[11px] text-gray-500 font-medium block mb-1">Steuerbares Vermögen</span>
             <p className="text-base font-bold text-gray-900">{formatCurrency(totalAssets)}</p>
-            <span className="text-[10px] text-gray-400">Dec 31st bank balances</span>
+            <span className="text-[10px] text-gray-400">Kontostände per 31.12.</span>
           </div>
 
           {/* Debts */}
           <div className="p-4 rounded-xl border bg-white shadow-xs">
-            <span className="text-[11px] text-gray-500 font-medium block mb-1">Total Debts</span>
+            <span className="text-[11px] text-gray-500 font-medium block mb-1">Schulden</span>
             <p className="text-base font-bold text-gray-900">{formatCurrency(totalDebts)}</p>
-            <span className="text-[10px] text-gray-400">Mortgages & loans</span>
+            <span className="text-[10px] text-gray-400">Hypotheken & Kredite</span>
           </div>
 
           {/* Estimated Tax */}
-          <div className="p-4 rounded-xl border border-red-200 bg-red-50/40 shadow-xs col-span-2 sm:col-span-1">
-            <span className="text-[11px] text-red-800 font-semibold block mb-1">Estimated Total Tax</span>
-            <p className="text-base font-bold text-red-600">{formatCurrency(estimatedTax)}</p>
-            <span className="text-[10px] text-red-500">Federal + Canton + Municipal</span>
+          <div className="p-4 rounded-xl border border-slate-200 bg-emerald-50/40 shadow-xs col-span-2 sm:col-span-1">
+            <span className="text-[11px] text-emerald-950 font-semibold block mb-1">Geschätzte Steuer</span>
+            <p className="text-base font-bold text-primary">{formatCurrency(estimatedTax)}</p>
+            <span className="text-[10px] text-emerald-700">Bund + Kanton + Gemeinde</span>
           </div>
         </div>
       </div>
@@ -553,13 +553,13 @@ export default function DashboardPage() {
         <div className="lg:col-span-7 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-bold text-slate-900">My Tax Returns</h3>
-              <p className="text-xs text-slate-500">Select a return to view progress and filing summary</p>
+              <h3 className="text-lg font-bold text-slate-900">Meine Steuererklärungen</h3>
+              <p className="text-xs text-slate-500">Wähle eine Erklärung aus, um fortzufahren</p>
             </div>
             {taxReturns.length > 0 && (
-              <Button asChild variant="ghost" size="sm" className="text-xs font-semibold text-red-600 hover:text-red-700">
+              <Button asChild variant="ghost" size="sm" className="text-xs font-semibold text-primary hover:text-primary-700">
                 <Link href="/tax-returns">
-                  View all ({taxReturns.length}) <ChevronRight className="h-3 w-3 ml-1" />
+                  Alle anzeigen ({taxReturns.length}) <ChevronRight className="h-3 w-3 ml-1" />
                 </Link>
               </Button>
             )}
@@ -568,19 +568,19 @@ export default function DashboardPage() {
           {taxReturns.length === 0 ? (
             <Card className="border-dashed border-2 border-slate-200 bg-slate-50/50">
               <CardContent className="p-8 text-center space-y-4">
-                <div className="h-12 w-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto shadow-sm">
+                <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-xs">
                   <FileText className="h-6 w-6" />
                 </div>
                 <div>
-                  <h4 className="text-base font-bold text-slate-900">No Tax Returns Yet</h4>
+                  <h4 className="text-base font-bold text-slate-900">Noch keine Steuererklärung</h4>
                   <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-                    Start your first Swiss tax return in 4 simple steps. Select your canton and municipality to initialize deterministic tax calculation.
+                    Erstelle deine erste Steuererklärung in wenigen Schritten. Wähle deine Postleitzahl und starte direkt.
                   </p>
                 </div>
-                <Button asChild className="bg-red-600 hover:bg-red-700 text-white font-medium text-xs">
+                <Button asChild className="bg-primary hover:bg-primary-700 text-white font-medium text-xs">
                   <Link href="/tax-returns/new">
                     <Plus className="h-3.5 w-3.5 mr-1.5" />
-                    Create First Tax Return
+                    Erste Steuererklärung erstellen
                   </Link>
                 </Button>
               </CardContent>
@@ -593,14 +593,14 @@ export default function DashboardPage() {
 
                 return (
                   <Link key={tr.id} href={`/tax-returns/${tr.id}`} className="block group">
-                    <div className="p-4 rounded-xl border border-slate-200/90 bg-white hover:border-red-300 hover:shadow-md transition-all duration-200 flex items-center justify-between gap-4">
+                    <div className="p-4 rounded-xl border border-slate-200/90 bg-white hover:border-primary/40 hover:shadow-md transition-all duration-200 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className="h-11 w-11 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 font-bold text-sm flex items-center justify-center flex-shrink-0 group-hover:bg-red-50 group-hover:text-red-700 group-hover:border-red-200 transition-colors">
+                        <div className="h-11 w-11 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 font-bold text-sm flex items-center justify-center flex-shrink-0 group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/30 transition-colors">
                           {tr.canton_code}
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="font-bold text-sm text-slate-900 group-hover:text-red-600 transition-colors truncate">
+                            <p className="font-bold text-sm text-slate-900 group-hover:text-primary transition-colors truncate">
                               {cantonName} – {tr.municipality_name}
                             </p>
                             <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
@@ -608,7 +608,7 @@ export default function DashboardPage() {
                             </span>
                           </div>
                           <p className="text-xs text-slate-500 mt-0.5 truncate">
-                            BFS Commune Code: {tr.municipality_code}
+                            BFS-Gemeindenummer: #{tr.municipality_code}
                           </p>
                         </div>
                       </div>
@@ -617,7 +617,7 @@ export default function DashboardPage() {
                         <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full border', statusMeta.badgeClass)}>
                           {statusMeta.label}
                         </span>
-                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-red-600 group-hover:translate-x-0.5 transition-all" />
+                        <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
                       </div>
                     </div>
                   </Link>

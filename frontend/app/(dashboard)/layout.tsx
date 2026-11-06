@@ -14,10 +14,10 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/tax-returns', label: 'Tax Returns', icon: FileText, badge: '26 Cantons' },
-  { href: '/documents', label: 'Documents Vault', icon: Upload },
-  { href: '/profile', label: 'My Account', icon: User },
+  { href: '/dashboard', label: 'Übersicht', icon: LayoutDashboard },
+  { href: '/tax-returns', label: 'Steuererklärungen', icon: FileText, badge: '26 Kantone' },
+  { href: '/documents', label: 'Dokumente', icon: Upload },
+  { href: '/profile', label: 'Mein Profil', icon: User },
 ]
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -62,13 +62,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div className="swiss-cross-badge shadow-md shadow-red-900/40 group-hover:scale-105 transition-transform" />
           <div className="flex flex-col">
             <span className="text-xl font-bold tracking-tight leading-none text-white flex items-center gap-1">
-              Sun<span className="text-red-500">Tax</span>
+              Sun<span className="text-emerald-400">Tax</span>
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 ml-1.5">
                 CH
               </span>
             </span>
             <span className="text-[11px] font-medium text-slate-400 tracking-wide mt-1">
-              Swiss Tax Platform
+              Schweizer Steuerplattform
             </span>
           </div>
         </Link>
@@ -84,7 +84,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <span className="text-[11px] font-medium text-slate-300">ESTV 2025/2026 Engine</span>
         </div>
         <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-1.5 py-0.5 rounded">
-          Live
+          Aktiv
         </span>
       </div>
 
@@ -92,7 +92,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="flex-1 px-3 py-2 space-y-6 overflow-y-auto">
         <div>
           <p className="px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
-            Core Filing
+            Steuererklärung
           </p>
           <nav className="space-y-1">
             {navItems.map(item => {
@@ -106,12 +106,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   className={cn(
                     'group flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150',
                     isActive
-                      ? 'bg-red-600/15 text-white border border-red-500/30 shadow-sm shadow-red-950'
+                      ? 'bg-primary/20 text-white border border-primary/40 shadow-xs'
                       : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={cn('h-4 w-4 transition-colors', isActive ? 'text-red-400' : 'text-slate-400 group-hover:text-slate-300')} />
+                    <Icon className={cn('h-4 w-4 transition-colors', isActive ? 'text-emerald-400' : 'text-slate-400 group-hover:text-slate-300')} />
                     <span>{item.label}</span>
                   </div>
                   {item.badge && (
@@ -119,7 +119,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                       {item.badge}
                     </span>
                   )}
-                  {isActive && !item.badge && <ChevronRight className="h-3.5 w-3.5 text-red-400 ml-auto" />}
+                  {isActive && !item.badge && <ChevronRight className="h-3.5 w-3.5 text-emerald-400 ml-auto" />}
                 </Link>
               )
             })}
@@ -130,10 +130,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <div className="p-3.5 rounded-xl bg-gradient-to-br from-slate-900 to-slate-900/60 border border-slate-800/90 space-y-2">
           <div className="flex items-center gap-2 text-xs font-semibold text-slate-200">
             <ShieldCheck className="h-4 w-4 text-emerald-400" />
-            <span>Bank-Grade Privacy</span>
+            <span>Datenschutz Schweiz (nDSG)</span>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            Deterministic calculation engine guarantees 0% AI tax hallucination. 100% Swiss statutory compliance.
+            Deterministische ESTV-Regel-Engine. Deine Daten bleiben ausschliesslich in der Schweiz.
           </p>
         </div>
       </div>
@@ -142,22 +142,22 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       <div className="p-3 border-t border-slate-800/80 bg-slate-950/80">
         <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900/70 border border-slate-800/60">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-red-600 to-rose-400 flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0">
+            <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0">
               {userInitials}
             </div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-slate-200 truncate">
-                {user?.full_name || 'Swiss Taxpayer'}
+                {user?.full_name || 'Steuerzahler/in'}
               </p>
               <p className="text-[11px] text-slate-400 truncate">
-                {user?.email || 'Logged In'}
+                {user?.email || 'Angemeldet'}
               </p>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            title="Sign Out"
-            className="p-1.5 rounded-md text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors flex-shrink-0"
+            title="Abmelden"
+            className="p-1.5 rounded-md text-slate-400 hover:text-emerald-400 hover:bg-slate-800 transition-colors flex-shrink-0"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -216,11 +216,11 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <Button
               asChild
               size="sm"
-              className="bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-600/20 text-xs font-semibold h-8 px-3"
+              className="bg-primary hover:bg-primary-700 text-white shadow-xs text-xs font-semibold h-8 px-3"
             >
               <Link href="/tax-returns/new">
                 <Plus className="h-3.5 w-3.5 mr-1" />
-                New Return
+                Neue Erklärung
               </Link>
             </Button>
           </div>

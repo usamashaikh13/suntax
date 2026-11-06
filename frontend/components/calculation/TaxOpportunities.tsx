@@ -53,8 +53,8 @@ export function TaxOpportunities({ taxReturnId, onNavigateTab }: Props) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center p-12 space-y-3">
-        <Loader2 className="h-6 w-6 animate-spin text-red-600" />
-        <p className="text-xs text-gray-500">Evaluating applicable Swiss tax deductions & caps...</p>
+        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-xs text-slate-500">Prüfe kantonale und eidgenössische Abzugslimiten...</p>
       </div>
     );
   }
@@ -69,24 +69,24 @@ export function TaxOpportunities({ taxReturnId, onNavigateTab }: Props) {
   return (
     <div className="space-y-5">
       {/* Header Banner */}
-      <div className="p-4 rounded-xl border bg-gradient-to-r from-red-50/70 via-white to-orange-50/40 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="p-4 rounded-xl border border-emerald-150 bg-gradient-to-r from-emerald-50/70 via-white to-slate-50 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-red-600" />
-            <h3 className="font-bold text-gray-900 text-sm">Tax Opportunities & Optimization</h3>
-            <Badge variant="outline" className="text-[10px] bg-white border-red-200 text-red-700">
-              Rule-Based
+            <Sparkles className="h-5 w-5 text-primary" />
+            <h3 className="font-bold text-slate-900 text-sm">Steuerpotenzial &amp; Optimierung</h3>
+            <Badge variant="outline" className="text-[10px] bg-white border-emerald-200 text-primary">
+              Gesetzlich geprüft
             </Badge>
           </div>
-          <p className="text-xs text-gray-500 mt-1 max-w-xl">
-            Deterministic evaluation of federal and cantonal statutory allowances based on your profile and uploaded documents.
+          <p className="text-xs text-slate-500 mt-1 max-w-xl">
+            Rechnerische Überprüfung der kantonalen und bundesrechtlichen Abzüge gemäss deinen Angaben.
           </p>
         </div>
 
-        <div className="text-left sm:text-right bg-white p-3 rounded-lg border border-red-100 shadow-xs flex-shrink-0">
-          <p className="text-[11px] text-gray-500 uppercase font-semibold">Estimated Additional Savings</p>
-          <p className="text-lg font-bold text-red-600">~{formatCurrency(totalPotentialSavings)}</p>
-          <p className="text-[10px] text-gray-400">Estimate based on marginal tax rate</p>
+        <div className="text-left sm:text-right bg-white p-3 rounded-lg border border-emerald-100 shadow-xs flex-shrink-0">
+          <p className="text-[11px] text-slate-500 uppercase font-semibold">Geschätztes Sparpotenzial</p>
+          <p className="text-lg font-bold text-primary">~{formatCurrency(totalPotentialSavings)}</p>
+          <p className="text-[10px] text-slate-400">Unverbindliche Schätzung</p>
         </div>
       </div>
 
@@ -178,18 +178,18 @@ export function TaxOpportunities({ taxReturnId, onNavigateTab }: Props) {
                 )}
 
                 {/* Tax Effect Footer */}
-                <div className="flex items-center justify-between pt-1 border-t border-gray-100 text-[11px]">
-                  <span className="text-gray-500">
-                    Est. Tax Effect: <strong className="text-gray-900">~{formatCurrency(op.estimated_tax_saving_chf)}</strong>
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                  <span className="text-slate-500">
+                    Geschätzter Effekt: <strong className="text-slate-900">~{formatCurrency(op.estimated_tax_saving_chf)}</strong>
                   </span>
 
                   {op.status !== 'applied' && onNavigateTab && (
                     <button
                       type="button"
                       onClick={() => onNavigateTab(op.area === 'pillar3a' || op.area === 'commuting' ? 'documents' : 'profile')}
-                      className="text-red-600 hover:text-red-700 font-semibold flex items-center gap-1 text-[11px]"
+                      className="text-primary hover:text-primary-600 font-semibold flex items-center gap-1 text-[11px]"
                     >
-                      Resolve <ArrowRight className="h-3 w-3" />
+                      Erfassen <ArrowRight className="h-3 w-3" />
                     </button>
                   )}
                 </div>

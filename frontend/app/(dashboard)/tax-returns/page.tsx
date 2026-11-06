@@ -88,8 +88,8 @@ export default function TaxReturnsPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
-        <div className="animate-spin rounded-full h-9 w-9 border-2 border-red-600 border-t-transparent" />
-        <p className="text-xs font-medium text-slate-500">Loading your Swiss tax portfolio...</p>
+        <div className="animate-spin rounded-full h-9 w-9 border-2 border-primary border-t-transparent" />
+        <p className="text-xs font-medium text-slate-500">Deine Steuererklärungen werden geladen...</p>
       </div>
     )
   }
@@ -100,16 +100,16 @@ export default function TaxReturnsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Tax Returns Portfolio
+            Meine Steuererklärungen
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Manage your annual Swiss tax declarations across all 26 cantons.
+            Verwalte deine Steuererklärungen für alle 26 Schweizer Kantone.
           </p>
         </div>
-        <Button asChild className="bg-red-600 hover:bg-red-700 text-white shadow-sm shadow-red-600/20 font-semibold h-10 px-4">
+        <Button asChild className="bg-primary hover:bg-primary-700 text-white shadow-xs font-semibold h-10 px-4">
           <Link href="/tax-returns/new">
             <Plus className="h-4 w-4 mr-2" />
-            New Tax Return
+            Neue Steuererklärung
           </Link>
         </Button>
       </div>
@@ -120,20 +120,20 @@ export default function TaxReturnsPage() {
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by Canton or Municipality..."
+            placeholder="Nach Kanton oder Gemeinde suchen..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-transparent rounded-lg border-none focus:outline-none focus:ring-1 focus:ring-red-600 text-slate-900 placeholder:text-slate-400"
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-transparent rounded-lg border-none focus:outline-none focus:ring-1 focus:ring-primary text-slate-900 placeholder:text-slate-400"
           />
         </div>
 
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-lg flex-shrink-0">
           {[
-            { id: 'all', label: 'All' },
-            { id: 'draft', label: 'Drafts' },
-            { id: 'in_progress', label: 'In Progress' },
-            { id: 'confirmed', label: 'Confirmed' },
+            { id: 'all', label: 'Alle' },
+            { id: 'draft', label: 'Entwürfe' },
+            { id: 'in_progress', label: 'In Bearbeitung' },
+            { id: 'confirmed', label: 'Bestätigt' },
           ].map(f => (
             <button
               key={f.id}
@@ -155,24 +155,24 @@ export default function TaxReturnsPage() {
       {filteredReturns.length === 0 ? (
         <Card className="border-dashed border-2 border-slate-200 bg-slate-50/50">
           <CardContent className="py-16 text-center space-y-4">
-            <div className="h-14 w-14 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto shadow-sm">
+            <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-xs">
               <FileText className="h-7 w-7" />
             </div>
             <div className="space-y-1">
               <h3 className="text-base font-bold text-slate-900">
-                {searchQuery || statusFilter !== 'all' ? 'No matching returns found' : 'No tax returns yet'}
+                {searchQuery || statusFilter !== 'all' ? 'Keine passenden Steuererklärungen gefunden' : 'Noch keine Steuererklärungen'}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {searchQuery || statusFilter !== 'all'
-                  ? 'Try clearing your search query or switching your status filter.'
-                  : 'Start your official declaration with verified 2025/2026 cantonal tax rules.'}
+                  ? 'Versuche, deinen Suchbegriff anzupassen oder den Filter zurückzusetzen.'
+                  : 'Starte deine amtliche Erklärung mit den verifizierten Steuerregeln 2025/2026.'}
               </p>
             </div>
             {!searchQuery && statusFilter === 'all' && (
-              <Button asChild className="bg-red-600 hover:bg-red-700 text-white text-xs">
+              <Button asChild className="bg-primary hover:bg-primary-700 text-white text-xs">
                 <Link href="/tax-returns/new">
                   <Plus className="h-4 w-4 mr-1.5" />
-                  Create First Tax Return
+                  Erste Steuererklärung erstellen
                 </Link>
               </Button>
             )}
@@ -187,7 +187,7 @@ export default function TaxReturnsPage() {
             return (
               <Card
                 key={tr.id}
-                className="group border-slate-200/90 hover:border-red-300 hover:shadow-md transition-all duration-200 overflow-hidden"
+                className="group border-slate-200/90 hover:border-primary/40 hover:shadow-md transition-all duration-200 overflow-hidden"
               >
                 <CardContent className="p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -196,23 +196,23 @@ export default function TaxReturnsPage() {
                       href={`/tax-returns/${tr.id}`}
                       className="flex items-center gap-4 flex-1 min-w-0"
                     >
-                      <div className="h-12 w-12 rounded-xl bg-slate-100 border border-slate-200/80 group-hover:bg-red-50 group-hover:text-red-700 group-hover:border-red-200 text-slate-800 font-bold text-base flex items-center justify-center flex-shrink-0 transition-colors">
+                      <div className="h-12 w-12 rounded-xl bg-slate-100 border border-slate-200/80 group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/30 text-slate-800 font-bold text-base flex items-center justify-center flex-shrink-0 transition-colors">
                         {tr.canton_code}
                       </div>
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="font-bold text-base text-slate-900 group-hover:text-red-600 transition-colors truncate">
+                          <p className="font-bold text-base text-slate-900 group-hover:text-primary transition-colors truncate">
                             {cantonName} – {tr.municipality_name}
                           </p>
                           <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                            Tax Year {tr.tax_year}
+                            Steuerjahr {tr.tax_year}
                           </span>
                         </div>
                         <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                          <span>BFS Commune #{tr.municipality_code}</span>
+                          <span>BFS-Gemeindenummer: #{tr.municipality_code}</span>
                           <span>•</span>
-                          <span>Created {formatDate(tr.created_at)}</span>
+                          <span>Erstellt am {formatDate(tr.created_at)}</span>
                         </div>
                       </div>
                     </Link>
@@ -227,10 +227,10 @@ export default function TaxReturnsPage() {
                         asChild
                         variant="outline"
                         size="sm"
-                        className="text-xs font-semibold text-slate-700 hover:text-red-600 hover:border-red-200 h-8"
+                        className="text-xs font-semibold text-slate-700 hover:text-primary hover:border-primary/30 h-8"
                       >
                         <Link href={`/tax-returns/${tr.id}`}>
-                          Open Return <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                          Öffnen <ChevronRight className="h-3.5 w-3.5 ml-1" />
                         </Link>
                       </Button>
 
@@ -242,22 +242,22 @@ export default function TaxReturnsPage() {
                             className="h-7 px-2 text-xs text-slate-600"
                             onClick={() => setConfirmDeleteId(null)}
                           >
-                            Cancel
+                            Abbrechen
                           </Button>
                           <Button
                             size="sm"
-                            className="h-7 px-2.5 text-xs bg-red-600 hover:bg-red-700 text-white"
+                            className="h-7 px-2.5 text-xs bg-rose-600 hover:bg-rose-700 text-white"
                             disabled={deletingId === tr.id}
                             onClick={() => handleDelete(tr.id)}
                           >
-                            Delete
+                            Löschen
                           </Button>
                         </div>
                       ) : (
                         <button
                           onClick={() => setConfirmDeleteId(tr.id)}
-                          className="p-1.5 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          title="Delete return"
+                          className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          title="Steuererklärung löschen"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>

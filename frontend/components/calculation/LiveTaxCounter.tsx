@@ -27,7 +27,7 @@ export function LiveTaxCounter({
   return (
     <div className="sticky top-2 z-30 mb-4 p-3 sm:p-4 rounded-2xl bg-slate-900/95 backdrop-blur-md text-white border border-slate-700/80 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-red-600/30 border border-red-500/40 text-red-400 flex items-center justify-center font-bold flex-shrink-0">
+        <div className="h-10 w-10 rounded-xl bg-primary/20 border border-primary/40 text-emerald-400 flex items-center justify-center font-bold flex-shrink-0">
           <Sparkles className="h-5 w-5" />
         </div>
         <div>
@@ -36,7 +36,7 @@ export function LiveTaxCounter({
             Live-Abzugsrechner (Kanton {cantonCode})
           </div>
           <div className="text-xs sm:text-sm font-semibold text-slate-200">
-            Ihre Abzüge bisher:{' '}
+            Deine Abzüge bisher:{' '}
             <strong className="text-white font-mono text-sm sm:text-base">
               CHF {formattedDeductions}
             </strong>
@@ -47,7 +47,7 @@ export function LiveTaxCounter({
       <div className="flex items-center gap-3 sm:gap-6 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-800">
         <div className="text-left sm:text-right">
           <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 flex items-center sm:justify-end gap-1">
-            <TrendingDown className="h-3 w-3" /> Sie sparen ca.
+            <TrendingDown className="h-3 w-3" /> Du sparst ca.
           </div>
           <div className="text-base sm:text-lg font-black font-mono text-emerald-400">
             « ca. CHF {formattedSavings} »

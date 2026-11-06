@@ -20,10 +20,10 @@ interface Props {
 }
 
 const DEFAULT_SUGGESTIONS = [
-  'How do I submit my tax return to the tax office?',
-  'What deductions can I claim in this canton?',
-  'What is my maximum Pillar 3a allowance?',
-  'Check if my return is ready for submission',
+  'Wie reiche ich meine Steuererklärung beim Steueramt ein?',
+  'Welche Abzüge kann ich in meinem Kanton geltend machen?',
+  'Wie hoch ist mein maximaler Säule-3a-Abzug?',
+  'Prüfe, ob meine Steuererklärung bereit zur Abgabe ist',
 ]
 
 export function TaxAssistant({
@@ -37,7 +37,7 @@ export function TaxAssistant({
     {
       role: 'assistant',
       content:
-        'Hello! I am your SunTax AI Copilot. I am here to guide you through completing, verifying, and officially submitting your Swiss income tax return. How can I help you today?',
+        'Grüezi! Ich bin dein persönlicher SunTax Steuer-Assistent. Ich helfe dir dabei, deine Schweizer Steuererklärung auszufüllen, steuerliche Abzüge zu prüfen und die Unterlagen amtlich vorzubereiten. Was möchtest du wissen?',
       suggestions: DEFAULT_SUGGESTIONS,
     },
   ])
@@ -63,7 +63,7 @@ export function TaxAssistant({
 
     try {
       const response = await api.aiAssistant.sendMessage(taxReturnId, message)
-      const replyText = response.response || response.message || 'I reviewed your request.'
+      const replyText = response.response || response.message || 'Ich habe deine Anfrage geprüft.'
 
       setMessages(prev => [
         ...prev,
@@ -75,7 +75,7 @@ export function TaxAssistant({
       ])
 
       // If backend suggested a next step and callback exists
-      if (response.next_step && onNavigateTab && (message.toLowerCase().includes('jump') || message.toLowerCase().includes('go to'))) {
+      if (response.next_step && onNavigateTab && (message.toLowerCase().includes('jump') || message.toLowerCase().includes('gehe zu') || message.toLowerCase().includes('öffne'))) {
         onNavigateTab(response.next_step)
       }
     } catch {
@@ -83,7 +83,7 @@ export function TaxAssistant({
         ...prev,
         {
           role: 'assistant',
-          content: 'Sorry, I encountered an issue connecting to the tax advisor engine. Please try again.',
+          content: 'Entschuldigung, es gab ein Problem bei der Verbindung zum Steuerassistenten. Bitte versuche es erneut.',
         },
       ])
     } finally {
@@ -96,16 +96,16 @@ export function TaxAssistant({
       {/* Floating button */}
       <Button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-red-600 hover:bg-red-700 shadow-xl z-50 group flex items-center justify-center transition-all duration-300 hover:scale-105"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary hover:bg-primary-600 shadow-xl z-50 group flex items-center justify-center transition-all duration-300 hover:scale-105"
         size="icon"
-        title="Open AI Tax Copilot"
+        title="SunTax Steuer-Assistent öffnen"
       >
         <MessageCircle className="h-6 w-6 text-white" />
-        <span className="sr-only">Open AI Tax Copilot</span>
+        <span className="sr-only">SunTax Steuer-Assistent öffnen</span>
         {/* Glow indicator */}
         <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500 border-2 border-white"></span>
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+          <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white"></span>
         </span>
       </Button>
 
@@ -116,25 +116,25 @@ export function TaxAssistant({
           style={{ height: '580px', maxHeight: '82vh' }}
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-red-600 to-red-700 text-white shadow-sm">
+          <div className="flex items-center justify-between px-4 py-3.5 bg-gradient-to-r from-emerald-800 to-[#1E7B52] text-white shadow-sm">
             <div className="flex items-center gap-2.5">
               <div className="p-1.5 rounded-lg bg-white/10 backdrop-blur-sm">
                 <Sparkles className="h-4 w-4 text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm">SunTax AI Copilot</span>
+                  <span className="font-bold text-sm">SunTax Assistent</span>
                   <Badge variant="outline" className="text-[10px] bg-white/20 text-white border-none py-0 px-1.5">
-                    Filing Guide
+                    Ausfüllhilfe
                   </Badge>
                 </div>
-                <p className="text-[11px] text-red-100">Step-by-step assistance for Swiss ITR</p>
+                <p className="text-[11px] text-emerald-100">Schweizer Steuerrecht &amp; Tipps</p>
               </div>
             </div>
             <button
               onClick={() => setOpen(false)}
               className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
-              title="Close"
+              title="Schliessen"
             >
               <X className="h-5 w-5" />
             </button>
@@ -149,7 +149,7 @@ export function TaxAssistant({
                 >
                   <div
                     className={`w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs shadow-xs
-                      ${msg.role === 'assistant' ? 'bg-red-600' : 'bg-gray-800'}`}
+                      ${msg.role === 'assistant' ? 'bg-primary' : 'bg-gray-800'}`}
                   >
                     {msg.role === 'assistant' ? (
                       <Bot className="h-4 w-4" />
@@ -161,7 +161,7 @@ export function TaxAssistant({
                     className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed shadow-xs whitespace-pre-line
                       ${msg.role === 'assistant'
                         ? 'bg-white text-gray-800 border border-gray-200/80'
-                        : 'bg-red-600 text-white font-normal'}`}
+                        : 'bg-primary text-white font-normal'}`}
                   >
                     {msg.content}
                   </div>
@@ -174,7 +174,7 @@ export function TaxAssistant({
                       <button
                         key={sIdx}
                         onClick={() => send(suggestion)}
-                        className="text-[11px] text-red-700 bg-red-50 hover:bg-red-100/90 border border-red-200/90 rounded-full px-2.5 py-1 text-left transition-colors flex items-center gap-1"
+                        className="text-[11px] text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-full px-2.5 py-1 text-left transition-colors flex items-center gap-1"
                       >
                         <span>{suggestion}</span>
                         <ChevronRight className="h-3 w-3 opacity-60 flex-shrink-0" />
@@ -187,12 +187,12 @@ export function TaxAssistant({
 
             {loading && (
               <div className="flex gap-2.5 items-center">
-                <div className="w-7 h-7 rounded-full bg-red-600 flex items-center justify-center text-white text-xs">
+                <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-white text-xs">
                   <Bot className="h-4 w-4" />
                 </div>
                 <div className="bg-white border border-gray-200 rounded-2xl px-3.5 py-2 flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin text-red-600" />
-                  <span className="text-xs text-gray-500">Checking Swiss tax rules &amp; your return...</span>
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                  <span className="text-xs text-gray-500">Prüfe Steuerregeln &amp; Angaben...</span>
                 </div>
               </div>
             )}
@@ -205,7 +205,7 @@ export function TaxAssistant({
                 <button
                   key={idx}
                   onClick={() => send(q)}
-                  className="text-[11px] bg-red-50 text-red-700 hover:bg-red-100 rounded-full px-2.5 py-1 transition-colors border border-red-100"
+                  className="text-[11px] bg-emerald-50 text-emerald-800 hover:bg-emerald-100 rounded-full px-2.5 py-1 transition-colors border border-emerald-100"
                 >
                   {q}
                 </button>
@@ -220,13 +220,13 @@ export function TaxAssistant({
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && send()}
-              placeholder="Ask anything about filing or deductions..."
-              className="flex-1 border border-gray-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-gray-50/50"
+              placeholder="Frage zu Abzügen oder Einreichung..."
+              className="flex-1 border border-gray-300 rounded-xl px-3.5 py-2 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-gray-50/50"
             />
             <Button
               onClick={() => send()}
               disabled={!input.trim() || loading}
-              className="bg-red-600 hover:bg-red-700 text-white rounded-xl h-9 w-9 p-0 flex items-center justify-center shadow-xs"
+              className="bg-primary hover:bg-primary-600 text-white rounded-xl h-9 w-9 p-0 flex items-center justify-center shadow-xs"
               size="icon"
             >
               <Send className="h-4 w-4" />

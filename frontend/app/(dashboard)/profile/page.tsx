@@ -6,8 +6,8 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import {
-  Loader2, Trash2, AlertTriangle, CheckCircle, XCircle,
-  User as UserIcon, Lock, ShieldCheck, Download, FileSpreadsheet,
+  Loader2, Trash2, AlertTriangle, CheckCircle,
+  User as UserIcon, ShieldCheck,
   Save, KeyRound, Smartphone, Copy, Check
 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
@@ -29,18 +29,18 @@ import { clearTokens } from '@/lib/auth'
 import { User } from '@/types'
 
 const profileSchema = z.object({
-  full_name: z.string().min(2, 'Full name must be at least 2 characters'),
-  email: z.string().email('Please enter a valid email address'),
+  full_name: z.string().min(2, 'Der vollständige Name muss mindestens 2 Zeichen lang sein'),
+  email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein'),
 })
 
 const passwordSchema = z
   .object({
-    current_password: z.string().min(1, 'Please enter your current password'),
-    new_password: z.string().min(8, 'Password must be at least 8 characters'),
+    current_password: z.string().min(1, 'Bitte gib dein aktuelles Passwort ein'),
+    new_password: z.string().min(8, 'Das Passwort muss mindestens 8 Zeichen lang sein'),
     confirm_password: z.string(),
   })
   .refine(d => d.new_password === d.confirm_password, {
-    message: 'Passwords do not match',
+    message: 'Passwörter stimmen nicht überein',
     path: ['confirm_password'],
   })
 
@@ -83,7 +83,7 @@ export default function ProfilePage() {
       setTotpSetup(data)
       setShowTotpSetupModal(true)
     } catch {
-      toast({ title: 'Could not initiate 2FA setup', variant: 'destructive' })
+      toast({ title: '2FA-Einrichtung konnte nicht gestartet werden', variant: 'destructive' })
     }
   }
 
@@ -92,7 +92,7 @@ export default function ProfilePage() {
     setVerifyingTotp(true)
     try {
       await api.auth.verify2fa(totpCode.trim())
-      toast({ title: '2FA Activated', description: 'Two-Factor Authentication is now active.' })
+      toast({ title: '2FA erfolgreich aktiviert', description: 'Die Zwei-Faktor-Authentifizierung ist jetzt aktiv.' })
       setShowTotpSetupModal(false)
       setTotpCode('')
       setTotpSetup(null)
@@ -102,8 +102,8 @@ export default function ProfilePage() {
       setSecurityStatus(s)
     } catch (err: any) {
       toast({
-        title: 'Verification Failed',
-        description: err?.response?.data?.detail || 'Invalid code. Please try again.',
+        title: 'Bestätigung fehlgeschlagen',
+        description: err?.response?.data?.detail || 'Ungültiger Code. Bitte versuche es erneut.',
         variant: 'destructive',
       })
     } finally {
@@ -112,19 +112,19 @@ export default function ProfilePage() {
   }
 
   const handleDisable2fa = async () => {
-    const password = window.prompt('Enter your account password to confirm disabling 2FA:')
+    const password = window.prompt('Gib dein Kontopasswort ein, um 2FA zu deaktivieren:')
     if (!password) return
     try {
       await api.auth.disable2fa(password)
-      toast({ title: '2FA Disabled', description: 'Two-Factor Authentication has been removed.' })
+      toast({ title: '2FA deaktiviert', description: 'Die Zwei-Faktor-Authentifizierung wurde entfernt.' })
       const u = await api.auth.getMe()
       setUser(u)
       const s = await api.auth.getSecurityStatus()
       setSecurityStatus(s)
     } catch (err: any) {
       toast({
-        title: 'Failed to disable 2FA',
-        description: err?.response?.data?.detail || 'Incorrect password.',
+        title: 'Fehler beim Deaktivieren',
+        description: err?.response?.data?.detail || 'Falsches Passwort.',
         variant: 'destructive',
       })
     }
@@ -134,9 +134,9 @@ export default function ProfilePage() {
     try {
       const updated = await api.auth.updateProfile(data)
       setUser(updated)
-      toast({ title: 'Profile updated successfully' })
+      toast({ title: 'Profil erfolgreich gespeichert' })
     } catch {
-      toast({ title: 'Could not save profile changes', variant: 'destructive' })
+      toast({ title: 'Profiländerungen konnten nicht gespeichert werden', variant: 'destructive' })
     }
   }
 
@@ -147,11 +147,11 @@ export default function ProfilePage() {
         new_password: data.new_password,
       })
       passwordForm.reset()
-      toast({ title: 'Password updated successfully' })
+      toast({ title: 'Passwort erfolgreich aktualisiert' })
     } catch (error: any) {
       toast({
-        title: 'Password change failed',
-        description: error?.response?.data?.detail || 'Please verify your current password.',
+        title: 'Passwortänderung fehlgeschlagen',
+        description: error?.response?.data?.detail || 'Bitte überprüfe dein aktuelles Passwort.',
         variant: 'destructive',
       })
     }
@@ -159,24 +159,24 @@ export default function ProfilePage() {
 
   const handleDeleteAccount = async () => {
     const password = window.prompt(
-      'Enter your password to permanently delete your account and all associated tax returns:'
+      'Gib dein Passwort ein, um dein Konto und alle Steuererklärungen endgültig zu löschen:'
     )
     if (!password) return
     try {
       await api.auth.deleteAccount(password)
       clearTokens()
-      toast({ title: 'Account permanently deleted' })
+      toast({ title: 'Konto endgültig gelöscht' })
       router.push('/')
     } catch {
-      toast({ title: 'Account deletion failed', variant: 'destructive' })
+      toast({ title: 'Löschen fehlgeschlagen', variant: 'destructive' })
     }
   }
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-red-600 border-t-transparent" />
-        <p className="text-xs text-slate-500 font-medium">Loading account settings...</p>
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
+        <p className="text-xs text-slate-500 font-medium">Kontoeinstellungen werden geladen...</p>
       </div>
     )
   }
@@ -185,9 +185,9 @@ export default function ProfilePage() {
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Account & Security</h2>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Konto & Sicherheit</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Manage your personal tax identity, data sovereignty, and Swiss privacy preferences.
+          Verwalte deine persönliche Steueridentität, Datensouveränität und Schweizer Datenschutzeinstellungen.
         </p>
       </div>
 
@@ -195,39 +195,39 @@ export default function ProfilePage() {
         {/* Left Column: Profile Card Overview */}
         <div className="md:col-span-1 space-y-4">
           <Card className="border-slate-200/90 shadow-sm overflow-hidden">
-            <div className="h-20 bg-gradient-to-r from-slate-900 to-slate-800 p-4 flex items-end">
-              <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-400 border-4 border-white flex items-center justify-center text-lg font-bold text-white shadow-md">
+            <div className="h-20 bg-gradient-to-r from-emerald-900 to-slate-900 p-4 flex items-end">
+              <div className="h-14 w-14 rounded-2xl bg-gradient-to-tr from-[#1E7B52] to-emerald-500 border-4 border-white flex items-center justify-center text-lg font-bold text-white shadow-md">
                 {user?.full_name?.slice(0, 2).toUpperCase() || 'CH'}
               </div>
             </div>
             <CardContent className="pt-8 pb-5 space-y-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900 truncate">
-                  {user?.full_name || 'Swiss Taxpayer'}
+                  {user?.full_name || 'Steuerpflichtige Person'}
                 </h3>
                 <p className="text-xs text-slate-500 truncate">{user?.email}</p>
               </div>
 
               <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Account Status</span>
+                  <span className="text-slate-500">Kontostatus</span>
                   {user?.is_verified ? (
                     <Badge variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200 text-[10px]">
-                      Verified
+                      Verifiziert
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-200 text-[10px]">
-                      Pending Verification
+                      Bestätigung ausstehend
                     </Badge>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Data Location</span>
-                  <span className="font-semibold text-slate-800">Switzerland (CH)</span>
+                  <span className="text-slate-500">Server-Standort</span>
+                  <span className="font-semibold text-slate-800">Schweiz (CH)</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Statutory Format</span>
-                  <span className="font-mono text-[11px] text-slate-600">eCH-0196 XML</span>
+                  <span className="text-slate-500">Amtliches Format</span>
+                  <span className="font-mono text-[11px] text-slate-600">eCH-0119 / eCH-0196</span>
                 </div>
               </div>
             </CardContent>
@@ -237,10 +237,10 @@ export default function ProfilePage() {
           <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2 border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              <span>Federal FADP Guaranteed</span>
+              <span>Schweizer nDSG garantiert</span>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Your financial documents and tax data are processed in isolation and never used to train third-party public AI models.
+              Deine Dokumente und Steuerdaten werden isoliert verschlüsselt gespeichert und niemals für öffentliche KI-Trainingsmodelle genutzt.
             </p>
           </div>
         </div>
@@ -251,26 +251,26 @@ export default function ProfilePage() {
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
-                <UserIcon className="h-4 w-4 text-red-600" />
-                Personal Information
+                <UserIcon className="h-4 w-4 text-primary" />
+                Persönliche Angaben
               </CardTitle>
               <CardDescription className="text-xs">
-                This legal name appears on your cantonal tax forms and eCH-0196 exports.
+                Dieser Name erscheint auf deiner Steuererklärung und dem eCH-0119-Export.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={profileForm.handleSubmit(onProfileSave)} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="full_name" className="text-xs font-semibold text-slate-700">
-                    Full Legal Name
+                    Vollständiger amtlicher Name
                   </Label>
                   <Input
                     id="full_name"
-                    className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-red-600"
+                    className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-primary"
                     {...profileForm.register('full_name')}
                   />
                   {profileForm.formState.errors.full_name && (
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-rose-600">
                       {profileForm.formState.errors.full_name.message}
                     </p>
                   )}
@@ -278,16 +278,16 @@ export default function ProfilePage() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-xs font-semibold text-slate-700">
-                    Email Address
+                    E-Mail-Adresse
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                    className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-red-600"
+                    className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-primary"
                     {...profileForm.register('email')}
                   />
                   {profileForm.formState.errors.email && (
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-rose-600">
                       {profileForm.formState.errors.email.message}
                     </p>
                   )}
@@ -296,7 +296,7 @@ export default function ProfilePage() {
                 <Button
                   type="submit"
                   size="sm"
-                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold h-9"
+                  className="bg-primary hover:bg-primary-600 text-white text-xs font-semibold h-9"
                   disabled={profileForm.formState.isSubmitting}
                 >
                   {profileForm.formState.isSubmitting ? (
@@ -304,7 +304,7 @@ export default function ProfilePage() {
                   ) : (
                     <Save className="h-3.5 w-3.5 mr-1.5" />
                   )}
-                  Save Changes
+                  Änderungen speichern
                 </Button>
               </form>
             </CardContent>
@@ -314,28 +314,28 @@ export default function ProfilePage() {
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
-                <KeyRound className="h-4 w-4 text-red-600" />
-                Security & Password
+                <KeyRound className="h-4 w-4 text-primary" />
+                Sicherheit & Passwort
               </CardTitle>
               <CardDescription className="text-xs">
-                Update your account password to protect your tax files.
+                Aktualisiere dein Passwort zum Schutz deiner Steuerdaten.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={passwordForm.handleSubmit(onPasswordChange)} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="current_password" className="text-xs font-semibold text-slate-700">
-                    Current Password
+                    Aktuelles Passwort
                   </Label>
                   <Input
                     id="current_password"
                     type="password"
                     placeholder="••••••••••••"
-                    className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-red-600"
+                    className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-primary"
                     {...passwordForm.register('current_password')}
                   />
                   {passwordForm.formState.errors.current_password && (
-                    <p className="text-xs text-red-600">
+                    <p className="text-xs text-rose-600">
                       {passwordForm.formState.errors.current_password.message}
                     </p>
                   )}
@@ -344,17 +344,17 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="new_password" className="text-xs font-semibold text-slate-700">
-                      New Password
+                      Neues Passwort
                     </Label>
                     <Input
                       id="new_password"
                       type="password"
-                      placeholder="Min. 8 chars"
-                      className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-red-600"
+                      placeholder="Mind. 8 Zeichen"
+                      className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-primary"
                       {...passwordForm.register('new_password')}
                     />
                     {passwordForm.formState.errors.new_password && (
-                      <p className="text-xs text-red-600">
+                      <p className="text-xs text-rose-600">
                         {passwordForm.formState.errors.new_password.message}
                       </p>
                     )}
@@ -362,17 +362,17 @@ export default function ProfilePage() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="confirm_password" className="text-xs font-semibold text-slate-700">
-                      Confirm New Password
+                      Neues Passwort wiederholen
                     </Label>
                     <Input
                       id="confirm_password"
                       type="password"
-                      placeholder="Repeat new password"
-                      className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-red-600"
+                      placeholder="Passwort wiederholen"
+                      className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-primary"
                       {...passwordForm.register('confirm_password')}
                     />
                     {passwordForm.formState.errors.confirm_password && (
-                      <p className="text-xs text-red-600">
+                      <p className="text-xs text-rose-600">
                         {passwordForm.formState.errors.confirm_password.message}
                       </p>
                     )}
@@ -389,7 +389,7 @@ export default function ProfilePage() {
                   {passwordForm.formState.isSubmitting && (
                     <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   )}
-                  Update Password
+                  Passwort aktualisieren
                 </Button>
               </form>
             </CardContent>
@@ -400,21 +400,21 @@ export default function ProfilePage() {
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <Smartphone className="h-4 w-4 text-red-600" />
-                  Two-Factor Authentication (2FA)
+                  <Smartphone className="h-4 w-4 text-primary" />
+                  Zwei-Faktor-Authentifizierung (2FA)
                 </CardTitle>
                 {user?.totp_enabled ? (
                   <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs gap-1">
-                    <CheckCircle className="h-3 w-3" /> 2FA Active (TOTP)
+                    <CheckCircle className="h-3 w-3" /> 2FA Aktiv (TOTP)
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs gap-1">
-                    <AlertTriangle className="h-3 w-3" /> Inactive
+                    <AlertTriangle className="h-3 w-3" /> Nicht aktiv
                   </Badge>
                 )}
               </div>
               <CardDescription className="text-xs">
-                Protect your account against unauthorized access using an authenticator app (Google Authenticator, Apple Passwords, Bitwarden, 1Password) conforming to RFC 6238.
+                Schütze dein Konto zusätzlich mit einer Authenticator-App (Google Authenticator, Apple Passwörter, Bitwarden, 1Password) nach RFC 6238.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -422,37 +422,37 @@ export default function ProfilePage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-lg">
                   <div className="space-y-0.5">
                     <p className="text-xs font-semibold text-emerald-900">
-                      Your account is protected with Two-Factor Authentication
+                      Dein Konto ist mit Zwei-Faktor-Authentifizierung geschützt
                     </p>
                     <p className="text-[11px] text-emerald-700">
-                      A 6-digit TOTP code is required on every login to access your tax declarations.
+                      Bei jeder Anmeldung wird ein 6-stelliger TOTP-Code abgefragt.
                     </p>
                   </div>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="border-red-300 text-red-700 hover:bg-red-50 text-xs shrink-0"
+                    className="border-rose-300 text-rose-700 hover:bg-rose-50 text-xs shrink-0"
                     onClick={handleDisable2fa}
                   >
-                    Disable 2FA
+                    2FA deaktivieren
                   </Button>
                 </div>
               ) : (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
                   <div className="space-y-0.5">
                     <p className="text-xs font-semibold text-slate-800">
-                      Enable TOTP Second-Factor Verification
+                      TOTP-Zwei-Faktor-Authentifizierung aktivieren
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Recommended under FDPIC guidelines to prevent unauthorized access to sensitive tax records.
+                      Vom Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) für Steuerdaten empfohlen.
                     </p>
                   </div>
                   <Button
                     size="sm"
-                    className="bg-red-600 hover:bg-red-700 text-white text-xs shrink-0"
+                    className="bg-primary hover:bg-primary-600 text-white text-xs shrink-0"
                     onClick={handleStart2faSetup}
                   >
-                    Enable 2FA (TOTP)
+                    2FA aktivieren (TOTP)
                   </Button>
                 </div>
               )}
@@ -464,83 +464,83 @@ export default function ProfilePage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                Security & FDPIC (EDÖB) Compliance Architecture
+                Sicherheits- & EDÖB-Architektur
               </CardTitle>
               <CardDescription className="text-xs">
-                Audited technical and organizational security controls strictly aligned with the Swiss revised Data Protection Act (nDSG).
+                Geprüfte technische und organisatorische Sicherheitsmassnahmen gemäss revidiertem Schweizer Datenschutzgesetz (nDSG).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Password Hashing</span>
+                    <span className="text-xs font-bold text-slate-900">Passwort-Hashing</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
                       Argon2id
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Memory-hard algorithm recommended by FDPIC to neutralize brute-force cracking.
+                    Speicherharter Algorithmus zur Abwehr von Brute-Force-Angriffen gemäss BSI/EDÖB-Empfehlung.
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">At-Rest & File Encryption</span>
+                    <span className="text-xs font-bold text-slate-900">Verschlüsselung im Ruhezustand</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-emerald-700 border-emerald-300">
                       AES-256-GCM
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Multi-layer envelope encryption with unique DEKs per file and segregated KMS key storage.
+                    Mehrschichtige Envelope-Verschlüsselung mit individuellen DEKs pro Dokument.
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">In-Transit Protection</span>
+                    <span className="text-xs font-bold text-slate-900">Übertragungssicherheit</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
                       TLS 1.3 + HSTS
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Enforced TLS 1.3 with 2-year HSTS preloading and modern forward secrecy ciphers.
+                    Erzwungene TLS 1.3-Verbindungen mit Perfect Forward Secrecy und HSTS.
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Session Security</span>
+                    <span className="text-xs font-bold text-slate-900">Sitzungsverwaltung</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
-                      15-Min Sliding
+                      15 Min. Sliding
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    15-minute short-lived tokens, Redis sliding sessions, and instant logout token revocation.
+                    Kurzlebige Access-Tokens mit automatischer Token-Rotation und sofortiger Sperrung bei Logout.
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Brute-Force Lockout</span>
+                    <span className="text-xs font-bold text-slate-900">Brute-Force-Schutz</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
-                      5 Fails / 15 Min
+                      5 Fehlversuche / 15 Min.
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Automated 15-minute account lockout upon 5 consecutive failed login attempts.
+                    Automatische Kontosperre nach 5 aufeinanderfolgenden fehlerhaften Anmeldeversuchen.
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Legal Filing Framework</span>
-                    <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-300">
+                    <span className="text-xs font-bold text-slate-900">Deklarationsprinzip</span>
+                    <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-300">
                       Art. 110 DBG
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Swiss Selbstdeklaration: taxpayer prepares filing package and submits directly to official portal.
+                    Selbstdeklaration: Steuerpflichtige Person prüft und übermittelt amtliche Unterlagen selbstständig.
                   </p>
                 </div>
               </div>
@@ -548,31 +548,31 @@ export default function ProfilePage() {
           </Card>
 
           {/* Danger Zone */}
-          <Card className="border-red-200 bg-red-50/20 shadow-sm">
+          <Card className="border-rose-200 bg-rose-50/20 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-bold text-red-700 flex items-center gap-2">
+              <CardTitle className="text-sm font-bold text-rose-700 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                Permanent Account Deletion
+                Konto endgültig löschen
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Permanently purge your account, encrypted documents, and cantonal tax declarations. Under Swiss FADP Art. 32, all records will be deleted immediately.
+                Lösche dein Konto, alle verschlüsselten Belege und Steuererklärungsdaten unwiderruflich. Gemäss Art. 32 nDSG werden sämtliche Daten sofort physisch gelöscht.
               </p>
               {!showDeleteConfirm ? (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="border-red-300 text-red-700 hover:bg-red-50 text-xs h-8"
+                  className="border-rose-300 text-rose-700 hover:bg-rose-50 text-xs h-8"
                   onClick={() => setShowDeleteConfirm(true)}
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                  Delete Account
+                  Konto löschen
                 </Button>
               ) : (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 space-y-2.5">
-                  <p className="text-xs font-semibold text-red-800">
-                    Are you sure? This action is irrevocable.
+                <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 space-y-2.5">
+                  <p className="text-xs font-semibold text-rose-800">
+                    Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -581,14 +581,14 @@ export default function ProfilePage() {
                       className="h-7 px-2.5 text-xs text-slate-600"
                       onClick={() => setShowDeleteConfirm(false)}
                     >
-                      Cancel
+                      Abbrechen
                     </Button>
                     <Button
                       size="sm"
-                      className="h-7 px-3 text-xs bg-red-600 hover:bg-red-700 text-white"
+                      className="h-7 px-3 text-xs bg-rose-600 hover:bg-rose-700 text-white"
                       onClick={handleDeleteAccount}
                     >
-                      Yes, Delete Everything
+                      Ja, alles endgültig löschen
                     </Button>
                   </div>
                 </div>
@@ -603,18 +603,18 @@ export default function ProfilePage() {
         <DialogContent className="max-w-md bg-white border border-slate-200 text-slate-900 p-6 rounded-xl">
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
-              <ShieldCheck className="h-5 w-5 text-red-600" />
-              Set Up Two-Factor Authentication
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              Zwei-Faktor-Authentifizierung einrichten
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Pair your authenticator app (e.g. Google Authenticator, Apple Passwords, 1Password, Bitwarden) with SunTax.
+              Kopple deine Authenticator-App (z. B. Google Authenticator, Apple Passwörter, 1Password, Bitwarden) mit SunTax.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700">
-                1. Authenticator Secret Key
+                1. Authenticator-Geheimschlüssel
               </Label>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 font-mono text-xs tracking-widest text-slate-800 break-all select-all">
@@ -635,23 +635,23 @@ export default function ProfilePage() {
                 >
                   {copiedSecret ? (
                     <>
-                      <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Copied
+                      <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Kopiert
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3.5 w-3.5 mr-1" /> Copy
+                      <Copy className="h-3.5 w-3.5 mr-1" /> Kopieren
                     </>
                   )}
                 </Button>
               </div>
               <p className="text-[11px] text-slate-500">
-                Enter this key manually in your authenticator app under &ldquo;Add Account &rarr; Manual Key&rdquo;.
+                Gib diesen Schlüssel in deiner Authenticator-App unter &laquo;Konto hinzufügen &rarr; Manueller Schlüssel&raquo; ein.
               </p>
             </div>
 
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
               <Label htmlFor="setup-totp-code" className="text-xs font-semibold text-slate-700">
-                2. Enter 6-Digit Verification Code
+                2. 6-stelligen Bestätigungscode eingeben
               </Label>
               <Input
                 id="setup-totp-code"
@@ -661,10 +661,10 @@ export default function ProfilePage() {
                 value={totpCode}
                 onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ''))}
                 autoFocus
-                className="text-center tracking-widest font-mono text-lg h-11 border-slate-300 focus:ring-red-600"
+                className="text-center tracking-widest font-mono text-lg h-11 border-slate-300 focus:ring-primary"
               />
               <p className="text-[11px] text-slate-500">
-                Enter the current 6-digit code shown in your authenticator app to confirm configuration.
+                Gib den aktuellen 6-stelligen Code aus deiner App ein, um die Einrichtung abzuschliessen.
               </p>
             </div>
           </div>
@@ -680,21 +680,21 @@ export default function ProfilePage() {
                 setTotpCode('')
               }}
             >
-              Cancel
+              Abbrechen
             </Button>
             <Button
               type="button"
               size="sm"
               disabled={verifyingTotp || totpCode.length < 6}
-              className="bg-red-600 hover:bg-red-700 text-white text-xs h-9 font-semibold"
+              className="bg-primary hover:bg-primary-600 text-white text-xs h-9 font-semibold"
               onClick={handleConfirm2fa}
             >
               {verifyingTotp ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Verifying...
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Bestätigen...
                 </>
               ) : (
-                'Activate 2FA'
+                '2FA aktivieren'
               )}
             </Button>
           </DialogFooter>

@@ -43,7 +43,7 @@ export function ContextualInfoModal({ info, title }: Props) {
             {/* Header */}
             <div className="p-4 sm:p-5 border-b bg-slate-50 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold">
+                <div className="h-7 w-7 rounded-lg bg-emerald-100 text-primary flex items-center justify-center font-bold">
                   <Info className="h-4 w-4" />
                 </div>
                 <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
@@ -63,7 +63,7 @@ export function ContextualInfoModal({ info, title }: Props) {
             <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto text-xs sm:text-sm">
               {/* 1. Warum wir fragen */}
               <div className="space-y-1">
-                <h4 className="font-bold text-slate-900 text-xs uppercase tracking-wider text-red-600">
+                <h4 className="font-bold text-xs uppercase tracking-wider text-primary">
                   1. Warum wir fragen
                 </h4>
                 <p className="text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-150">

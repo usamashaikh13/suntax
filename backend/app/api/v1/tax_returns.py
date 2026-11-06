@@ -17,10 +17,11 @@ import logging
 from typing import List, Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.database import get_db, set_rls_user_id
 from app.core.security import get_current_user
 from app.models.audit_log import AuditLog
@@ -45,6 +46,7 @@ from app.services.smart_questions_service import (
     apply_answers_to_profile,
 )
 from app.services.tax_optimization_service import compute_tax_opportunities
+from app.services.payrexx_service import payrexx_service
 from app.api.v1.documents import apply_document_to_tax_profile
 
 logger = logging.getLogger(__name__)
@@ -164,6 +166,24 @@ async def list_municipalities(
             detail=f"Canton '{canton_code}' not found or not supported",
         )
     return municipalities
+
+
+@router.get(
+    "/cantons/plz/{plz}",
+    summary="Resolve a 4-digit Swiss postal code (PLZ) to canton and municipality",
+)
+async def lookup_postal_code(plz: str) -> dict:
+    """
+    Resolve a 4-digit Swiss postal code (PLZ) to municipality and BFS number.
+    Handles ambiguous postcodes by returning all candidate municipalities.
+    """
+    res = canton_service.lookup_plz(plz)
+    if not res:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Postleitzahl '{plz}' nicht gefunden",
+        )
+    return res
 
 
 # ── Tax return CRUD ───────────────────────────────────────────────────────────
@@ -347,12 +367,26 @@ async def update_tax_profile(
         profile.created_at = datetime.now(timezone.utc)
     db.add(profile)
 
-    # Invalidate prior calculation snapshots: material profile edits render existing calculations stale
+    # Invalidate prior calculation snapshots and confirmations: material profile edits render existing calculations and signatures stale
     await db.execute(
         update(TaxCalculation)
         .where(TaxCalculation.tax_return_id == str(tax_return.id))
         .values(status="stale")
     )
+    if tax_return.confirmed_at or tax_return.partner2_confirmed_at:
+        tax_return.confirmed_at = None
+        tax_return.partner2_confirmed_at = None
+        tax_return.partner2_confirmed_name = None
+        if tax_return.status == "confirmed":
+            tax_return.status = "draft"
+        db.add(tax_return)
+    if tax_return.confirmed_at or tax_return.partner2_confirmed_at:
+        tax_return.confirmed_at = None
+        tax_return.partner2_confirmed_at = None
+        tax_return.partner2_confirmed_name = None
+        if tax_return.status == "confirmed":
+            tax_return.status = "draft"
+        db.add(tax_return)
 
     await db.commit()
     await db.refresh(profile)
@@ -427,6 +461,45 @@ async def delete_tax_return(
     )
     await db.delete(tax_return)
     await db.commit()
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/reopen",
+    summary="Reopen a confirmed tax return for editing (invalidates confirmations and calculations)",
+)
+async def reopen_tax_return(
+    tax_return_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Reopen a confirmed tax return so the user can make modifications."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    if tax_return.status == "submitted":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bereits übermittelte Steuererklärungen können nicht erneut geöffnet werden.",
+        )
+
+    now = datetime.now(timezone.utc)
+    tax_return.status = "draft"
+    tax_return.confirmed_at = None
+    tax_return.partner2_confirmed_at = None
+    tax_return.partner2_confirmed_name = None
+    tax_return.updated_at = now
+
+    await db.execute(
+        update(TaxCalculation)
+        .where(TaxCalculation.tax_return_id == str(tax_return.id))
+        .values(status="stale")
+    )
+    db.add(tax_return)
+    await db.commit()
+
+    return {
+        "status": "draft",
+        "message": "Steuererklärung wurde zur Bearbeitung wieder geöffnet. Vorherige Bestätigungen wurden zurückgesetzt.",
+        "tax_return_id": str(tax_return.id),
+    }
 
 
 # ── Smart Questions ───────────────────────────────────────────────────────────
@@ -538,6 +611,13 @@ async def answer_single_question(
         .where(TaxCalculation.tax_return_id == str(tax_return.id))
         .values(status="stale")
     )
+    if tax_return.confirmed_at or tax_return.partner2_confirmed_at:
+        tax_return.confirmed_at = None
+        tax_return.partner2_confirmed_at = None
+        tax_return.partner2_confirmed_name = None
+        if tax_return.status == "confirmed":
+            tax_return.status = "draft"
+        db.add(tax_return)
 
     await db.commit()
     return TaxQuestion.model_validate(updated_q)
@@ -592,6 +672,13 @@ async def submit_questions(
         .where(TaxCalculation.tax_return_id == str(tax_return.id))
         .values(status="stale")
     )
+    if tax_return.confirmed_at or tax_return.partner2_confirmed_at:
+        tax_return.confirmed_at = None
+        tax_return.partner2_confirmed_at = None
+        tax_return.partner2_confirmed_name = None
+        if tax_return.status == "confirmed":
+            tax_return.status = "draft"
+        db.add(tax_return)
 
     await db.commit()
     return {"message": f"Successfully updated profile with {len(answers)} answers."}
@@ -634,6 +721,13 @@ async def apply_all_documents(
         .where(TaxCalculation.tax_return_id == str(tax_return.id))
         .values(status="stale")
     )
+    if tax_return.confirmed_at or tax_return.partner2_confirmed_at:
+        tax_return.confirmed_at = None
+        tax_return.partner2_confirmed_at = None
+        tax_return.partner2_confirmed_name = None
+        if tax_return.status == "confirmed":
+            tax_return.status = "draft"
+        db.add(tax_return)
 
     await db.commit()
     return {
@@ -728,20 +822,46 @@ async def create_payment_checkout(
 ) -> dict:
     """
     Creates a payment checkout session for the flat CHF 39.00 filing fee.
-    Supports TWINT and Credit Card. SunTax never stores sensitive credit card data.
+    Supports TWINT and Credit Card via Swiss payment provider Payrexx.
+    SunTax never stores sensitive credit card data.
     """
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
     method = (payload.get("method") or "twint").lower()
-    if method not in ("twint", "credit_card", "card"):
+    if method not in ("twint", "credit_card", "card", "postfinance"):
         method = "twint"
+
+    success_url = payload.get("success_url") or f"{settings.FRONTEND_URL}/tax-returns/{tax_return.id}?payment=success"
+    failed_url = payload.get("failed_url") or f"{settings.FRONTEND_URL}/tax-returns/{tax_return.id}?payment=failed"
+    cancel_url = payload.get("cancel_url") or f"{settings.FRONTEND_URL}/tax-returns/{tax_return.id}?payment=cancel"
+
+    gateway = await payrexx_service.create_gateway(
+        tax_return_id=str(tax_return.id),
+        amount_chf=39.00,
+        currency="CHF",
+        payment_methods=[method] if method != "card" else ["mastercard", "visa"],
+        success_redirect_url=success_url,
+        failed_redirect_url=failed_url,
+        cancel_redirect_url=cancel_url,
+        user_email=current_user.email,
+        user_name=current_user.full_name,
+    )
+
+    tax_return.payment_gateway_id = gateway["gateway_id"]
+    tax_return.payment_status = "pending"
+    tax_return.payment_method = method
+    await db.commit()
 
     return {
         "tax_return_id": str(tax_return.id),
         "amount_chf": 39.00,
         "currency": "CHF",
         "method": method,
-        "session_id": f"pay_sess_{tax_return.id[:8]}_{int(datetime.now().timestamp())}",
+        "gateway_id": gateway["gateway_id"],
+        "session_id": gateway["gateway_id"],
+        "checkout_url": gateway["checkout_url"],
         "status": "ready",
+        "is_sandbox": gateway.get("is_sandbox", False),
+        "provider": "payrexx",
         "instructions": (
             "Öffnen Sie Ihre TWINT App und scannen Sie den QR-Code oder bestätigen Sie die Zahlung."
             if method == "twint"
@@ -760,14 +880,33 @@ async def confirm_payment(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Record receipt of the CHF 39 fee payment with exact timestamp."""
+    """
+    Verify and record receipt of the CHF 39 fee payment.
+    Requires genuine verification from Payrexx payment provider.
+    """
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
     method = payload.get("method", "twint")
-    now = datetime.now(timezone.utc)
+    transaction_id = payload.get("transaction_id")
+    gateway_id = payload.get("gateway_id") or tax_return.payment_gateway_id
 
+    # Verify with Payrexx provider
+    verification = await payrexx_service.verify_transaction(
+        tax_return_id=str(tax_return.id),
+        transaction_id=transaction_id,
+        gateway_id=gateway_id,
+    )
+
+    if not verification.get("verified"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=verification.get("error") or "Zahlung konnte beim Zahlungsanbieter nicht verifiziert werden.",
+        )
+
+    now = datetime.now(timezone.utc)
     tax_return.payment_status = "paid"
-    tax_return.payment_method = method
-    tax_return.payment_amount = 39.0
+    tax_return.payment_method = verification.get("method") or method
+    tax_return.payment_amount = verification.get("amount_chf") or 39.0
+    tax_return.payment_transaction_id = verification.get("transaction_id")
     tax_return.paid_at = now
     tax_return.updated_at = now
 
@@ -777,7 +916,7 @@ async def confirm_payment(
         action="payment_received",
         resource_type="tax_return",
         resource_id=str(tax_return.id),
-        extra_data=f'{{"amount_chf": 39.00, "method": "{method}", "timestamp": "{now.isoformat()}"}}',
+        extra_data=f'{{"amount_chf": 39.00, "method": "{tax_return.payment_method}", "transaction_id": "{tax_return.payment_transaction_id}", "is_sandbox": {str(verification.get("is_sandbox", False)).lower()}, "timestamp": "{now.isoformat()}"}}',
     )
     db.add(audit)
     await db.commit()
@@ -785,10 +924,82 @@ async def confirm_payment(
     return {
         "status": "paid",
         "amount_chf": 39.00,
-        "method": method,
+        "method": tax_return.payment_method,
+        "transaction_id": tax_return.payment_transaction_id,
         "paid_at": now.isoformat(),
-        "message": "Zahlung von CHF 39.00 erfolgreich verbucht. Ihre Steuererklärung ist freigeschaltet.",
+        "is_sandbox": verification.get("is_sandbox", False),
+        "message": "Zahlung von CHF 39.00 erfolgreich beim Zahlungsanbieter verifiziert und verbucht. Ihre Steuererklärung ist freigeschaltet.",
     }
+
+
+@router.post(
+    "/tax-returns/payment/webhook",
+    summary="Handle Payrexx signed payment webhook notification",
+)
+async def payrexx_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Receives and validates Payrexx webhook events with HMAC-SHA256 signature verification.
+    Idempotent: updates tax return payment status upon verified transaction confirmation.
+    """
+    raw_body = await request.body()
+    sig_header = request.headers.get("X-Payrexx-Signature") or request.headers.get("Payrexx-Signature")
+
+    try:
+        import json
+        payload = json.loads(raw_body.decode("utf-8")) if raw_body else {}
+    except Exception:
+        raise HTTPException(status_code=400, detail="Ungültiges JSON im Webhook Body.")
+
+    result = payrexx_service.process_webhook_payload(
+        payload=payload,
+        raw_body=raw_body,
+        signature=sig_header,
+        enforce_signature=payrexx_service.is_configured,
+    )
+
+    if not result.get("valid"):
+        logger.warning("Rejected Payrexx webhook: %s", result.get("error"))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error") or "Ungültiger Webhook.",
+        )
+
+    tax_return_id = result.get("reference_id")
+    stmt = select(TaxReturn).where(TaxReturn.id == tax_return_id)
+    res = await db.execute(stmt)
+    tax_return = res.scalar_one_or_none()
+
+    if not tax_return:
+        logger.error("Payrexx webhook tax return not found: %s", tax_return_id)
+        raise HTTPException(status_code=404, detail="Steuererklärung nicht gefunden.")
+
+    # Idempotent check
+    if tax_return.payment_status == "paid":
+        return {"status": "already_processed", "tax_return_id": tax_return_id}
+
+    now = datetime.now(timezone.utc)
+    tax_return.payment_status = "paid"
+    tax_return.payment_method = result.get("payment_method", "twint")
+    tax_return.payment_amount = result.get("amount_chf", 39.0)
+    tax_return.payment_transaction_id = result.get("transaction_id")
+    tax_return.paid_at = now
+    tax_return.updated_at = now
+
+    audit = AuditLog(
+        user_id=str(tax_return.user_id),
+        action="payment_received_webhook",
+        resource_type="tax_return",
+        resource_id=str(tax_return.id),
+        extra_data=f'{{"amount_chf": 39.00, "method": "{tax_return.payment_method}", "transaction_id": "{tax_return.payment_transaction_id}", "timestamp": "{now.isoformat()}"}}',
+    )
+    db.add(audit)
+    await db.commit()
+
+    logger.info("Successfully marked tax return %s as paid via Payrexx webhook", tax_return_id)
+    return {"status": "success", "tax_return_id": tax_return_id, "paid": True}
 
 
 @router.get(
@@ -809,6 +1020,189 @@ async def get_payment_status(
         "payment_amount": tax_return.payment_amount or 39.0,
         "paid_at": tax_return.paid_at.isoformat() if tax_return.paid_at else None,
         "is_paid": (tax_return.payment_status == "paid"),
+        "gateway_id": tax_return.payment_gateway_id,
+        "transaction_id": tax_return.payment_transaction_id,
     }
+
+
+# ── Spouse Confirmation (Art. 113 DBG) ─────────────────────────────────────────
+
+@router.post(
+    "/tax-returns/{tax_return_id}/partner2/invite",
+    summary="Generate personal invitation and confirmation token for Partner 2",
+)
+async def invite_partner2(
+    tax_return_id: str,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Generate an expiring single-use token for Partner 2 to review and personally
+    confirm the tax return pursuant to Art. 113 DBG.
+    """
+    import secrets
+    from datetime import timedelta
+
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    email = payload.get("email") or payload.get("partner2_email")
+    phone = payload.get("phone") or payload.get("partner2_phone")
+
+    token = f"p2_tok_{secrets.token_urlsafe(32)}"
+    now = datetime.now(timezone.utc)
+    expires_at = now + timedelta(days=7)
+
+    tax_return.partner2_email = email
+    tax_return.partner2_phone = phone
+    tax_return.partner2_confirmation_token = token
+    tax_return.partner2_token_expires_at = expires_at
+    tax_return.updated_at = now
+
+    audit = AuditLog(
+        user_id=str(current_user.id),
+        action="partner2_invited",
+        resource_type="tax_return",
+        resource_id=str(tax_return.id),
+        extra_data=f'{{"email": "{email}", "expires_at": "{expires_at.isoformat()}"}}',
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "status": "invited",
+        "partner2_email": email,
+        "confirmation_token": token,
+        "confirmation_url": f"/partner-confirm?token={token}",
+        "expires_at": expires_at.isoformat(),
+        "message": f"Persönliche Einladung für Partner 2 erstellt. Gültig bis {expires_at.strftime('%d.%m.%Y')}.",
+    }
+
+
+@router.get(
+    "/tax-returns/{tax_return_id}/partner2/status",
+    summary="Get Partner 2 confirmation status",
+)
+async def get_partner2_status(
+    tax_return_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Check whether Partner 2 has personally signed the tax return."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    return {
+        "tax_return_id": str(tax_return.id),
+        "is_confirmed": bool(tax_return.partner2_confirmed_at),
+        "confirmed_at": tax_return.partner2_confirmed_at.isoformat() if tax_return.partner2_confirmed_at else None,
+        "confirmed_name": tax_return.partner2_confirmed_name,
+        "partner2_email": tax_return.partner2_email,
+        "token_expires_at": tax_return.partner2_token_expires_at.isoformat() if tax_return.partner2_token_expires_at else None,
+        "is_token_expired": bool(tax_return.partner2_token_expires_at and tax_return.partner2_token_expires_at < datetime.now(timezone.utc)),
+    }
+
+
+@router.get(
+    "/tax-returns/partner-confirm/{token}",
+    summary="Public verification endpoint to inspect return summary for Partner 2",
+)
+async def inspect_partner_return(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Allows Partner 2 to review the return summary before giving personal confirmation."""
+    clean_token = token.strip()
+    stmt = select(TaxReturn).where(TaxReturn.partner2_confirmation_token == clean_token)
+    res = await db.execute(stmt)
+    tr = res.scalar_one_or_none()
+
+    if not tr:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ungültiger oder nicht gefundener Bestätigungslink.",
+        )
+
+    now = datetime.now(timezone.utc)
+    if tr.partner2_token_expires_at and tr.partner2_token_expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Dieser Bestätigungslink ist abgelaufen. Bitte bitten Sie Ihren Partner um einen neuen Link.",
+        )
+
+    # Load profile details
+    prof_stmt = select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
+    prof_res = await db.execute(prof_stmt)
+    prof = prof_res.scalar_one_or_none()
+
+    p_data = prof.personal_data if prof and prof.personal_data else {}
+    pd2 = p_data.get("partner2", {})
+
+    return {
+        "tax_return_id": str(tr.id),
+        "canton_code": tr.canton_code,
+        "municipality_name": tr.municipality_name,
+        "tax_year": tr.tax_year,
+        "partner1_name": f"{p_data.get('first_name', '')} {p_data.get('last_name', '')}".strip() or "Partner 1",
+        "partner2_name": f"{pd2.get('first_name', '')} {pd2.get('last_name', '')}".strip() or "Partner 2",
+        "already_confirmed": bool(tr.partner2_confirmed_at),
+        "confirmed_at": tr.partner2_confirmed_at.isoformat() if tr.partner2_confirmed_at else None,
+    }
+
+
+@router.post(
+    "/tax-returns/partner-confirm/{token}",
+    summary="Public endpoint for Partner 2 to personally confirm and sign the return",
+)
+async def confirm_partner_return(
+    token: str,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Record personal signature and confirmation from Partner 2 pursuant to Art. 113 DBG."""
+    clean_token = token.strip()
+    stmt = select(TaxReturn).where(TaxReturn.partner2_confirmation_token == clean_token)
+    res = await db.execute(stmt)
+    tr = res.scalar_one_or_none()
+
+    if not tr:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Ungültiger Bestätigungslink.",
+        )
+
+    now = datetime.now(timezone.utc)
+    if tr.partner2_token_expires_at and tr.partner2_token_expires_at < now:
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Dieser Bestätigungslink ist abgelaufen.",
+        )
+
+    confirmed = payload.get("confirmed", False)
+    full_name = str(payload.get("full_name") or "").strip()
+    if not confirmed or not full_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bitte bestätigen Sie die Richtigkeit der Angaben und geben Sie Ihren vollständigen Namen ein.",
+        )
+
+    tr.partner2_confirmed_at = now
+    tr.partner2_confirmed_name = full_name
+    tr.updated_at = now
+
+    audit = AuditLog(
+        user_id=str(tr.user_id),
+        action="partner2_confirmed",
+        resource_type="tax_return",
+        resource_id=str(tr.id),
+        extra_data=f'{{"name": "{full_name}", "timestamp": "{now.isoformat()}"}}',
+    )
+    db.add(audit)
+    await db.commit()
+
+    return {
+        "status": "confirmed",
+        "confirmed_at": now.isoformat(),
+        "confirmed_name": full_name,
+        "message": f"Vielen Dank, {full_name}. Ihre Bestätigung als Partner 2 wurde rechtsgültig erfasst (Art. 113 DBG).",
+    }
+
 
 

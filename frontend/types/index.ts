@@ -131,6 +131,11 @@ export interface TaxReturn {
   payment_method?: string;
   payment_amount?: number;
   paid_at?: string;
+  partner2_email?: string;
+  partner2_phone?: string;
+  partner2_confirmation_token?: string;
+  partner2_confirmed_at?: string;
+  partner2_confirmed_name?: string;
   created_at: string;
   updated_at: string;
   submitted_at?: string;

@@ -5,38 +5,38 @@
 /* ─── CSS Custom Properties ─────────────────────────────────────────────────── */
 @layer base {
   :root {
-    --background: 210 20% 99%;
+    --background: 60 5% 96%; /* #F6F6F4 */
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    /* Premium Swiss Crimson Primary */
-    --primary: 350 89% 46%;
+    /* SunTax Swiss Green Primary #1E7B52 */
+    --primary: 154 61% 30%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 215 25% 95%;
+    --secondary: 60 4% 92%;
     --secondary-foreground: 222.2 47.4% 11.2%;
 
-    --muted: 210 30% 96%;
+    --muted: 60 5% 94%;
     --muted-foreground: 215.4 16.3% 46.9%;
 
-    --accent: 210 30% 96%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 154 61% 94%;
+    --accent-foreground: 154 61% 25%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 25% 90%;
-    --input: 214.3 25% 90%;
-    --ring: 350 89% 46%;
+    --border: 45 10% 88%; /* #ECE8DF */
+    --input: 0 0% 87%; /* #DDDDDD */
+    --ring: 154 61% 30%;
 
     --radius: 0.75rem;
 
-    /* Swiss red brand */
-    --swiss-red: #D32F2F;
-    --swiss-red-hover: #B71C1C;
+    /* SunTax brand green */
+    --brand-green: #1E7B52;
+    --brand-green-hover: #165C3D;
   }
 
   .dark {

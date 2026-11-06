@@ -41,6 +41,22 @@ class TaxReturn(Base):
     payment_method: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)  # twint, credit_card
     payment_amount: Mapped[Optional[float]] = mapped_column(nullable=True, default=39.0)
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    payment_gateway_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    payment_transaction_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+    # Spouse confirmation (Art. 113 DBG)
+    partner2_email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    partner2_phone: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    partner2_confirmation_token: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    partner2_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    partner2_confirmed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    partner2_confirmed_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    return_data_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+
+    # Cantonal access code and electronic filing status
+    canton_access_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    transmission_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    transmission_receipt: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())

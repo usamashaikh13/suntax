@@ -39,13 +39,13 @@ function VerifyEmailContent() {
             <div className="h-16 w-16 rounded-2xl bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
               <CheckCircle className="h-8 w-8" />
             </div>
-            <h2 className="text-xl font-bold text-white">Email Verified!</h2>
+            <h2 className="text-xl font-bold text-white">E-Mail erfolgreich bestätigt!</h2>
             <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-              Your account is now active and ready. You can sign in to begin your Swiss tax declaration.
+              Dein SunTax-Konto ist jetzt aktiv. Du kannst dich nun anmelden und deine Steuererklärung starten.
             </p>
-            <Button asChild className="mt-2 bg-red-600 hover:bg-red-700 text-white font-semibold">
+            <Button asChild className="mt-2 bg-primary hover:bg-primary-700 text-white font-semibold">
               <Link href="/login">
-                Go to Sign In <ArrowRight className="h-4 w-4 ml-1.5" />
+                Weiter zur Anmeldung <ArrowRight className="h-4 w-4 ml-1.5" />
               </Link>
             </Button>
           </>

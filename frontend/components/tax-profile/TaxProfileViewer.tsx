@@ -2,44 +2,40 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Edit2,
   Save,
-  X,
-  AlertTriangle,
-  CheckCircle,
-  FileCheck2,
-  Trash2,
   Plus,
+  Trash2,
   Loader2,
-  Building,
-  Briefcase,
   Coins,
   Shield,
+  Briefcase,
   Home,
   Users,
-  Globe,
   Sparkles,
+  CheckCircle2,
+  HelpCircle,
+  TrendingDown,
+  Info
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { TaxProfile } from '@/types';
-import { formatCurrency } from '@/lib/utils';
 
 interface Props {
   profile: TaxProfile;
   taxReturnId: string;
+  cantonCode?: string;
   onUpdate?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
-export function TaxProfileViewer({ profile, taxReturnId, onUpdate }: Props) {
+export function TaxProfileViewer({ profile, taxReturnId, cantonCode = 'ZH', onUpdate, onNavigateTab }: Props) {
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [applyingDocs, setApplyingDocs] = useState(false);
   const [localProfile, setLocalProfile] = useState<TaxProfile>(profile);
 
   useEffect(() => {
@@ -52,60 +48,13 @@ export function TaxProfileViewer({ profile, taxReturnId, onUpdate }: Props) {
   const dedData = (localProfile.deductions_data || localProfile.deductions || {}) as Record<string, any>;
   const liabData = (localProfile.liabilities_data || localProfile.liabilities || {}) as Record<string, any>;
 
-  // Compute profile completeness score
-  const completeness = localProfile.completeness_score ?? localProfile.completion_percentage ?? 75;
+  // Securities list
+  const securitiesList: Array<any> = Array.isArray(wData.securities)
+    ? wData.securities
+    : Array.isArray(localProfile.securities)
+    ? localProfile.securities
+    : [];
 
-  const handleApplyAllDocuments = async () => {
-    setApplyingDocs(true);
-    try {
-      const res = await api.taxReturns.applyAllDocuments(taxReturnId);
-      toast({
-        title: 'Documents Applied',
-        description: res.message || 'Extracted document data has been merged into your tax profile.',
-      });
-      // Refresh profile data
-      const updated = await api.taxProfile.get(taxReturnId);
-      setLocalProfile(updated);
-      onUpdate?.();
-    } catch (err: any) {
-      toast({
-        title: 'Apply failed',
-        description: err?.response?.data?.detail || 'Could not apply document data to profile.',
-        variant: 'destructive',
-      });
-    } finally {
-      setApplyingDocs(false);
-    }
-  };
-
-  const saveChanges = async () => {
-    setSaving(true);
-    try {
-      await api.taxProfile.update(taxReturnId, {
-        ...localProfile,
-        personal_data: pData,
-        income_data: incData,
-        wealth_data: wData,
-        deductions_data: dedData,
-        liabilities_data: liabData,
-      });
-      toast({
-        title: 'Tax Profile Saved',
-        description: 'Your tax return draft has been updated successfully.',
-      });
-      onUpdate?.();
-    } catch (err: any) {
-      toast({
-        title: 'Save failed',
-        description: err?.response?.data?.detail || 'Could not save tax profile changes.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Helper to update specific subfield
   const updateSectionField = (
     section: 'personal_data' | 'income_data' | 'wealth_data' | 'deductions_data' | 'liabilities_data',
     key: string,
@@ -121,482 +70,496 @@ export function TaxProfileViewer({ profile, taxReturnId, onUpdate }: Props) {
     });
   };
 
-  // Delete bank account
-  const removeBankAccount = (index: number) => {
-    const list = [...(wData.bank_accounts || [])];
-    list.splice(index, 1);
-    updateSectionField('wealth_data', 'bank_accounts', list);
+  const updateSecurity = (index: number, key: string, value: any) => {
+    const list = [...securitiesList];
+    list[index] = { ...list[index], [key]: value };
+    // Maintain both standard and short keys
+    if (key === 'tax_value') list[index].val = value;
+    if (key === 'val') list[index].tax_value = value;
+    if (key === 'gross_revenue_with_tax') list[index].mit = value;
+    if (key === 'mit') list[index].gross_revenue_with_tax = value;
+    if (key === 'gross_revenue_without_tax') list[index].ohne = value;
+    if (key === 'ohne') list[index].gross_revenue_without_tax = value;
+
+    updateSectionField('wealth_data', 'securities', list);
   };
 
-  // Delete securities position
+  const addSecurity = () => {
+    const list = [...securitiesList];
+    list.push({
+      name: '',
+      tax_value: 0,
+      val: 0,
+      gross_revenue_with_tax: 0,
+      mit: 0,
+      gross_revenue_without_tax: 0,
+      ohne: 0,
+    });
+    updateSectionField('wealth_data', 'securities', list);
+  };
+
   const removeSecurity = (index: number) => {
-    const list = [...(wData.securities || localProfile.securities || [])];
+    const list = [...securitiesList];
     list.splice(index, 1);
     updateSectionField('wealth_data', 'securities', list);
   };
 
-  // Delete mortgage
-  const removeMortgage = (index: number) => {
-    const list = [...(liabData.mortgages || [])];
-    list.splice(index, 1);
-    updateSectionField('liabilities_data', 'mortgages', list);
+  const saveChanges = async () => {
+    setSaving(true);
+    try {
+      await api.taxProfile.update(taxReturnId, {
+        ...localProfile,
+        personal_data: pData,
+        income_data: incData,
+        wealth_data: {
+          ...wData,
+          securities: securitiesList,
+        },
+        deductions_data: dedData,
+        liabilities_data: liabData,
+      });
+
+      // Recalculate tax
+      try {
+        await api.taxEngine.calculate(taxReturnId);
+      } catch {}
+
+      toast({
+        title: 'Angaben gespeichert',
+        description: 'Deine Ergänzungen wurden übernommen und die Steuerberechnung aktualisiert.',
+      });
+      onUpdate?.();
+    } catch (err: any) {
+      toast({
+        title: 'Speichern fehlgeschlagen',
+        description: err?.response?.data?.detail || 'Bitte überprüfe deine Eingaben.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
   };
+
+  // Compute securities totals
+  const totalSecValue = securitiesList.reduce(
+    (acc, s) => acc + (Number(s.tax_value ?? s.val) || 0),
+    0
+  );
+  const totalSecMit = securitiesList.reduce(
+    (acc, s) => acc + (Number(s.gross_revenue_with_tax ?? s.mit) || 0),
+    0
+  );
+  const totalSecOhne = securitiesList.reduce(
+    (acc, s) => acc + (Number(s.gross_revenue_without_tax ?? s.ohne) || 0),
+    0
+  );
+  // Verrechnungssteuer refund (35% on dividend/interest subject to Swiss withholding tax)
+  const vstRefund = Math.round(totalSecMit * 0.35 * 100) / 100;
 
   return (
     <div className="space-y-6">
-      {/* Action Header Banner */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border bg-gradient-to-r from-red-50/50 via-white to-gray-50 shadow-sm">
+      {/* ── Intro Header (Schritt 4) ── */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-red-600" />
-            <h3 className="font-bold text-gray-900 text-sm">Tax Profile & Merged Data</h3>
+            <span className="text-xs uppercase font-extrabold tracking-wider bg-primary/10 text-primary px-2.5 py-0.5 rounded-full">
+              Schritt 4 von 6
+            </span>
+            <h2 className="text-lg font-bold text-slate-900">Haben wir etwas vergessen?</h2>
           </div>
-          <p className="text-xs text-gray-500 mt-0.5">
-            Review figures imported from your documents. You can modify any amount, add positions, or remove entries.
+          <p className="text-xs text-slate-500 mt-1 max-w-xl">
+            Abgehakt ist, was wir in deinen Dokumenten gefunden haben. Ergänze oder passe Werte an, die sonst noch zutreffen.
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <Button
+          onClick={saveChanges}
+          disabled={saving}
+          className="bg-primary hover:bg-primary-700 text-white font-bold text-xs h-9 px-4 shadow-sm flex items-center gap-1.5 flex-shrink-0"
+        >
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          Änderungen speichern
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* ── 1. Weitere Einkünfte ── */}
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="bg-slate-50/70 border-b pb-3">
+            <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-primary" />
+              <span>Weitere Einkünfte</span>
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">
+              Nebenerwerb, Renten, Taggelder oder Liegenschaftenertrag.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3 text-xs">
+            <div>
+              <label className="text-slate-700 font-semibold block mb-1">
+                Haupterwerb Nettolohn (Lohnausweis Ziffer 11)
+              </label>
+              <Input
+                type="number"
+                value={incData.net_salary || incData.employment_income || ''}
+                onChange={(e) => updateSectionField('income_data', 'net_salary', parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs font-semibold"
+                placeholder="CHF 0.00"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-600 font-medium">Nebenerwerb (CHF)</label>
+                <Input
+                  type="number"
+                  value={incData.self_employment_income || incData.side_job_income || ''}
+                  onChange={(e) => updateSectionField('income_data', 'side_job_income', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-slate-600 font-medium">AHV- / IV-Rente (CHF)</label>
+                <Input
+                  type="number"
+                  value={incData.ahv_pension || ''}
+                  onChange={(e) => updateSectionField('income_data', 'ahv_pension', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-600 font-medium">Pensionskassenrente (CHF)</label>
+                <Input
+                  type="number"
+                  value={incData.pk_pension || ''}
+                  onChange={(e) => updateSectionField('income_data', 'pk_pension', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-slate-600 font-medium">ALV- / Krankentaggeld (CHF)</label>
+                <Input
+                  type="number"
+                  value={incData.daily_allowances || ''}
+                  onChange={(e) => updateSectionField('income_data', 'daily_allowances', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-slate-600 font-medium">Erhaltene Kinderalimente / Unterhalt (CHF)</label>
+              <Input
+                type="number"
+                value={incData.alimony_received || ''}
+                onChange={(e) => updateSectionField('income_data', 'alimony_received', parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs mt-1"
+                placeholder="0.00"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* ── 2. Beruf & Abzüge ── */}
+        <Card className="border-slate-200 shadow-sm">
+          <CardHeader className="bg-slate-50/70 border-b pb-3">
+            <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Shield className="h-4 w-4 text-primary" />
+              <span>Beruf & weitere Abzüge</span>
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500">
+              Vorsorge Säule 3a, Weiterbildung, Versicherungen und Spenden.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-700 font-semibold block mb-1">
+                  Säule 3a (max. CHF 7’258)
+                </label>
+                <Input
+                  type="number"
+                  value={dedData.pillar3a_contributions || ''}
+                  onChange={(e) => updateSectionField('deductions_data', 'pillar3a_contributions', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs font-semibold"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-slate-700 font-semibold block mb-1">
+                  Einkauf Pensionskasse (2. Säule)
+                </label>
+                <Input
+                  type="number"
+                  value={dedData.pension_buyin || ''}
+                  onChange={(e) => updateSectionField('deductions_data', 'pension_buyin', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs font-semibold"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-600 font-medium">Krankenkassenprämien (CHF)</label>
+                <Input
+                  type="number"
+                  value={dedData.health_insurance_premiums || ''}
+                  onChange={(e) => updateSectionField('deductions_data', 'health_insurance_premiums', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-slate-600 font-medium">Weiterbildungskosten (CHF)</label>
+                <Input
+                  type="number"
+                  value={dedData.education_expenses || ''}
+                  onChange={(e) => updateSectionField('deductions_data', 'education_expenses', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-slate-600 font-medium">Kinderbetreuung durch Dritte (CHF)</label>
+                <Input
+                  type="number"
+                  value={dedData.childcare_costs || ''}
+                  onChange={(e) => updateSectionField('deductions_data', 'childcare_costs', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+              <div>
+                <label className="text-slate-600 font-medium">Gemeinnützige Spenden (CHF)</label>
+                <Input
+                  type="number"
+                  value={dedData.donations || ''}
+                  onChange={(e) => updateSectionField('deductions_data', 'donations', parseFloat(e.target.value) || 0)}
+                  className="h-8 text-xs mt-1"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-slate-600 font-medium">Schuldzinsen (Privatkredit, ohne Leasing)</label>
+              <Input
+                type="number"
+                value={dedData.debt_interest || liabData.debt_interest || ''}
+                onChange={(e) => updateSectionField('deductions_data', 'debt_interest', parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs mt-1"
+                placeholder="0.00"
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* ── 3. Wertschriften- und Guthabenverzeichnis mit Verrechnungsantrag (Redesign) ── */}
+      <Card className="border-slate-200 shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-50/70 border-b pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm sm:text-base font-bold text-slate-900 flex items-center gap-2">
+              <Coins className="h-4 w-4 text-primary" />
+              <span>Wertschriften- und Guthabenverzeichnis (eCH-0196)</span>
+            </CardTitle>
+            <CardDescription className="text-xs text-slate-500 mt-0.5">
+              Bankkonten, Aktien und Fonds per 31.12. inkl. Verrechnungssteuer-Rückerstattung.
+            </CardDescription>
+          </div>
+
           <Button
+            type="button"
             variant="outline"
             size="sm"
-            onClick={handleApplyAllDocuments}
-            disabled={applyingDocs || saving}
-            className="text-xs font-semibold text-gray-700 hover:text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-1.5"
+            onClick={addSecurity}
+            className="text-xs font-semibold text-slate-700 hover:text-primary flex items-center gap-1.5 h-8"
           >
-            {applyingDocs ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <FileCheck2 className="h-3.5 w-3.5 text-red-600" />
-            )}
-            Apply Approved Documents
+            <Plus className="h-3.5 w-3.5 text-primary" />
+            Position hinzufügen
           </Button>
+        </CardHeader>
 
-          <Button
-            size="sm"
-            onClick={saveChanges}
-            disabled={saving || applyingDocs}
-            className="text-xs bg-red-600 hover:bg-red-700 text-white font-semibold flex items-center gap-1.5"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-            Save Profile
-          </Button>
-        </div>
-      </div>
-
-      {/* Profile Completeness Card */}
-      <div className="p-4 rounded-xl border bg-white shadow-sm space-y-2">
-        <div className="flex justify-between items-center text-xs font-semibold">
-          <span className="text-gray-700">Tax Profile Completeness</span>
-          <span className="text-red-600 font-bold">{Math.round(completeness)}%</span>
-        </div>
-        <Progress value={completeness} className="h-2" />
-      </div>
-
-      {/* Grid of Profile Sections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-        {/* 1. Personal Information */}
-        <Card className="shadow-sm border-gray-200">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Users className="h-4 w-4 text-red-600" />
-              <span>Personal Information</span>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Taxpayer identity and civil status.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-3 space-y-2.5 text-xs">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-gray-500 font-medium">First Name</label>
-                <Input
-                  value={pData.first_name || ''}
-                  onChange={(e) => updateSectionField('personal_data', 'first_name', e.target.value)}
-                  className="h-8 text-xs mt-1"
-                  placeholder="e.g. Max"
-                />
-              </div>
-              <div>
-                <label className="text-gray-500 font-medium">Last Name</label>
-                <Input
-                  value={pData.last_name || ''}
-                  onChange={(e) => updateSectionField('personal_data', 'last_name', e.target.value)}
-                  className="h-8 text-xs mt-1"
-                  placeholder="e.g. Muster"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-gray-500 font-medium">AHV / Social Security Number</label>
-                <Input
-                  value={pData.ahv_number || ''}
-                  onChange={(e) => updateSectionField('personal_data', 'ahv_number', e.target.value)}
-                  className="h-8 text-xs mt-1"
-                  placeholder="756.xxxx.xxxx.xx"
-                />
-              </div>
-              <div>
-                <label className="text-gray-500 font-medium">Marital Status</label>
-                <select
-                  value={pData.marital_status || 'single'}
-                  onChange={(e) => updateSectionField('personal_data', 'marital_status', e.target.value)}
-                  className="w-full h-8 mt-1 text-xs rounded-md border border-gray-300 px-2 bg-white"
-                >
-                  <option value="single">Single (Ledig)</option>
-                  <option value="married">Married (Verheiratet)</option>
-                  <option value="divorced">Divorced (Geschieden)</option>
-                  <option value="registered_partnership">Registered Partnership</option>
-                  <option value="widowed">Widowed (Verwitwet)</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-gray-500 font-medium">Residential Address</label>
-              <Input
-                value={pData.address || ''}
-                onChange={(e) => updateSectionField('personal_data', 'address', e.target.value)}
-                className="h-8 text-xs mt-1"
-                placeholder="Street and house number"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 2. Employment & Income */}
-        <Card className="shadow-sm border-gray-200">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-red-600" />
-              <span>Employment & Income</span>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Annual gross salary, pensions, and investment yields.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-3 space-y-3 text-xs">
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="text-gray-700 font-semibold">Total Gross Employment Income</label>
-                {incData.source_document_name && (
-                  <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                    Source: {incData.source_document_name}
-                  </Badge>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b bg-slate-100/70 text-slate-600 font-bold">
+                  <th className="text-left py-2.5 px-4 min-w-[200px]">Bezeichnung / Bank / IBAN</th>
+                  <th className="text-right py-2.5 px-3 min-w-[130px]">Steuerwert 31.12. (CHF)</th>
+                  <th className="text-right py-2.5 px-3 min-w-[130px]">Ertrag mit VSt (CHF)</th>
+                  <th className="text-right py-2.5 px-3 min-w-[130px]">Ertrag ohne VSt (CHF)</th>
+                  <th className="text-center py-2.5 px-2 w-10"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {securitiesList.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-slate-400 italic">
+                      Noch keine Konten oder Wertschriften erfasst. Klicke auf «Position hinzufügen», um Bankkonten oder Aktien manuell einzutragen.
+                    </td>
+                  </tr>
+                ) : (
+                  securitiesList.map((pos, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="py-2 px-4">
+                        <Input
+                          value={pos.name || ''}
+                          onChange={(e) => updateSecurity(idx, 'name', e.target.value)}
+                          placeholder="z. B. Sparkonto UBS oder Nestlé N"
+                          className="h-7 text-xs font-medium"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <Input
+                          type="number"
+                          value={pos.tax_value ?? pos.val ?? ''}
+                          onChange={(e) => updateSecurity(idx, 'tax_value', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="h-7 text-xs text-right font-mono"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <Input
+                          type="number"
+                          value={pos.gross_revenue_with_tax ?? pos.mit ?? ''}
+                          onChange={(e) => updateSecurity(idx, 'gross_revenue_with_tax', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="h-7 text-xs text-right font-mono"
+                        />
+                      </td>
+                      <td className="py-2 px-3">
+                        <Input
+                          type="number"
+                          value={pos.gross_revenue_without_tax ?? pos.ohne ?? ''}
+                          onChange={(e) => updateSecurity(idx, 'gross_revenue_without_tax', parseFloat(e.target.value) || 0)}
+                          placeholder="0.00"
+                          className="h-7 text-xs text-right font-mono"
+                        />
+                      </td>
+                      <td className="py-2 px-2 text-center">
+                        <button
+                          type="button"
+                          onClick={() => removeSecurity(idx)}
+                          className="text-slate-400 hover:text-red-600 transition-colors p-1"
+                          title="Position löschen"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
                 )}
-              </div>
-              <Input
-                type="number"
-                value={incData.employment_income || incData.gross_salary || incData.total_employment_income || ''}
-                onChange={(e) => updateSectionField('income_data', 'employment_income', parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-semibold"
-                placeholder="0.00 CHF"
-              />
-            </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-gray-500 font-medium">Net Salary (Lohnausweis Box 11)</label>
-                <Input
-                  type="number"
-                  value={incData.net_salary || ''}
-                  onChange={(e) => updateSectionField('income_data', 'net_salary', parseFloat(e.target.value) || 0)}
-                  className="h-8 text-xs mt-1"
-                  placeholder="0.00 CHF"
-                />
-              </div>
-              <div>
-                <label className="text-gray-500 font-medium">Secondary / Freelance Income</label>
-                <Input
-                  type="number"
-                  value={incData.self_employment_income || 0}
-                  onChange={(e) => updateSectionField('income_data', 'self_employment_income', parseFloat(e.target.value) || 0)}
-                  className="h-8 text-xs mt-1"
-                  placeholder="0.00 CHF"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-gray-500 font-medium">Gross Bank Interest</label>
-                <Input
-                  type="number"
-                  value={incData.bank_interest || 0}
-                  onChange={(e) => updateSectionField('income_data', 'bank_interest', parseFloat(e.target.value) || 0)}
-                  className="h-8 text-xs mt-1"
-                />
-              </div>
-              <div>
-                <label className="text-gray-500 font-medium">Gross Dividends</label>
-                <Input
-                  type="number"
-                  value={incData.dividends || 0}
-                  onChange={(e) => updateSectionField('income_data', 'dividends', parseFloat(e.target.value) || 0)}
-                  className="h-8 text-xs mt-1"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 3. Wealth & Bank Accounts */}
-        <Card className="shadow-sm border-gray-200">
-          <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Coins className="h-4 w-4 text-red-600" />
-                <span>Bank Accounts & Cash Assets</span>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Balances as of December 31st for Swiss wealth tax.
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const list = [...(wData.bank_accounts || [])];
-                list.push({ bank_name: 'New Bank Account', iban: '', balance: 0, currency: 'CHF' });
-                updateSectionField('wealth_data', 'bank_accounts', list);
-              }}
-              className="text-xs h-7 text-gray-600 flex items-center gap-1"
-            >
-              <Plus className="h-3 w-3" /> Add Account
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-3 space-y-2 text-xs">
-            {(!wData.bank_accounts || wData.bank_accounts.length === 0) ? (
-              <p className="text-xs text-gray-400 italic py-2">No bank accounts recorded yet.</p>
-            ) : (
-              (wData.bank_accounts as any[]).map((acc, idx) => (
-                <div key={idx} className="p-2.5 rounded-lg border bg-gray-50/50 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-gray-800">{acc.bank_name || `Account ${idx + 1}`}</span>
-                      {acc.source_document_name && (
-                        <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                          {acc.source_document_name}
-                        </Badge>
-                      )}
-                    </div>
-                    <button
-                      onClick={() => removeBankAccount(idx)}
-                      className="text-gray-400 hover:text-red-600 transition-colors"
-                      title="Delete account"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-gray-500">IBAN</label>
-                      <Input
-                        value={acc.iban || ''}
-                        onChange={(e) => {
-                          const list = [...wData.bank_accounts];
-                          list[idx] = { ...list[idx], iban: e.target.value };
-                          updateSectionField('wealth_data', 'bank_accounts', list);
-                        }}
-                        className="h-7 text-xs font-mono"
-                        placeholder="CHxx..."
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-gray-500">Dec 31st Balance (CHF)</label>
-                      <Input
-                        type="number"
-                        value={acc.balance || 0}
-                        onChange={(e) => {
-                          const list = [...wData.bank_accounts];
-                          list[idx] = { ...list[idx], balance: parseFloat(e.target.value) || 0 };
-                          updateSectionField('wealth_data', 'bank_accounts', list);
-                        }}
-                        className="h-7 text-xs font-semibold"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 4. Liabilities & Mortgages */}
-        <Card className="shadow-sm border-gray-200">
-          <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-sm font-bold flex items-center gap-2">
-                <Home className="h-4 w-4 text-red-600" />
-                <span>Mortgages & Debts</span>
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Outstanding debt balances and deductible debt interest.
-              </CardDescription>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const list = [...(liabData.mortgages || [])];
-                list.push({ lender_name: 'New Mortgage Lender', mortgage_balance: 0, interest_paid: 0 });
-                updateSectionField('liabilities_data', 'mortgages', list);
-              }}
-              className="text-xs h-7 text-gray-600 flex items-center gap-1"
-            >
-              <Plus className="h-3 w-3" /> Add Mortgage
-            </Button>
-          </CardHeader>
-          <CardContent className="pt-3 space-y-2 text-xs">
-            {(!liabData.mortgages || liabData.mortgages.length === 0) ? (
-              <p className="text-xs text-gray-400 italic py-2">No mortgage or debt entries recorded.</p>
-            ) : (
-              (liabData.mortgages as any[]).map((m, idx) => (
-                <div key={idx} className="p-2.5 rounded-lg border bg-gray-50/50 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-gray-800">{m.lender_name || `Lender ${idx + 1}`}</span>
-                    <button
-                      onClick={() => removeMortgage(idx)}
-                      className="text-gray-400 hover:text-red-600 transition-colors"
-                      title="Delete mortgage"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[11px] text-gray-500">Mortgage Balance (Debt)</label>
-                      <Input
-                        type="number"
-                        value={m.mortgage_balance || 0}
-                        onChange={(e) => {
-                          const list = [...liabData.mortgages];
-                          list[idx] = { ...list[idx], mortgage_balance: parseFloat(e.target.value) || 0 };
-                          updateSectionField('liabilities_data', 'mortgages', list);
-                        }}
-                        className="h-7 text-xs font-semibold"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] text-gray-500">Interest Paid (Deductible)</label>
-                      <Input
-                        type="number"
-                        value={m.interest_paid || 0}
-                        onChange={(e) => {
-                          const list = [...liabData.mortgages];
-                          list[idx] = { ...list[idx], interest_paid: parseFloat(e.target.value) || 0 };
-                          updateSectionField('liabilities_data', 'mortgages', list);
-                        }}
-                        className="h-7 text-xs font-semibold"
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* 5. Deductions & Expenses */}
-        <Card className="shadow-sm border-gray-200 lg:col-span-2">
-          <CardHeader className="pb-3 border-b">
-            <CardTitle className="text-sm font-bold flex items-center gap-2">
-              <Shield className="h-4 w-4 text-red-600" />
-              <span>Deductions & Tax Offsets</span>
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Statutory Swiss tax deductions for pensions, commuting, health insurance, childcare, and donations.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-            {/* Pillar 3a */}
-            <div className="p-3 rounded-lg border bg-gray-50/50">
-              <div className="flex justify-between items-center mb-1">
-                <label className="font-semibold text-gray-800">Pillar 3a Pension (Max CHF 7,258)</label>
-                {dedData.source_document_name && (
-                  <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">
-                    Doc
-                  </Badge>
+                {/* Totals row */}
+                {securitiesList.length > 0 && (
+                  <tr className="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
+                    <td className="py-2.5 px-4">Total Wertschriften & Bankguthaben</td>
+                    <td className="py-2.5 px-3 text-right font-mono">
+                      CHF {totalSecValue.toLocaleString('de-CH')}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono">
+                      CHF {totalSecMit.toLocaleString('de-CH')}
+                    </td>
+                    <td className="py-2.5 px-3 text-right font-mono">
+                      CHF {totalSecOhne.toLocaleString('de-CH')}
+                    </td>
+                    <td></td>
+                  </tr>
                 )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Withholding tax refund notice */}
+          {vstRefund > 0 && (
+            <div className="m-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200/80 text-emerald-950 flex items-start gap-2.5">
+              <TrendingDown className="h-4 w-4 text-emerald-700 flex-shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <strong>Verrechnungssteuer-Rückforderung:</strong> Du bekommst{' '}
+                <strong className="text-emerald-800 font-mono font-black">
+                  CHF {vstRefund.toLocaleString('de-CH')}
+                </strong>{' '}
+                (35% auf CHF {totalSecMit.toLocaleString('de-CH')}) vom Bund an deine Steuern gutgeschrieben.
               </div>
-              <Input
-                type="number"
-                value={dedData.pillar3a_contributions || 0}
-                onChange={(e) => updateSectionField('deductions_data', 'pillar3a_contributions', parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-semibold"
-              />
             </div>
+          )}
+        </CardContent>
+      </Card>
 
-            {/* Commuting */}
-            <div className="p-3 rounded-lg border bg-gray-50/50">
-              <label className="font-semibold text-gray-800 block mb-1">Commuting & Travel to Work</label>
-              <Input
-                type="number"
-                value={dedData.travel_expenses || dedData.commute_costs || 0}
-                onChange={(e) => updateSectionField('deductions_data', 'travel_expenses', parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-semibold"
-              />
-            </div>
+      {/* ── 4. Besondere Ereignisse ── */}
+      <Card className="border-slate-200 shadow-sm">
+        <CardHeader className="bg-slate-50/70 border-b pb-3">
+          <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <Home className="h-4 w-4 text-primary" />
+            <span>Besondere Ereignisse & Vermögenswerte</span>
+          </CardTitle>
+          <CardDescription className="text-xs text-slate-500">
+            Kapitalbezüge, Erbschaften, Schenkungen oder Liegenschaften.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div>
+            <label className="text-slate-600 font-medium block mb-1">
+              Bargeld, Gold, Krypto per 31.12. (CHF)
+            </label>
+            <Input
+              type="number"
+              value={wData.cash_and_crypto || ''}
+              onChange={(e) => updateSectionField('wealth_data', 'cash_and_crypto', parseFloat(e.target.value) || 0)}
+              className="h-8 text-xs font-semibold"
+              placeholder="0.00"
+            />
+          </div>
 
-            {/* Health Insurance */}
-            <div className="p-3 rounded-lg border bg-gray-50/50">
-              <label className="font-semibold text-gray-800 block mb-1">Health Insurance Premiums</label>
-              <Input
-                type="number"
-                value={dedData.health_insurance_premiums || 0}
-                onChange={(e) => updateSectionField('deductions_data', 'health_insurance_premiums', parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-semibold"
-              />
-            </div>
+          <div>
+            <label className="text-slate-600 font-medium block mb-1">
+              Kapitalbezug 2. / 3. Säule (separat besteuert)
+            </label>
+            <Input
+              type="number"
+              value={incData.capital_pension_payout || ''}
+              onChange={(e) => updateSectionField('income_data', 'capital_pension_payout', parseFloat(e.target.value) || 0)}
+              className="h-8 text-xs font-semibold"
+              placeholder="0.00"
+            />
+          </div>
 
-            {/* Childcare */}
-            <div className="p-3 rounded-lg border bg-gray-50/50">
-              <label className="font-semibold text-gray-800 block mb-1">Childcare & Daycare (KITA)</label>
-              <Input
-                type="number"
-                value={dedData.childcare_costs || 0}
-                onChange={(e) => updateSectionField('deductions_data', 'childcare_costs', parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-semibold"
-              />
-            </div>
-
-            {/* Charitable Donations */}
-            <div className="p-3 rounded-lg border bg-gray-50/50">
-              <label className="font-semibold text-gray-800 block mb-1">Charitable Donations (Spenden)</label>
-              <Input
-                type="number"
-                value={dedData.donations || 0}
-                onChange={(e) => updateSectionField('deductions_data', 'donations', parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-semibold"
-              />
-            </div>
-
-            {/* Continuing Education */}
-            <div className="p-3 rounded-lg border bg-gray-50/50">
-              <label className="font-semibold text-gray-800 block mb-1">Continuing Education (Max CHF 12,900)</label>
-              <Input
-                type="number"
-                value={dedData.education_expenses || 0}
-                onChange={(e) => updateSectionField('deductions_data', 'education_expenses', parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs font-semibold"
-              />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          <div>
+            <label className="text-slate-600 font-medium block mb-1">
+              Erbschaft oder Schenkung erhalten (CHF)
+            </label>
+            <Input
+              type="number"
+              value={wData.inheritance_or_gifts_received || ''}
+              onChange={(e) => updateSectionField('wealth_data', 'inheritance_or_gifts_received', parseFloat(e.target.value) || 0)}
+              className="h-8 text-xs font-semibold"
+              placeholder="0.00"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Save Button */}
       <div className="flex justify-end pt-2">
         <Button
           onClick={saveChanges}
-          disabled={saving || applyingDocs}
-          className="bg-red-600 hover:bg-red-700 text-white font-semibold text-xs px-6 h-9"
+          disabled={saving}
+          className="bg-primary hover:bg-primary-700 text-white font-bold text-xs px-6 h-9 shadow-sm"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-          Save All Tax Profile Changes
+          Alle Angaben speichern & zur Kontrolle
         </Button>
       </div>
     </div>

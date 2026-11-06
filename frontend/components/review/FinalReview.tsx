@@ -15,7 +15,8 @@ import {
   QrCode,
   ArrowRight,
   ExternalLink,
-  Printer
+  Printer,
+  Users
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,7 +56,15 @@ export function FinalReview({
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'twint' | 'credit_card'>('twint');
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [checkingPayment, setCheckingPayment] = useState(false);
+  const [activeGateway, setActiveGateway] = useState<{ gateway_id: string; checkout_url: string; provider: string } | null>(null);
   const [isPaid, setIsPaid] = useState<boolean>(taxReturn.payment_status === 'paid');
+
+  // Partner 2 confirmation states (Art. 113 DBG)
+  const [partner2Status, setPartner2Status] = useState<any>(null);
+  const [partner2Email, setPartner2Email] = useState('');
+  const [partner2InviteLoading, setPartner2InviteLoading] = useState(false);
+  const [partner2InviteUrl, setPartner2InviteUrl] = useState<string | null>(null);
 
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -66,6 +75,11 @@ export function FinalReview({
     api.taxReturns.getPaymentStatus(taxReturn.id)
       .then(res => setIsPaid(res.is_paid))
       .catch(() => {});
+
+    // Check Partner 2 status
+    api.taxReturns.partner2Status(taxReturn.id)
+      .then(setPartner2Status)
+      .catch(() => {});
   }, [taxReturn.id]);
 
   const isReady = Boolean(profile && calculation);
@@ -75,6 +89,34 @@ export function FinalReview({
   const inc = (profile?.income_data || {}) as Record<string, any>;
   const ded = (profile?.deductions_data || {}) as Record<string, any>;
   const r = calculation?.results || {};
+
+  const civilStatusLower = String(pd.civil_status || pd.marital_status || 'single').toLowerCase();
+  const isMarried = civilStatusLower.includes('verh') || civilStatusLower.includes('marr') || civilStatusLower.includes('partner');
+  const partner2Confirmed = Boolean(partner2Status?.is_confirmed || taxReturn.partner2_confirmed_at);
+
+  const handlePartner2Invite = async () => {
+    if (!partner2Email.trim()) return;
+    setPartner2InviteLoading(true);
+    try {
+      const res = await api.taxReturns.partner2Invite(taxReturn.id, { email: partner2Email.trim() });
+      const fullUrl = `${window.location.origin}${res.confirmation_url}`;
+      setPartner2InviteUrl(fullUrl);
+      toast({
+        title: 'Einladung erstellt',
+        description: 'Der persönliche Bestätigungslink für Partner 2 wurde generiert.',
+      });
+      const updatedStatus = await api.taxReturns.partner2Status(taxReturn.id);
+      setPartner2Status(updatedStatus);
+    } catch (err: any) {
+      toast({
+        title: 'Einladung fehlgeschlagen',
+        description: err?.response?.data?.detail || 'Bitte versuche es erneut.',
+        variant: 'destructive',
+      });
+    } finally {
+      setPartner2InviteLoading(false);
+    }
+  };
 
   const fullName =
     pd.name ||
@@ -92,13 +134,38 @@ export function FinalReview({
     return `« ca. CHF ${num.toLocaleString('de-CH')} »`;
   };
 
-  // Check required data completeness
-  const missingItems: string[] = [];
+  // Check required data completeness with direct link metadata
+  interface MissingValidationItem {
+    id: string;
+    label: string;
+    stepId: string;
+    hint: string;
+  }
+
+  const missingItems: MissingValidationItem[] = [];
   if (!fullName || fullName.trim() === '') {
-    missingItems.push('Vollständiger Name des Steuerpflichtigen (in den Stammdaten)');
+    missingItems.push({
+      id: 'name',
+      label: 'Vollständiger Name des Steuerpflichtigen',
+      stepId: 'start',
+      hint: 'In Schritt 1 (Start) ergänzen',
+    });
   }
   if (!taxReturn.canton_code) {
-    missingItems.push('Kantonscode');
+    missingItems.push({
+      id: 'canton',
+      label: 'Kantonscode und Wohngemeinde',
+      stepId: 'start',
+      hint: 'PLZ in Schritt 1 eingeben',
+    });
+  }
+  if (isMarried && !partner2Confirmed) {
+    missingItems.push({
+      id: 'partner2',
+      label: 'Persönliche Bestätigung von Partner 2 (Art. 113 DBG)',
+      stepId: 'submit',
+      hint: 'Unten Einladungslink generieren',
+    });
   }
 
   const completionPct = profile?.completeness_score ?? (missingItems.length === 0 ? 100 : 75);
@@ -145,25 +212,56 @@ export function FinalReview({
     }
   };
 
-  // Payment Execution (Part B6)
-  const handlePayment = async () => {
+  // Payment Execution (Part B6): Two-step provider flow with mandatory verification
+  const handleInitiatePayment = async () => {
     setPaymentProcessing(true);
     try {
-      await api.taxReturns.confirmPayment(taxReturn.id, selectedPaymentMethod);
-      setIsPaid(true);
-      setShowPaymentModal(false);
+      const res = await api.taxReturns.createPaymentCheckout(taxReturn.id, selectedPaymentMethod);
+      setActiveGateway({
+        gateway_id: res.gateway_id,
+        checkout_url: res.checkout_url,
+        provider: res.provider || 'payrexx',
+      });
+      if (res.checkout_url) {
+        window.open(res.checkout_url, '_blank');
+      }
       toast({
-        title: 'Zahlung erfolgreich!',
-        description: 'Die Pauschale von CHF 39.00 wurde verbucht. Sie können Ihre Steuererklärung nun bestätigen und herunterladen.',
+        title: 'Zahlungsfenster geöffnet',
+        description: 'Bitte schliesse die Zahlung im Payrexx-Fenster ab und klicke anschliessend auf "Zahlung überprüfen".',
       });
     } catch (err: any) {
       toast({
-        title: 'Zahlung fehlgeschlagen',
-        description: err?.response?.data?.detail || 'Bitte versuchen Sie es erneut.',
+        title: 'Checkout fehlgeschlagen',
+        description: err?.response?.data?.detail || 'Bitte versuche es erneut.',
         variant: 'destructive',
       });
     } finally {
       setPaymentProcessing(false);
+    }
+  };
+
+  const handleVerifyPayment = async () => {
+    setCheckingPayment(true);
+    try {
+      await api.taxReturns.confirmPayment(taxReturn.id, {
+        gateway_id: activeGateway?.gateway_id,
+        method: selectedPaymentMethod,
+      });
+      setIsPaid(true);
+      setShowPaymentModal(false);
+      setActiveGateway(null);
+      toast({
+        title: 'Zahlung erfolgreich verifiziert!',
+        description: 'Die Pauschale von CHF 39.00 wurde verbucht. Du kannst deine Steuererklärung nun definitiv bestätigen und einreichen.',
+      });
+    } catch (err: any) {
+      toast({
+        title: 'Zahlung noch nicht bestätigt',
+        description: err?.response?.data?.detail || 'Die Zahlung wurde beim Zahlungsanbieter noch nicht bestätigt. Bitte schliesse den Vorgang ab.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCheckingPayment(false);
     }
   };
 
@@ -251,12 +349,36 @@ export function FinalReview({
               size="sm"
               onClick={() => handleExport('pdf')}
               disabled={exporting === 'pdf'}
-              className="text-xs bg-red-600 hover:bg-red-700 text-white font-bold shadow-xs flex items-center gap-1.5"
+              className="text-xs bg-primary hover:bg-primary-700 text-white font-bold shadow-xs flex items-center gap-1.5"
             >
               <Download className="h-4 w-4" />
               Amtliches PDF für Postversand
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* ── Validation Summary with Direct Links (Requirement 2 & 7) ── */}
+      {missingItems.length > 0 && !isAlreadyConfirmed && (
+        <div className="p-4 rounded-xl border border-amber-300 bg-amber-50 space-y-2">
+          <div className="flex items-center gap-2 text-amber-950 font-bold text-xs">
+            <AlertTriangle className="h-4 w-4 text-amber-700 flex-shrink-0" />
+            <span>Vor dem Einreichen ausstehend ({missingItems.length} Angabe(n)):</span>
+          </div>
+          <ul className="space-y-1.5 pl-6 list-disc text-xs text-amber-950">
+            {missingItems.map(item => (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab?.(item.stepId)}
+                  className="font-bold underline text-primary hover:text-primary-700 text-left cursor-pointer"
+                >
+                  {item.label}
+                </button>
+                <span className="text-amber-800 ml-1.5">({item.hint})</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -302,7 +424,7 @@ export function FinalReview({
               <CardTitle className="text-sm font-bold text-slate-900">
                 Steuerberechnung (Schätzung)
               </CardTitle>
-              <Badge variant="outline" className="text-[10px] text-red-600 border-red-200">
+              <Badge variant="outline" className="text-[10px] text-primary border-primary/30">
                 Unverbindliche Schätzung
               </Badge>
             </div>
@@ -330,7 +452,7 @@ export function FinalReview({
                 <span className="font-mono text-slate-900">{fmtChf(r.church_tax)}</span>
               </div>
             )}
-            <div className="flex justify-between py-2.5 text-sm font-extrabold text-red-700 border-t border-slate-200">
+            <div className="flex justify-between py-2.5 text-sm font-extrabold text-primary border-t border-slate-200">
               <span>Geschätzter Steuerbetrag Total</span>
               <span className="font-mono">{fmtChf(r.total_tax)}</span>
             </div>
@@ -342,7 +464,7 @@ export function FinalReview({
       <Card className="border-slate-200 shadow-sm">
         <CardHeader className="pb-3 border-b bg-slate-50/50">
           <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
-            <Printer className="h-4 w-4 text-red-600" />
+            <Printer className="h-4 w-4 text-primary" />
             <span>Filing per Postversand (Offizielles Schweizer Verfahren)</span>
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
@@ -355,13 +477,13 @@ export function FinalReview({
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
               <span className="font-bold text-slate-900 block">1. PDF herunterladen</span>
               <p className="text-[11px] text-slate-500">
-                Laden Sie die fertig aufbereitete Steuererklärung mit allen Ziffern herunter.
+                Lade die fertig aufbereitete Steuererklärung mit allen Ziffern herunter.
               </p>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
               <span className="font-bold text-slate-900 block">2. Unterschreiben</span>
               <p className="text-[11px] text-slate-500">
-                Drucken Sie das Dokument aus und unterzeichnen Sie es auf der Schlussseite.
+                Drucke das Dokument aus und unterzeichne es auf der Schlussseite.
               </p>
             </div>
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
@@ -377,7 +499,7 @@ export function FinalReview({
               variant="outline"
               onClick={() => handleExport('pdf')}
               disabled={Boolean(exporting)}
-              className="text-xs h-9 font-bold border-red-300 text-red-700 hover:bg-red-50 flex items-center gap-1.5"
+              className="text-xs h-9 font-bold border-primary/30 text-primary hover:bg-primary/5 flex items-center gap-1.5"
             >
               {exporting === 'pdf' ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -404,16 +526,97 @@ export function FinalReview({
         </CardContent>
       </Card>
 
+      {/* ── Partner 2 Confirmation Section (Art. 113 DBG) ── */}
+      {isMarried && (
+        <Card className="border-[#ECE8DF] bg-white rounded-2xl shadow-xs">
+          <CardHeader className="pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
+                <Users className="h-4 w-4 text-[#1E7B52]" />
+                <span>Gemeinsame Steuererklärung (Art. 113 DBG)</span>
+              </CardTitle>
+              <Badge className={partner2Confirmed ? 'bg-emerald-50 text-[#1E7B52] border-emerald-200' : 'bg-amber-50 text-amber-800 border-amber-200'}>
+                {partner2Confirmed ? 'Partner 2 bestätigt' : 'Bestätigung ausstehend'}
+              </Badge>
+            </div>
+            <CardDescription className="text-xs text-slate-500">
+              Verheiratete und eingetragene Paare müssen die Steuererklärung gemeinsam einreichen.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4 text-xs">
+            {partner2Confirmed ? (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-emerald-950 font-medium">
+                <CheckCircle className="h-4 w-4 text-[#1E7B52] flex-none" />
+                <span>
+                  Persönliche Bestätigung von <strong>{partner2Status?.confirmed_name || taxReturn.partner2_confirmed_name || 'Partner 2'}</strong> am {formatDate(partner2Status?.confirmed_at || taxReturn.partner2_confirmed_at)} erfasst.
+                </span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-950 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 flex-none mt-0.5" />
+                  <div>
+                    <strong>Rechtliche Voraussetzung:</strong> Partner 1 darf nicht für Partner 2 unterschreiben. Bitte sende deiner Partnerin / deinem Partner den persönlichen Bestätigungslink.
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    type="email"
+                    placeholder="E-Mail-Adresse von Partner 2"
+                    value={partner2Email}
+                    onChange={e => setPartner2Email(e.target.value)}
+                    className="h-9 text-xs flex-1"
+                  />
+                  <Button
+                    onClick={handlePartner2Invite}
+                    disabled={partner2InviteLoading || !partner2Email.trim()}
+                    className="h-9 bg-[#1E7B52] hover:bg-[#165C3D] text-white text-xs font-semibold px-4 flex-none"
+                  >
+                    {partner2InviteLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <ExternalLink className="h-3.5 w-3.5 mr-1" />}
+                    Einladung generieren
+                  </Button>
+                </div>
+
+                {partner2InviteUrl && (
+                  <div className="p-3 bg-[#FAFAF8] border border-slate-200 rounded-xl space-y-1">
+                    <p className="text-[11px] font-semibold text-slate-700">Persönlicher Bestätigungslink für Partner 2:</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        readOnly
+                        value={partner2InviteUrl}
+                        className="w-full text-[11px] font-mono bg-white p-1.5 rounded-lg border border-slate-300 text-slate-700 select-all"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          navigator.clipboard.writeText(partner2InviteUrl);
+                          toast({ title: 'Link kopiert!' });
+                        }}
+                        className="text-xs h-8 px-2 flex-none"
+                      >
+                        Kopieren
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Confirmation & Payment Action Box */}
       {!isAlreadyConfirmed && (
-        <Card className="border-red-200 shadow-sm bg-gradient-to-b from-white to-red-50/20">
+        <Card className="border-emerald-200 shadow-sm bg-gradient-to-b from-white to-emerald-50/20">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-bold flex items-center gap-2 text-slate-900">
-                <ShieldCheck className="h-4 w-4 text-red-600" />
-                <span>Steuererklärung freischalten & finalisieren</span>
+                <ShieldCheck className="h-4 w-4 text-[#1E7B52]" />
+                <span>Steuererklärung freischalten &amp; finalisieren</span>
               </CardTitle>
-              <Badge className={isPaid ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'}>
+              <Badge className={isPaid ? 'bg-[#1E7B52] text-white' : 'bg-slate-800 text-white'}>
                 {isPaid ? 'CHF 39.00 bezahlt' : 'Pauschale: CHF 39.00'}
               </Badge>
             </div>
@@ -435,7 +638,7 @@ export function FinalReview({
                 checked={confirmed}
                 onChange={(e) => setConfirmed(e.target.checked)}
                 disabled={!canConfirm}
-                className="mt-1 w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500"
+                className="mt-1 w-4 h-4 rounded border-slate-300 text-[#1E7B52] focus:ring-[#1E7B52]"
               />
               <span className="text-xs text-slate-700 leading-relaxed">{CONFIRMATION_TEXT}</span>
             </label>
@@ -445,7 +648,7 @@ export function FinalReview({
                 <Button
                   onClick={() => setShowPaymentModal(true)}
                   disabled={!confirmed || !canConfirm}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs h-11 shadow-md shadow-red-600/20 flex items-center justify-center gap-2"
+                  className="w-full bg-[#1E7B52] hover:bg-[#165C3D] text-white font-bold text-xs h-11 shadow-md shadow-[#1E7B52]/20 flex items-center justify-center gap-2"
                 >
                   <CreditCard className="h-4 w-4" />
                   Zur Bezahlung (CHF 39.00 via TWINT / Karte)
@@ -454,7 +657,7 @@ export function FinalReview({
                 <Button
                   onClick={() => setShowConfirmDialog(true)}
                   disabled={!confirmed || !canConfirm || submitting}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-11 shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2"
+                  className="w-full bg-[#1E7B52] hover:bg-[#165C3D] text-white font-bold text-xs h-11 shadow-md shadow-[#1E7B52]/20 flex items-center justify-center gap-2"
                 >
                   <CheckCircle className="h-4 w-4" />
                   Steuererklärung verbindlich abschliessen
@@ -471,7 +674,7 @@ export function FinalReview({
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between border-b pb-3">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-red-100 text-red-600 flex items-center justify-center font-bold">
+                <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center font-bold">
                   <CreditCard className="h-4 w-4" />
                 </div>
                 <div>
@@ -482,65 +685,92 @@ export function FinalReview({
               <span className="text-xl font-black text-slate-900 font-mono">CHF 39.00</span>
             </div>
 
-            {/* Payment Method Selector */}
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setSelectedPaymentMethod('twint')}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
-                  selectedPaymentMethod === 'twint'
-                    ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-bold ring-2 ring-emerald-500/20'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">TWINT</span>
-                  <QrCode className="h-4 w-4 text-emerald-600" />
+            {/* Active Provider Session or Method Selector */}
+            {activeGateway ? (
+              <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 space-y-3 text-xs">
+                <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  <span>Zahlungsvorgang bei Payrexx eingeleitet</span>
                 </div>
-                <p className="text-[10px] text-slate-500 mt-1 font-normal">Schweizer Standard</p>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedPaymentMethod('credit_card')}
-                className={`p-3.5 rounded-xl border text-left transition-all ${
-                  selectedPaymentMethod === 'credit_card'
-                    ? 'border-red-600 bg-red-50 text-red-950 font-bold ring-2 ring-red-500/20'
-                    : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold">Kreditkarte</span>
-                  <CreditCard className="h-4 w-4 text-red-600" />
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1 font-normal">Mastercard / Visa</p>
-              </button>
-            </div>
-
-            {/* TWINT Details / Simulator */}
-            {selectedPaymentMethod === 'twint' ? (
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-3">
-                <div className="h-28 w-28 bg-white border-2 border-slate-800 rounded-lg mx-auto flex items-center justify-center shadow-xs">
-                  <QrCode className="h-20 w-20 text-slate-800" />
-                </div>
-                <p className="text-xs text-slate-600">
-                  Öffnen Sie Ihre <strong>TWINT App</strong> und bestätigen Sie die Zahlung von <strong>CHF 39.00</strong>.
+                <p className="text-emerald-800 leading-relaxed">
+                  Ein Bezahlfenster für deine <strong>CHF 39.00</strong> Pauschale wurde geöffnet.
+                  Falls dein Browser das Pop-up blockiert hat, klicke bitte hier:
+                </p>
+                <a
+                  href={activeGateway.checkout_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block px-3 py-1.5 bg-white border border-emerald-300 rounded-lg text-emerald-700 font-bold hover:bg-emerald-100 transition-colors"
+                >
+                  Payrexx Bezahlfenster öffnen &rarr;
+                </a>
+                <p className="text-[11px] text-slate-500 pt-1">
+                  Sobald du die Zahlung über TWINT oder Kreditkarte abgeschlossen hast, klicke auf «Zahlung überprüfen».
                 </p>
               </div>
             ) : (
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
-                <div className="flex justify-between text-slate-600">
-                  <span>Empfänger:</span>
-                  <strong className="text-slate-900">SunTax Switzerland AG</strong>
+              <>
+                {/* Payment Method Selector */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMethod('twint')}
+                    className={`p-3.5 rounded-xl border text-left transition-all ${
+                      selectedPaymentMethod === 'twint'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-950 font-bold ring-2 ring-emerald-500/20'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">TWINT</span>
+                      <QrCode className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1 font-normal">Schweizer Standard</p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPaymentMethod('credit_card')}
+                    className={`p-3.5 rounded-xl border text-left transition-all ${
+                      selectedPaymentMethod === 'credit_card'
+                        ? 'border-primary bg-primary/10 text-primary font-bold ring-2 ring-primary/20'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold">Kreditkarte</span>
+                      <CreditCard className="h-4 w-4 text-primary" />
+                    </div>
+                    <p className="text-[10px] text-slate-500 mt-1 font-normal">Mastercard / Visa</p>
+                  </button>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Betrag:</span>
-                  <strong className="text-slate-900">CHF 39.00</strong>
-                </div>
-                <p className="text-[11px] text-slate-500 pt-2 border-t">
-                  Sichere Zahlungsabwicklung via PCI-DSS konformem Schweizer Payment Gateway.
-                </p>
-              </div>
+
+                {/* TWINT Details / Card Details */}
+                {selectedPaymentMethod === 'twint' ? (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-center space-y-3">
+                    <div className="h-28 w-28 bg-white border-2 border-slate-800 rounded-lg mx-auto flex items-center justify-center shadow-xs">
+                      <QrCode className="h-20 w-20 text-slate-800" />
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Öffne deine <strong>TWINT App</strong> und bestätige die Zahlung von <strong>CHF 39.00</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
+                    <div className="flex justify-between text-slate-600">
+                      <span>Empfänger:</span>
+                      <strong className="text-slate-900">SunTax Switzerland AG</strong>
+                    </div>
+                    <div className="flex justify-between text-slate-600">
+                      <span>Betrag:</span>
+                      <strong className="text-slate-900">CHF 39.00</strong>
+                    </div>
+                    <p className="text-[11px] text-slate-500 pt-2 border-t">
+                      Sichere Zahlungsabwicklung via PCI-DSS konformem Schweizer Payment Gateway.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
 
             <div className="p-2.5 bg-blue-50 border border-blue-200 rounded-lg text-[11px] text-blue-900 flex items-start gap-2">
@@ -554,25 +784,45 @@ export function FinalReview({
               <Button
                 variant="outline"
                 className="flex-1 text-xs"
-                onClick={() => setShowPaymentModal(false)}
-                disabled={paymentProcessing}
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setActiveGateway(null);
+                }}
+                disabled={paymentProcessing || checkingPayment}
               >
                 Abbrechen
               </Button>
-              <Button
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold text-xs"
-                onClick={handlePayment}
-                disabled={paymentProcessing}
-              >
-                {paymentProcessing ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                    Wird verarbeitet...
-                  </>
-                ) : (
-                  `Jetzt CHF 39.00 ${selectedPaymentMethod === 'twint' ? 'mit TWINT' : 'mit Karte'} zahlen`
-                )}
-              </Button>
+              {activeGateway ? (
+                <Button
+                  className="flex-1 bg-primary hover:bg-primary-700 text-white font-bold text-xs"
+                  onClick={handleVerifyPayment}
+                  disabled={checkingPayment}
+                >
+                  {checkingPayment ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      Prüfe Zahlung beim Anbieter...
+                    </>
+                  ) : (
+                    'Zahlungsstatus überprüfen'
+                  )}
+                </Button>
+              ) : (
+                <Button
+                  className="flex-1 bg-primary hover:bg-primary-700 text-white font-bold text-xs"
+                  onClick={handleInitiatePayment}
+                  disabled={paymentProcessing}
+                >
+                  {paymentProcessing ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                      Initialisiere Checkout...
+                    </>
+                  ) : (
+                    `Jetzt CHF 39.00 ${selectedPaymentMethod === 'twint' ? 'mit TWINT' : 'mit Karte'} zahlen`
+                  )}
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -583,23 +833,23 @@ export function FinalReview({
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200">
             <div className="flex items-center gap-2 text-slate-900 font-bold text-base">
-              <ShieldCheck className="h-5 w-5 text-red-600" />
+              <ShieldCheck className="h-5 w-5 text-primary" />
               <h3>Steuererklärung definitiv finalisieren?</h3>
             </div>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Möchten Sie diese Steuererklärung verbindlich abschliessen? Nach der Bestätigung werden die Berechnungen
+              Möchtest du diese Steuererklärung verbindlich abschliessen? Nach der Bestätigung werden die Berechnungen
               gemäss Art. 110 DBG unwiderruflich verankert und für den Postversand freigegeben.
             </p>
 
             {currentUser?.totp_enabled && (
               <div className="space-y-3 pt-1">
-                <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-900 space-y-1">
-                  <div className="font-semibold flex items-center gap-1.5 text-red-800">
-                    <Lock className="h-3.5 w-3.5 text-red-600" />
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-950 space-y-1">
+                  <div className="font-semibold flex items-center gap-1.5 text-emerald-800">
+                    <Lock className="h-3.5 w-3.5 text-primary" />
                     <span>Zwei-Faktor-Autorisierung erforderlich</span>
                   </div>
-                  <p className="text-[11px] text-red-700 leading-snug">
-                    Geben Sie den 6-stelligen Code aus Ihrer Authenticator App ein, um diese rechtsgültige Deklaration zu signieren.
+                  <p className="text-[11px] text-emerald-800 leading-snug">
+                    Gib den 6-stelligen Code aus deiner Authenticator App ein, um diese rechtsgültige Deklaration zu signieren.
                   </p>
                 </div>
 
@@ -615,7 +865,7 @@ export function FinalReview({
                     value={twoFactorCode}
                     onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
                     autoFocus
-                    className="text-center tracking-widest font-mono text-lg h-11 border-slate-300 focus:border-red-500 focus:ring-red-500"
+                    className="text-center tracking-widest font-mono text-lg h-11 border-slate-300 focus:border-primary focus:ring-primary"
                   />
                 </div>
               </div>
@@ -634,7 +884,7 @@ export function FinalReview({
                 Abbrechen
               </Button>
               <Button
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold"
+                className="flex-1 bg-primary hover:bg-primary-700 text-white text-xs font-bold"
                 onClick={handleConfirm}
                 disabled={submitting || (Boolean(currentUser?.totp_enabled) && twoFactorCode.trim().length !== 6)}
               >

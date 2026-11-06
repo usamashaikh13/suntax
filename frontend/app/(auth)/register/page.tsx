@@ -127,7 +127,7 @@ export default function RegisterPage() {
           <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
             Ihr SunTax-Konto für <strong className="text-slate-200">{userEmail}</strong> ist bereit. Sie können sich nun anmelden und Ihre Steuererklärung vorbereiten.
           </p>
-          <Button asChild className="mt-4 bg-red-600 hover:bg-red-700 text-white font-semibold">
+          <Button asChild className="mt-4 bg-primary hover:bg-primary-700 text-white font-semibold shadow-xs">
             <Link href="/login">Weiter zur Anmeldung</Link>
           </Button>
         </CardContent>
@@ -278,12 +278,12 @@ export default function RegisterPage() {
               <input
                 type="checkbox"
                 id="terms_accepted"
-                className="mt-1 h-4 w-4 rounded bg-slate-950 border-slate-700 text-red-600 focus:ring-red-500 focus:ring-offset-slate-900"
+                className="mt-1 h-4 w-4 rounded bg-slate-950 border-slate-700 text-primary focus:ring-primary focus:ring-offset-slate-900"
                 {...register('terms_accepted')}
               />
               <label htmlFor="terms_accepted" className="text-xs text-slate-300 leading-relaxed cursor-pointer select-none">
                 Ich akzeptiere die{' '}
-                <Link href="/terms" target="_blank" className="text-red-400 hover:text-red-300 underline font-medium">
+                <Link href="/terms" target="_blank" className="text-emerald-400 hover:text-emerald-300 underline font-medium">
                   Allgemeinen Geschäftsbedingungen (AGB)
                 </Link>{' '}
                 und anerkenne das schweizerische Selbstdeklarationsprinzip (Art. 110 DBG).
@@ -297,12 +297,12 @@ export default function RegisterPage() {
               <input
                 type="checkbox"
                 id="privacy_accepted"
-                className="mt-1 h-4 w-4 rounded bg-slate-950 border-slate-700 text-red-600 focus:ring-red-500 focus:ring-offset-slate-900"
+                className="mt-1 h-4 w-4 rounded bg-slate-950 border-slate-700 text-primary focus:ring-primary focus:ring-offset-slate-900"
                 {...register('privacy_accepted')}
               />
               <label htmlFor="privacy_accepted" className="text-xs text-slate-300 leading-relaxed cursor-pointer select-none">
                 Ich habe die{' '}
-                <Link href="/privacy" target="_blank" className="text-red-400 hover:text-red-300 underline font-medium">
+                <Link href="/privacy" target="_blank" className="text-emerald-400 hover:text-emerald-300 underline font-medium">
                   Datenschutzerklärung
                 </Link>{' '}
                 zur Kenntnis genommen und stimme der vertraulichen Verarbeitung nach Schweizer nDSG zu.
@@ -316,7 +316,7 @@ export default function RegisterPage() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold shadow-lg shadow-red-600/20 text-sm h-10 mt-3"
+            className="w-full bg-primary hover:bg-primary-700 text-white font-semibold shadow-xs text-sm h-10 mt-3"
           >
             {isSubmitting ? (
               <>

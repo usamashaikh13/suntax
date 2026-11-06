@@ -152,16 +152,16 @@ function ResetPasswordForm() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold shadow-lg shadow-red-600/20 text-sm h-10 mt-2"
+            className="w-full bg-primary hover:bg-primary-700 text-white font-semibold shadow-xs text-sm h-10 mt-2"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating Password...
+                Passwort wird gespeichert...
               </>
             ) : (
               <>
-                Update Password
+                Neues Passwort speichern
                 <ArrowRight className="h-4 w-4 ml-2" />
               </>
             )}
@@ -178,7 +178,7 @@ export default function ResetPasswordPage() {
       fallback={
         <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
           <CardContent className="pt-10 pb-8">
-            <Loader2 className="h-8 w-8 animate-spin text-red-600 mx-auto" />
+            <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           </CardContent>
         </Card>
       }

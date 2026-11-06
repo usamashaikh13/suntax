@@ -296,14 +296,14 @@ export function DocumentReviewModal({
           </div>
 
           {/* Classification & Confidence Banner */}
-          <div className="mt-3 flex items-center justify-between p-3 rounded-lg bg-red-50/50 border border-red-100 text-sm">
+          <div className="mt-3 flex items-center justify-between p-3 rounded-lg bg-emerald-50/50 border border-emerald-100 text-sm">
             <div className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-red-600" />
-              <span className="text-gray-700 font-medium">Classified Type:</span>
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span className="text-slate-700 font-medium">Erkannter Typ:</span>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                className="text-xs font-semibold rounded border border-gray-300 px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
+                className="text-xs font-semibold rounded border border-slate-300 px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 {DOCUMENT_CATEGORIES.map((cat) => (
                   <option key={cat.value} value={cat.value}>
@@ -313,8 +313,8 @@ export function DocumentReviewModal({
               </select>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500">
-                AI Confidence: <strong className="text-gray-900">{Math.round((doc.classification_confidence ?? 0.85) * 100)}%</strong>
+              <span className="text-xs text-slate-500">
+                Genauigkeit: <strong className="text-slate-900">{Math.round((doc.classification_confidence ?? 0.85) * 100)}%</strong>
               </span>
               <Button
                 variant="ghost"
@@ -494,7 +494,7 @@ export function DocumentReviewModal({
         {/* Footer Actions */}
         <DialogFooter className="border-t pt-4 flex flex-row items-center justify-between sm:justify-between">
           <Button variant="ghost" size="sm" onClick={onClose} disabled={isSaving || isApplying}>
-            Cancel
+            Abbrechen
           </Button>
 
           <div className="flex items-center gap-2">
@@ -505,20 +505,20 @@ export function DocumentReviewModal({
               disabled={isSaving || isApplying}
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
-              Save Changes
+              Änderungen speichern
             </Button>
             <Button
               size="sm"
               onClick={handleApplyToProfile}
               disabled={isSaving || isApplying}
-              className="bg-red-600 hover:bg-red-700 text-white flex items-center gap-1.5"
+              className="bg-primary hover:bg-primary-600 text-white flex items-center gap-1.5"
             >
               {isApplying ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <FileCheck2 className="h-4 w-4" />
               )}
-              Apply to Tax Profile
+              In Steuerprofil übernehmen
             </Button>
           </div>
         </DialogFooter>

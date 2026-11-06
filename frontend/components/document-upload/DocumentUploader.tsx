@@ -272,9 +272,9 @@ export function DocumentUploader({
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="text-xs rounded-md border border-gray-300 bg-white px-2.5 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-red-500"
+            className="text-xs rounded-md border border-gray-300 bg-white px-2.5 py-1 text-gray-700 focus:outline-none focus:ring-1 focus:ring-primary"
           >
-            <option value="auto">Auto-Detect with AI (Default)</option>
+            <option value="auto">Automatische Erkennung mit KI (Standard)</option>
             {DOCUMENT_CATEGORIES.map((cat) => (
               <option key={cat.value} value={cat.value}>
                 {cat.label}
@@ -287,24 +287,24 @@ export function DocumentUploader({
           {...getRootProps()}
           className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
             isDragActive
-              ? 'border-red-500 bg-red-50/70 scale-[0.99]'
-              : 'border-gray-300 hover:border-red-400 hover:bg-gray-50/70'
+              ? 'border-primary bg-primary/10 scale-[0.99]'
+              : 'border-gray-300 hover:border-primary hover:bg-gray-50/70'
           }`}
         >
           <input {...getInputProps()} />
-          <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mx-auto mb-3">
+          <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
             <Upload className="h-6 w-6" />
           </div>
           <p className="text-gray-800 font-semibold text-sm">
             {isDragActive
-              ? 'Drop files here to upload...'
-              : 'Drag & drop your tax documents here, or click to browse'}
+              ? 'Dateien hier loslassen zum Hochladen...'
+              : 'Steuerdokumente hier hineinziehen oder klicken zum Auswählen'}
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            Supported formats: <strong>PDF, JPG, JPEG, PNG, WEBP, TIFF, HEIC, HEIF</strong> (Max 50 MB)
+            Unterstützte Formate: <strong>PDF, JPG, JPEG, PNG, WEBP, TIFF, HEIC</strong> (Max. 50 MB)
           </p>
           <div className="flex flex-wrap items-center justify-center gap-1.5 mt-3">
-            <span className="text-[11px] text-gray-400">Supported:</span>
+            <span className="text-[11px] text-gray-400">Unterstützt:</span>
             {DOCUMENT_CATEGORIES.slice(0, 7).map((c) => (
               <span
                 key={c.value}
@@ -313,7 +313,7 @@ export function DocumentUploader({
                 {c.label}
               </span>
             ))}
-            <span className="text-[11px] text-gray-400">+10 more</span>
+            <span className="text-[11px] text-gray-400">+ weitere</span>
           </div>
         </div>
       </div>
@@ -322,14 +322,14 @@ export function DocumentUploader({
       {files.length > 0 && (
         <div className="space-y-2 border rounded-xl p-4 bg-white shadow-sm">
           <div className="flex items-center justify-between text-xs font-semibold text-gray-700 pb-2 border-b">
-            <span>Selected Files ({files.length})</span>
+            <span>Ausgewählte Dateien ({files.length})</span>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setFiles([])}
               className="text-xs text-gray-400 hover:text-red-600 h-6"
             >
-              Clear List
+              Liste leeren
             </Button>
           </div>
 
@@ -358,16 +358,16 @@ export function DocumentUploader({
                     <button
                       onClick={() => removeFile(uf.id)}
                       className="text-gray-400 hover:text-red-600 transition-colors p-1"
-                      title="Remove"
+                      title="Entfernen"
                     >
                       <X className="h-4 w-4" />
                     </button>
                   )}
                   {uf.status === 'uploading' && (
-                    <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   )}
                   {uf.status === 'done' && (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <CheckCircle className="h-4 w-4 text-emerald-600" />
                   )}
                   {uf.status === 'error' && (
                     <AlertCircle className="h-4 w-4 text-red-600" />
@@ -380,10 +380,10 @@ export function DocumentUploader({
           {hasPending && (
             <Button
               onClick={uploadAll}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-medium text-xs h-9 mt-2 flex items-center justify-center gap-2"
+              className="w-full bg-primary hover:bg-primary-700 text-white font-medium text-xs h-9 mt-2 flex items-center justify-center gap-2"
             >
               <Upload className="h-4 w-4" />
-              Upload & Process {files.filter((f) => f.status === 'pending').length} Document(s)
+              {files.filter((f) => f.status === 'pending').length} Dokument(e) hochladen & analysieren
             </Button>
           )}
         </div>
@@ -393,9 +393,9 @@ export function DocumentUploader({
       <div className="border rounded-xl p-4 bg-white shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <CheckSquare className="h-4 w-4 text-red-600" />
+            <CheckSquare className="h-4 w-4 text-primary" />
             <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
-              Recommended Documents Checklist
+              Checkliste für deine Steuerdokumente
             </h4>
           </div>
           <button

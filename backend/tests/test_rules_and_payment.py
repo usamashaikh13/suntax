@@ -68,17 +68,35 @@ async def test_rules_endpoints_and_payment_flow(auth_client: AsyncClient):
     assert checkout_res.status_code == 200
     assert checkout_res.json()["amount_chf"] == 39.0
     assert checkout_res.json()["method"] == "twint"
+    gw_id = checkout_res.json()["gateway_id"]
 
-    # 6. Confirm payment
+    # 6. Attempt confirm before payment -> must be rejected by provider verification
+    unpaid_confirm = await auth_client.post(
+        f"/api/v1/tax-returns/{tr_id}/payment/confirm",
+        json={"method": "twint", "gateway_id": gw_id},
+    )
+    assert unpaid_confirm.status_code == 400
+    assert "noch nicht bestätigt" in unpaid_confirm.json()["detail"]
+
+    # 7. Simulate provider payment confirmation
+    from app.services.payrexx_service import payrexx_service
+    payrexx_service.simulate_provider_payment(
+        gateway_id=gw_id,
+        transaction_id="tx_test_verified_123",
+        payment_method="twint",
+        status="confirmed",
+    )
+
+    # 8. Confirm payment with verified provider status
     confirm_res = await auth_client.post(
         f"/api/v1/tax-returns/{tr_id}/payment/confirm",
-        json={"method": "twint"},
+        json={"method": "twint", "gateway_id": gw_id},
     )
     assert confirm_res.status_code == 200
     assert confirm_res.json()["status"] == "paid"
     assert confirm_res.json()["amount_chf"] == 39.0
 
-    # 7. Check final payment status
+    # 9. Check final payment status
     final_status = await auth_client.get(f"/api/v1/tax-returns/{tr_id}/payment/status")
     assert final_status.json()["is_paid"] is True
     assert final_status.json()["payment_method"] == "twint"

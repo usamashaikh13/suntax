@@ -158,22 +158,22 @@ export default function LoginPage() {
                 value={twoFactorCode}
                 onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
                 autoFocus
-                className="bg-slate-950 border-slate-800 text-slate-100 text-center tracking-widest font-mono text-lg h-12 focus:border-red-500 focus:ring-1 focus:ring-red-500"
+                className="bg-slate-950 border-slate-800 text-slate-100 text-center tracking-widest font-mono text-lg h-12 focus:border-primary focus:ring-1 focus:ring-primary"
               />
             </div>
 
             <Button
               type="submit"
               disabled={submitting2fa || twoFactorCode.length < 6}
-              className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold text-sm h-10 mt-2"
+              className="w-full bg-primary hover:bg-primary-700 text-white font-semibold text-sm h-10 mt-2"
             >
               {submitting2fa ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Verifying Code...
+                  Code wird geprüft...
                 </>
               ) : (
-                'Verify & Complete Sign In'
+                'Bestätigen und anmelden'
               )}
             </Button>
 
@@ -247,16 +247,16 @@ export default function LoginPage() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold shadow-lg shadow-red-600/20 text-sm h-10 mt-2"
+            className="w-full bg-primary hover:bg-primary-700 text-white font-semibold shadow-xs text-sm h-10 mt-2"
           >
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Signing in...
+                Wird angemeldet...
               </>
             ) : (
               <>
-                Sign In to Account
+                Anmelden
                 <ArrowRight className="h-4 w-4 ml-2" />
               </>
             )}
