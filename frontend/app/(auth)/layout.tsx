@@ -1,54 +1,53 @@
 import { ReactNode } from 'react'
 import Link from 'next/link'
-import { ShieldCheck, Lock, CheckCircle2 } from 'lucide-react'
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-red-500 selection:text-white relative overflow-hidden">
-      {/* Background Decorative Gradients & Mesh */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(220,38,38,0.15),rgba(255,255,255,0))] pointer-events-none" />
-      <div className="absolute -top-40 -right-40 h-96 w-96 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-blue-600/10 blur-3xl pointer-events-none" />
-      
-      {/* Micro Grid Overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b0a_1px,transparent_1px),linear-gradient(to_bottom,#1e293b0a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] pointer-events-none" />
+    <div className="min-h-screen bg-[#F6F6F4] text-[#0A0A0A] font-sans flex flex-col justify-between selection:bg-[#1E7B52] selection:text-white">
+      {/* Redesigned Clean Header */}
+      <header className="bg-white border-b border-[#ECECEC] sticky top-0 z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <Link href="/" aria-label="SunTax Startseite" className="flex items-center gap-2.5 group">
+            <svg width="23" height="27" viewBox="0 0 40 46" aria-hidden="true">
+              <path d="M4 0H27L38 11V28L23 43H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4z" fill="#15181D" />
+              <path d="M27 0L38 11H30a3 3 0 0 1-3-3z" fill="#D6D6D6" />
+              <path d="M9.5 17.5h4.5V13h5v4.5h4.5v5H19V27h-5v-4.5H9.5z" fill="#FFFFFF" />
+              <rect x="28" y="33" width="10" height="3" rx="1" fill="#6B6F76" />
+              <rect x="23" y="39" width="15" height="3" rx="1" fill="#6B6F76" />
+            </svg>
+            <span className="text-xl tracking-tight leading-none">
+              <span className="font-extrabold text-[#15181D]">Sun</span>
+              <span className="font-semibold text-[#4B4F57]">Tax</span>
+            </span>
+          </Link>
 
-      {/* Auth Navigation Header */}
-      <header className="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-3 group">
-          <div className="swiss-cross-badge shadow-md shadow-red-900/40 group-hover:scale-105 transition-transform" />
-          <div className="flex flex-col">
-            <span className="text-xl font-bold tracking-tight text-white flex items-center gap-1">
-              Sun<span className="text-red-500">Tax</span>
-              <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 ml-1.5">
-                CH
-              </span>
+          <div className="flex items-center gap-3 text-sm text-[#555555]">
+            <span className="text-xs font-semibold text-[#16A34A] flex items-center gap-1.5 bg-emerald-50 border border-emerald-200/60 px-3 py-1 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A]" />
+              Daten in der Schweiz
             </span>
           </div>
-        </Link>
-
-        <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-400 bg-slate-900/80 border border-slate-800/80 px-3 py-1.5 rounded-full">
-          <ShieldCheck className="h-4 w-4 text-emerald-400" />
-          <span>Swiss FADP Compliant • Banking-Grade Encryption</span>
         </div>
       </header>
 
       {/* Main Form Center */}
-      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6">
-        <div className="w-full max-w-md">
+      <main className="flex-1 flex items-center justify-center py-10 sm:py-14 px-4 sm:px-6">
+        <div className="w-full max-w-[520px]">
           {children}
         </div>
       </main>
 
       {/* Trust & Legal Footer */}
-      <footer className="relative z-10 w-full max-w-6xl mx-auto px-6 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-900">
-        <p>© {new Date().getFullYear()} SunTax Switzerland. All rights reserved.</p>
-        <div className="flex items-center gap-4">
-          <span className="hover:text-slate-400 cursor-pointer">Security Architecture</span>
-          <span>•</span>
-          <span className="hover:text-slate-400 cursor-pointer">Swiss Data Sovereignty</span>
-          <span>•</span>
-          <span className="hover:text-slate-400 cursor-pointer">ESTV Certified Rates</span>
+      <footer className="py-6 px-4 text-center text-xs text-[#777777] border-t border-[#ECE8DF]">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <p>© {new Date().getFullYear()} SunTax Switzerland AG · Alle Rechte vorbehalten</p>
+          <div className="flex items-center gap-4 text-[#555555]">
+            <Link href="/terms" className="hover:text-[#1E7B52] transition-colors">AGB</Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:text-[#1E7B52] transition-colors">Datenschutz</Link>
+            <span>·</span>
+            <Link href="/#faq" className="hover:text-[#1E7B52] transition-colors">Hilfe &amp; Kontakt</Link>
+          </div>
         </div>
       </footer>
     </div>

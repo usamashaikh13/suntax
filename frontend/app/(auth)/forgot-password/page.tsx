@@ -5,23 +5,24 @@ import Link from 'next/link'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { CheckCircle, Loader2, Mail, ArrowRight, ArrowLeft } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
+import { CheckCircle2, Loader2, ArrowLeft } from 'lucide-react'
 import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 
 const schema = z.object({
-  email: z.string().email('Please enter a valid email address'),
+  email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein'),
 })
+
 type Form = z.infer<typeof schema>
 
 export default function ForgotPasswordPage() {
   const { toast } = useToast()
   const [sent, setSent] = useState(false)
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<Form>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<Form>({
     resolver: zodResolver(schema),
   })
 
@@ -30,85 +31,98 @@ export default function ForgotPasswordPage() {
       await api.auth.forgotPassword(data.email)
       setSent(true)
     } catch {
-      toast({ title: 'Request failed', description: 'Please try again.', variant: 'destructive' })
+      toast({
+        title: 'Anfrage fehlgeschlagen',
+        description: 'Bitte versuche es erneut.',
+        variant: 'destructive',
+      })
     }
   }
 
-  if (sent) {
-    return (
-      <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
-        <CardContent className="pt-10 pb-8 space-y-4">
-          <div className="h-16 w-16 rounded-2xl bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
-            <CheckCircle className="h-8 w-8" />
-          </div>
-          <h2 className="text-xl font-bold text-white">Check Your Email</h2>
-          <p className="text-slate-400 text-xs sm:text-sm max-w-sm mx-auto leading-relaxed">
-            If an account exists for that email address, you will receive a secure password reset link shortly.
-          </p>
-          <Button asChild variant="outline" className="border-slate-700 bg-slate-800 text-white hover:bg-slate-700 mt-2">
-            <Link href="/login">Back to Sign In</Link>
-          </Button>
-        </CardContent>
-      </Card>
-    )
-  }
-
   return (
-    <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl">
-      <CardHeader className="space-y-1.5 pb-6">
-        <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-          Reset Password
-        </CardTitle>
-        <CardDescription className="text-slate-400 text-xs sm:text-sm">
-          Enter your registered email to receive recovery instructions
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs font-semibold text-slate-300">
-              Email Address
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.ch"
-                className="bg-slate-950 border-slate-800 text-slate-100 pl-10 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm h-10"
-                {...register('email')}
-              />
+    <div>
+      <section className="bg-white border border-[#ECE8DF] rounded-[24px] p-8 sm:p-10 shadow-[0_30px_60px_-45px_rgba(30,30,40,0.35)]">
+        {sent ? (
+          <div className="text-center py-4 space-y-4">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 text-[#1E7B52] flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-7 w-7" />
             </div>
-            {errors.email && (
-              <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>
-            )}
+            <h2 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">
+              E-Mail gesendet
+            </h2>
+            <p className="text-sm text-[#666666] leading-relaxed max-w-sm mx-auto">
+              Falls ein Konto mit dieser E-Mail existiert, haben wir dir einen Link zum Zurücksetzen deines Passworts geschickt.
+            </p>
+            <div className="pt-2">
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center min-h-[46px] px-6 rounded-xl bg-[#1E7B52] hover:bg-[#165C3D] text-white font-semibold text-sm transition-colors shadow-sm"
+              >
+                Zurück zur Anmeldung
+              </Link>
+            </div>
           </div>
+        ) : (
+          <div>
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#666666] hover:text-[#0A0A0A] transition-colors mb-6"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Zurück zur Anmeldung
+            </Link>
 
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-primary hover:bg-primary-700 text-white font-semibold shadow-xs text-sm h-10 mt-2"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Sending Link...
-              </>
-            ) : (
-              <>
-                Send Reset Link
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </>
-            )}
-          </Button>
-        </form>
-      </CardContent>
-      <CardFooter className="pt-2 pb-6 border-t border-slate-800/80 flex justify-center">
-        <Link href="/login" className="inline-flex items-center text-xs text-slate-400 hover:text-white transition-colors">
-          <ArrowLeft className="h-3.5 w-3.5 mr-1.5" />
-          Back to Sign In
-        </Link>
-      </CardFooter>
-    </Card>
+            <h2 className="text-[28px] font-bold text-[#0A0A0A] tracking-tight leading-tight">
+              Passwort zurücksetzen
+            </h2>
+            <p className="mt-1.5 text-[#666666] text-[15px]">
+              Gib deine E-Mail-Adresse ein. Wir senden dir einen sicheren Link zum Zurücksetzen deines Passworts.
+            </p>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
+                  E-Mail
+                </label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="name@beispiel.ch"
+                  {...register('email')}
+                  className={`w-full h-12 px-4 rounded-xl border bg-white text-[#0A0A0A] text-sm placeholder:text-[#999999] focus:outline-none focus:ring-2 focus:ring-[#1E7B52] focus:border-transparent transition-all ${
+                    errors.email ? 'border-red-400 focus:ring-red-400' : 'border-[#ECE8DF]'
+                  }`}
+                />
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">{errors.email.message}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full min-h-[52px] rounded-2xl bg-[#1E7B52] hover:bg-[#165C3D] disabled:opacity-60 text-white font-semibold text-base transition-colors flex items-center justify-center cursor-pointer shadow-sm mt-3"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Wird gesendet...
+                  </>
+                ) : (
+                  'Link senden'
+                )}
+              </button>
+            </form>
+          </div>
+        )}
+      </section>
+
+      {/* Trust Badges Bar */}
+      <p className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm text-[#777777]">
+        <span>🔒 Daten in der Schweiz</span>
+        <span>CHF 39 – erst beim Einreichen</span>
+        <span>Alle 26 Kantone</span>
+      </p>
+    </div>
   )
 }

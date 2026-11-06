@@ -3,9 +3,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { CheckCircle, XCircle, Loader2, ArrowRight } from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { CheckCircle2, XCircle, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 
 function VerifyEmailContent() {
@@ -25,64 +23,81 @@ function VerifyEmailContent() {
   }, [token])
 
   return (
-    <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
-      <CardContent className="pt-10 pb-8 space-y-4">
-        {status === 'loading' && (
-          <>
-            <Loader2 className="h-12 w-12 animate-spin text-red-500 mx-auto" />
-            <p className="text-slate-300 font-medium">Verifying your email address...</p>
-          </>
-        )}
+    <div className="text-center py-4 space-y-4">
+      {status === 'loading' && (
+        <>
+          <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 text-[#1E7B52] flex items-center justify-center mx-auto">
+            <Loader2 className="h-7 w-7 animate-spin" />
+          </div>
+          <h2 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">E-Mail wird bestätigt...</h2>
+          <p className="text-sm text-[#666666]">Bitte warte einen Moment, während wir deinen Link prüfen.</p>
+        </>
+      )}
 
-        {status === 'success' && (
-          <>
-            <div className="h-16 w-16 rounded-2xl bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
-              <CheckCircle className="h-8 w-8" />
-            </div>
-            <h2 className="text-xl font-bold text-white">E-Mail erfolgreich bestätigt!</h2>
-            <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-              Dein SunTax-Konto ist jetzt aktiv. Du kannst dich nun anmelden und deine Steuererklärung starten.
-            </p>
-            <Button asChild className="mt-2 bg-primary hover:bg-primary-700 text-white font-semibold">
-              <Link href="/login">
-                Weiter zur Anmeldung <ArrowRight className="h-4 w-4 ml-1.5" />
-              </Link>
-            </Button>
-          </>
-        )}
+      {status === 'success' && (
+        <>
+          <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 text-[#1E7B52] flex items-center justify-center mx-auto">
+            <CheckCircle2 className="h-7 w-7" />
+          </div>
+          <h2 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">E-Mail erfolgreich bestätigt!</h2>
+          <p className="text-sm text-[#666666] leading-relaxed max-w-sm mx-auto">
+            Dein SunTax-Konto ist jetzt aktiv. Du kannst dich nun anmelden und deine Steuererklärung bearbeiten.
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center min-h-[46px] px-6 rounded-xl bg-[#1E7B52] hover:bg-[#165C3D] text-white font-semibold text-sm transition-colors shadow-sm"
+            >
+              Weiter zur Anmeldung
+            </Link>
+          </div>
+        </>
+      )}
 
-        {status === 'error' && (
-          <>
-            <div className="h-16 w-16 rounded-2xl bg-red-950/60 border border-red-800/40 text-red-400 flex items-center justify-center mx-auto shadow-sm">
-              <XCircle className="h-8 w-8" />
-            </div>
-            <h2 className="text-xl font-bold text-white">Verification Failed</h2>
-            <p className="text-slate-400 text-sm max-w-sm mx-auto leading-relaxed">
-              The verification link may have expired or is invalid. Please request a new link or try registering again.
-            </p>
-            <Button asChild variant="outline" className="mt-2 border-slate-700 text-slate-200 hover:bg-slate-800">
-              <Link href="/register">Back to Registration</Link>
-            </Button>
-          </>
-        )}
-      </CardContent>
-    </Card>
+      {status === 'error' && (
+        <>
+          <div className="w-14 h-14 rounded-full bg-red-50 border border-red-200 text-red-600 flex items-center justify-center mx-auto">
+            <XCircle className="h-7 w-7" />
+          </div>
+          <h2 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">Bestätigung fehlgeschlagen</h2>
+          <p className="text-sm text-[#666666] leading-relaxed max-w-sm mx-auto">
+            Dieser Bestätigungslink ist ungültig oder bereits abgelaufen. Bitte fordere einen neuen Link an oder melde dich an.
+          </p>
+          <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+            <Link
+              href="/login"
+              className="inline-flex items-center justify-center min-h-[46px] px-6 rounded-xl bg-[#1E7B52] hover:bg-[#165C3D] text-white font-semibold text-sm transition-colors shadow-sm"
+            >
+              Zur Anmeldung
+            </Link>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense
-      fallback={
-        <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl text-center">
-          <CardContent className="pt-10 pb-8 space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-red-500 mx-auto" />
-            <p className="text-slate-400 text-sm">Verifying...</p>
-          </CardContent>
-        </Card>
-      }
-    >
-      <VerifyEmailContent />
-    </Suspense>
+    <div>
+      <section className="bg-white border border-[#ECE8DF] rounded-[24px] p-8 sm:p-10 shadow-[0_30px_60px_-45px_rgba(30,30,40,0.35)]">
+        <Suspense
+          fallback={
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-[#1E7B52]" />
+            </div>
+          }
+        >
+          <VerifyEmailContent />
+        </Suspense>
+      </section>
+
+      {/* Trust Badges Bar */}
+      <p className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm text-[#777777]">
+        <span>🔒 Daten in der Schweiz</span>
+        <span>CHF 39 – erst beim Einreichen</span>
+        <span>Alle 26 Kantone</span>
+      </p>
+    </div>
   )
 }

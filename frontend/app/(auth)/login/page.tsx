@@ -1,61 +1,31 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, Loader2, Lock, Mail, ArrowRight, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, ArrowLeft } from 'lucide-react'
 import { z } from 'zod'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { setTokens } from '@/lib/auth'
 
 const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein'),
+  password: z.string().min(1, 'Bitte gib dein Passwort ein'),
 })
 
 type LoginForm = z.infer<typeof loginSchema>
 
 function signInError(error: any, fallback: string): string {
   if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
-    return 'The server did not respond in time. Please try again; it may still be starting up.'
+    return 'Der Server hat nicht rechtzeitig geantwortet. Bitte versuche es erneut.'
   }
-  if (!error?.response) return 'Unable to reach the server. Check your connection and try again.'
-  if (error.response.status >= 500) return 'The server is temporarily unavailable. Please try again shortly.'
+  if (!error?.response) return 'Verbindung zum Server fehlgeschlagen. Bitte prüfe deine Internetverbindung.'
+  if (error.response.status >= 500) return 'Der Server ist vorübergehend nicht erreichbar. Bitte versuche es gleich nochmals.'
   const detail = error.response.data?.detail
   return typeof detail === 'string' ? detail : fallback
-}
-
-function SignInProgress() {
-  const [elapsed, setElapsed] = useState(0)
-  useEffect(() => {
-    const start = Date.now()
-    const timer = window.setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000)
-    return () => window.clearInterval(timer)
-  }, [])
-  const slow = elapsed >= 5
-  return (
-    <div className="mt-4 flex items-start gap-3 rounded-lg border border-sky-800/50 bg-sky-950/40 p-4 text-sm text-sky-100">
-      <Loader2 aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 animate-spin motion-reduce:animate-none" />
-      <div>
-        <p role="status" aria-live="polite" className="font-medium">
-          {slow ? 'Getting the server ready. Please wait…' : 'Connecting securely…'}
-        </p>
-        <p className="mt-1 text-xs text-slate-300">
-          {slow ? 'The server may be waking up. This can take up to 2 minutes. You don’t need to submit again.' : 'Please keep this page open while we sign you in.'}
-        </p>
-        <p aria-live="off" className="mt-2 font-mono text-xs tabular-nums text-sky-300">
-          {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, '0')} elapsed
-        </p>
-      </div>
-    </div>
-  )
 }
 
 export default function LoginPage() {
@@ -67,7 +37,11 @@ export default function LoginPage() {
   const [twoFactorCode, setTwoFactorCode] = useState('')
   const [submitting2fa, setSubmitting2fa] = useState(false)
 
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<LoginForm>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
   })
 
@@ -78,22 +52,22 @@ export default function LoginPage() {
         setTempToken(response.temp_token)
         setIs2faStep(true)
         toast({
-          title: '2FA Verification Required',
-          description: 'Please enter the 6-digit code from your authenticator app.',
+          title: 'Sicherheitscode erforderlich',
+          description: 'Gib den 6-stelligen Bestätigungscode aus deiner Authenticator-App ein.',
         })
         return
       }
 
       setTokens(response.access_token, response.refresh_token)
       toast({
-        title: 'Welcome back!',
-        description: 'Successfully signed in to SunTax.',
+        title: 'Erfolgreich angemeldet',
+        description: 'Willkommen zurück bei SunTax!',
       })
       router.push('/dashboard')
     } catch (error: any) {
       toast({
-        title: error?.response?.status === 423 ? 'Account Locked' : 'Sign in failed',
-        description: signInError(error, 'Invalid email or password. Please try again.'),
+        title: error?.response?.status === 423 ? 'Konto gesperrt' : 'Anmeldung fehlgeschlagen',
+        description: signInError(error, 'Ungültige E-Mail-Adresse oder falsches Passwort.'),
         variant: 'destructive',
       })
     }
@@ -101,20 +75,20 @@ export default function LoginPage() {
 
   const handle2faSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (submitting2fa || !tempToken || !twoFactorCode.trim()) return
+    if (submitting2fa || !tempToken || twoFactorCode.trim().length !== 6) return
     setSubmitting2fa(true)
     try {
       const response = await api.auth.login2fa(tempToken, twoFactorCode.trim())
       setTokens(response.access_token, response.refresh_token)
       toast({
-        title: 'Authentication Verified',
-        description: 'Two-Factor Authentication successful. Welcome back!',
+        title: 'Zwei-Faktor-Authentifizierung erfolgreich',
+        description: 'Willkommen zurück!',
       })
       window.location.href = '/dashboard'
     } catch (error: any) {
       toast({
-        title: '2FA Verification Failed',
-        description: signInError(error, 'Invalid code. Please try again.'),
+        title: 'Code ungültig',
+        description: signInError(error, 'Ungültiger oder abgelaufener Sicherheitscode. Bitte versuche es erneut.'),
         variant: 'destructive',
       })
     } finally {
@@ -123,157 +97,182 @@ export default function LoginPage() {
   }
 
   return (
-    <Card className="w-full bg-slate-900/90 border border-slate-800 text-slate-100 shadow-2xl backdrop-blur-xl">
-      <CardHeader className="space-y-1.5 pb-6">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-            Sign In
-          </CardTitle>
-          <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-full flex items-center gap-1">
-            <Lock className="h-3 w-3" /> Secure
-          </span>
-        </div>
-        <CardDescription className="text-slate-400 text-xs sm:text-sm">
-          Access your Swiss tax declarations and documents vault
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent>
+    <div>
+      <section className="bg-white border border-[#ECE8DF] rounded-[24px] p-8 sm:p-10 shadow-[0_30px_60px_-45px_rgba(30,30,40,0.35)]">
         {is2faStep ? (
-          <form onSubmit={handle2faSubmit} className="space-y-4">
-            <div className="p-3 bg-red-950/40 border border-red-800/40 rounded-lg text-xs text-red-200">
-              <ShieldCheck className="h-4 w-4 inline mr-1 text-red-400" />
-              Two-Factor Authentication is enabled on this account. Open your authenticator app (Google Authenticator, etc.) and enter the 6-digit code.
+          <div>
+            <div className="flex items-center gap-2 text-[#1E7B52] mb-3">
+              <ShieldCheck className="h-5 w-5" />
+              <span className="text-xs font-bold uppercase tracking-wider">Zwei-Faktor-Sicherheit</span>
             </div>
+            <h2 className="text-[28px] font-bold text-[#0A0A0A] tracking-tight leading-tight">
+              Code eingeben
+            </h2>
+            <p className="mt-1.5 text-[#666666] text-[15px] leading-relaxed">
+              Gib den 6-stelligen Code aus deiner Authenticator-App ein, um deine Identität zu bestätigen.
+            </p>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="twoFactorCode" className="text-xs font-semibold text-slate-300">
-                6-Digit Security Code
-              </Label>
-              <Input
-                id="twoFactorCode"
-                type="text"
-                maxLength={6}
-                placeholder="123456"
-                value={twoFactorCode}
-                onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
-                autoFocus
-                className="bg-slate-950 border-slate-800 text-slate-100 text-center tracking-widest font-mono text-lg h-12 focus:border-primary focus:ring-1 focus:ring-primary"
-              />
-            </div>
+            <form onSubmit={handle2faSubmit} className="mt-7 space-y-5">
+              <div>
+                <label htmlFor="twoFactorCode" className="block text-xs font-semibold text-[#0A0A0A] mb-2 text-center">
+                  6-stelliger Sicherheitscode
+                </label>
+                <input
+                  id="twoFactorCode"
+                  type="text"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={twoFactorCode}
+                  onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, ''))}
+                  autoFocus
+                  className="w-full h-14 bg-[#F9F9F8] border border-[#ECE8DF] rounded-xl text-center font-mono text-2xl tracking-[0.4em] font-bold text-[#0A0A0A] focus:outline-none focus:ring-2 focus:ring-[#1E7B52] focus:border-transparent transition-all"
+                />
+              </div>
 
-            <Button
-              type="submit"
-              disabled={submitting2fa || twoFactorCode.length < 6}
-              className="w-full bg-primary hover:bg-primary-700 text-white font-semibold text-sm h-10 mt-2"
-            >
-              {submitting2fa ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Code wird geprüft...
-                </>
-              ) : (
-                'Bestätigen und anmelden'
-              )}
-            </Button>
+              <button
+                type="submit"
+                disabled={submitting2fa || twoFactorCode.trim().length !== 6}
+                className="w-full min-h-[52px] rounded-2xl bg-[#1E7B52] hover:bg-[#165C3D] disabled:opacity-50 text-white font-semibold text-base transition-colors flex items-center justify-center cursor-pointer disabled:cursor-not-allowed shadow-sm"
+              >
+                {submitting2fa ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Wird verifiziert...
+                  </>
+                ) : (
+                  'Bestätigen & Anmelden'
+                )}
+              </button>
 
-            <button
-              type="button"
-              disabled={submitting2fa}
-              onClick={() => {
-                setIs2faStep(false)
-                setTempToken(null)
-                setTwoFactorCode('')
-              }}
-              className="w-full text-center text-xs text-slate-400 hover:text-slate-200 pt-1"
-            >
-              &larr; Back to Email & Password
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs font-semibold text-slate-300">
-              Email Address
-            </Label>
-            <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                id="email"
-                type="email"
-                placeholder="name@example.ch"
-                autoComplete="email"
-                className="bg-slate-950 border-slate-800 text-slate-100 pl-10 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm h-10"
-                {...register('email')}
-              />
-            </div>
-            {errors.email && (
-              <p className="text-xs text-red-400 mt-1">{errors.email.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="flex justify-between items-center">
-              <Label htmlFor="password" className="text-xs font-semibold text-slate-300">
-                Password
-              </Label>
-              <Link href="/forgot-password" className="text-xs text-red-400 hover:text-red-300 hover:underline">
-                Forgot password?
-              </Link>
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••••••"
-                autoComplete="current-password"
-                className="bg-slate-950 border-slate-800 text-slate-100 pl-10 pr-10 focus:border-red-500 focus:ring-1 focus:ring-red-500 text-sm h-10"
-                {...register('password')}
-              />
               <button
                 type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                onClick={() => {
+                  setIs2faStep(false)
+                  setTempToken(null)
+                  setTwoFactorCode('')
+                }}
+                className="w-full text-center text-xs text-[#666666] hover:text-[#0A0A0A] font-medium flex items-center justify-center gap-1.5 pt-1"
               >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Zurück zur Passworteingabe
+              </button>
+            </form>
+          </div>
+        ) : (
+          <div>
+            {/* Tab Switcher: Registrieren / Anmelden */}
+            <div role="tablist" className="inline-flex bg-[#F2F2F0] rounded-xl p-1 gap-1">
+              <Link
+                href="/register"
+                role="tab"
+                aria-selected={false}
+                className="px-4 py-1.5 rounded-lg text-sm font-medium text-[#666666] hover:text-[#0A0A0A] transition-colors"
+              >
+                Registrieren
+              </Link>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={true}
+                className="px-4 py-1.5 rounded-lg text-sm font-semibold text-[#0A0A0A] bg-white shadow-xs"
+              >
+                Anmelden
               </button>
             </div>
-            {errors.password && (
-              <p className="text-xs text-red-400 mt-1">{errors.password.message}</p>
-            )}
+
+            <h2 className="mt-7 text-[28px] font-bold text-[#0A0A0A] tracking-tight leading-tight">
+              Willkommen zurück
+            </h2>
+            <p className="mt-1.5 text-[#666666] text-[15px]">
+              Melde dich an, um an deiner Steuererklärung weiterzuarbeiten.
+            </p>
+
+            <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
+                  E-Mail
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="name@beispiel.ch"
+                    {...register('email')}
+                    className={`w-full h-12 px-4 rounded-xl border bg-white text-[#0A0A0A] text-sm placeholder:text-[#999999] focus:outline-none focus:ring-2 focus:ring-[#1E7B52] focus:border-transparent transition-all ${
+                      errors.email ? 'border-red-400 focus:ring-red-400' : 'border-[#ECE8DF]'
+                    }`}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-[#0A0A0A]">
+                    Passwort
+                  </label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs font-medium text-[#1E7B52] hover:underline"
+                  >
+                    Passwort vergessen?
+                  </Link>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    placeholder="Dein Passwort"
+                    {...register('password')}
+                    className={`w-full h-12 pl-4 pr-11 rounded-xl border bg-white text-[#0A0A0A] text-sm placeholder:text-[#999999] focus:outline-none focus:ring-2 focus:ring-[#1E7B52] focus:border-transparent transition-all ${
+                      errors.password ? 'border-red-400 focus:ring-red-400' : 'border-[#ECE8DF]'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#777777] hover:text-[#0A0A0A] transition-colors p-1"
+                    aria-label={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="mt-1 text-xs text-red-600 font-medium">{errors.password.message}</p>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full min-h-[52px] rounded-2xl bg-[#1E7B52] hover:bg-[#165C3D] disabled:opacity-60 text-white font-semibold text-base transition-colors flex items-center justify-center cursor-pointer shadow-sm mt-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Wird angemeldet...
+                  </>
+                ) : (
+                  'Anmelden'
+                )}
+              </button>
+            </form>
+
+            <p className="mt-4 text-[13px] text-[#888888] text-center">
+              Zum Schutz deiner Daten bestätigst du jede Anmeldung mit einem Code.
+            </p>
           </div>
-
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full bg-primary hover:bg-primary-700 text-white font-semibold shadow-xs text-sm h-10 mt-2"
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Wird angemeldet...
-              </>
-            ) : (
-              <>
-                Anmelden
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </>
-            )}
-          </Button>
-        </form>
         )}
-        {(isSubmitting || submitting2fa) && <SignInProgress />}
-      </CardContent>
+      </section>
 
-      <CardFooter className="pt-2 pb-6 border-t border-slate-800/80 flex flex-col gap-3">
-        <p className="text-center text-xs text-slate-400">
-          Don&apos;t have an account yet?{' '}
-          <Link href="/register" className="text-red-400 hover:text-red-300 font-semibold hover:underline">
-            Create account
-          </Link>
-        </p>
-      </CardFooter>
-    </Card>
+      {/* Trust Badges Bar */}
+      <p className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm text-[#777777]">
+        <span>🔒 Daten in der Schweiz</span>
+        <span>CHF 39 – erst beim Einreichen</span>
+        <span>Alle 26 Kantone</span>
+      </p>
+    </div>
   )
 }
