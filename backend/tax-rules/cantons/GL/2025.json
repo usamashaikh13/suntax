@@ -14,7 +14,7 @@
       "multiplier": 60
     },
     "1630": {
-      "name": "Glarus S\u00fcd",
+      "name": "Glarus Süd",
       "multiplier": 65
     }
   },
@@ -100,5 +100,6 @@
     "child_deduction_per_child": 9000,
     "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100
-  }
+  },
+  "tariff_status": "estimate_only"
 }

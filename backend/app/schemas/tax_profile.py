@@ -21,6 +21,8 @@ class ChildData(BaseModel):
 
 
 class PersonalData(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     date_of_birth: Optional[str] = None
@@ -44,6 +46,8 @@ class OtherIncomeItem(BaseModel):
 
 
 class IncomeData(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     employment_income: Optional[float] = None
     employment_income_spouse: Optional[float] = None
     self_employment_income: Optional[float] = None
@@ -96,6 +100,8 @@ class OtherAsset(BaseModel):
 
 
 class WealthData(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     bank_accounts: List[BankAccount] = Field(default_factory=list)
     securities: List[SecurityPosition] = Field(default_factory=list)
     real_estate: List[RealEstateProperty] = Field(default_factory=list)
@@ -112,6 +118,8 @@ class OtherDeduction(BaseModel):
 
 
 class DeductionsData(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     professional_expenses: Optional[float] = None
     travel_expenses: Optional[float] = None
     meal_expenses: Optional[float] = None
@@ -142,6 +150,8 @@ class Loan(BaseModel):
 
 
 class LiabilitiesData(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
     mortgages: List[Mortgage] = Field(default_factory=list)
     loans: List[Loan] = Field(default_factory=list)
     other_liabilities: Optional[float] = None

@@ -63,7 +63,26 @@ def test_ech0119_single_taxpayer_validates_against_official_xsd():
             "bank_name": "Zürcher Kantonalbank",
         },
     )
-    calc = MockModel(results={"taxable_income": 85932})
+    calc = MockModel(
+        results={"taxable_income": 85932},
+        calculation_details={
+            "results": {"taxable_income": 85932},
+            "canton_deductions_list": [
+                {"code": "commute_total", "amount": 2600},
+                {"code": "meal_deduction_full", "amount": 3200},
+                {"code": "work_expenses_flat", "amount": 3150},
+                {"code": "pillar3a", "amount": 7258},
+                {"code": "health_insurance", "amount": 2900},
+            ],
+            "federal_deductions_list": [
+                {"code": "commute_total", "amount": 2600},
+                {"code": "meal_deduction_full", "amount": 3200},
+                {"code": "work_expenses_flat", "amount": 3150},
+                {"code": "pillar3a", "amount": 7258},
+                {"code": "health_insurance", "amount": 1800},
+            ],
+        },
+    )
 
     xml_content = generate_ech_xml(tr, prof, calc)
     assert "xmlns=\"http://www.ech.ch/xmlns/eCH-0119/4\"" in xml_content
@@ -89,7 +108,7 @@ def test_ech0119_married_couple_validates_against_official_xsd():
             "last_name": "Gerber",
             "sex": "1",
             "date_of_birth": "1980-03-12",
-            "ahv_number": "7561111222233",
+            "ahv_number": "7569217076985",
             "address_street": "Kramgasse",
             "house_number": "5",
             "address_city": "Bern",
@@ -103,7 +122,7 @@ def test_ech0119_married_couple_validates_against_official_xsd():
                 "first_name": "Anna",
                 "last_name": "Gerber",
                 "date_of_birth": "1982-07-25",
-                "ahv_number": "7569999888877",
+                "ahv_number": "7561111222239",
                 "job": "Lehrerin",
                 "employer": "Kanton Bern",
                 "place_of_work": "Bern",
@@ -129,7 +148,26 @@ def test_ech0119_married_couple_validates_against_official_xsd():
             "bank_name": "Berner Kantonalbank",
         },
     )
-    calc = MockModel(results={"taxable_income": 150000})
+    calc = MockModel(
+        results={"taxable_income": 150000},
+        calculation_details={
+            "results": {"taxable_income": 150000},
+            "canton_deductions_list": [
+                {"code": "commute_total", "amount": 1800},
+                {"code": "meal_deduction_full", "amount": 3200},
+                {"code": "work_expenses_flat", "amount": 3300},
+                {"code": "pillar3a", "amount": 7258},
+                {"code": "health_insurance", "amount": 4900},
+            ],
+            "federal_deductions_list": [
+                {"code": "commute_total", "amount": 1800},
+                {"code": "meal_deduction_full", "amount": 3200},
+                {"code": "work_expenses_flat", "amount": 3300},
+                {"code": "pillar3a", "amount": 7258},
+                {"code": "health_insurance", "amount": 3700},
+            ],
+        },
+    )
 
     xml_content = generate_ech_xml(tr, prof, calc)
     assert "<personDataPartner2>" in xml_content
@@ -150,12 +188,19 @@ def test_ech0119_cantonal_and_federal_tax_pairs():
         tax_year=2025,
     )
     prof = MockModel(
-        personal_data={"first_name": "Test", "last_name": "User", "civil_status": "ledig"},
+        personal_data={"first_name": "Test", "last_name": "User", "civil_status": "ledig", "ahv_number": "7569217076985"},
         income_data={"gross_salary": 90000},
         deductions_data={"insurance_canton": 2900, "insurance_federal": 1800},
         wealth_data={"total_wealth": 10000},
     )
-    calc = MockModel(results={"taxable_income": 75000})
+    calc = MockModel(
+        results={"taxable_income": 75000},
+        calculation_details={
+            "results": {"taxable_income": 75000},
+            "canton_deductions_list": [{"code": "health_insurance", "amount": 2900}],
+            "federal_deductions_list": [{"code": "health_insurance", "amount": 1800}],
+        },
+    )
 
     xml_content = generate_ech_xml(tr, prof, calc)
     root = ET.fromstring(xml_content)

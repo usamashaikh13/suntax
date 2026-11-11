@@ -16,7 +16,10 @@ build/
 *.db
 *.db-shm
 *.db-wal
+*.db.bak
 dev_storage/
+test-results/
+playwright-report/
 celerybeat-schedule
 celerybeat.pid
 

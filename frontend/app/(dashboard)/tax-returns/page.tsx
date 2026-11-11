@@ -1,145 +1,211 @@
-'use client'
+'use client';
 
-import { useEffect, useState, useMemo } from 'react'
-import Link from 'next/link'
+import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import {
-  Plus, FileText, Trash2, Search, ArrowUpRight,
-  Filter, Shield, CheckCircle2, Clock, Sparkles, ChevronRight
-} from 'lucide-react'
-import { Card, CardContent } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { useToast } from '@/components/ui/toast'
-import { api } from '@/lib/api'
-import { TaxReturn } from '@/types'
-import { formatDate, cn } from '@/lib/utils'
-
-const DEFAULT_STATUS_META = { label: 'Draft', badgeClass: 'bg-slate-100 text-slate-700 border-slate-200' }
-
-const STATUS_CONFIG: Record<string, { label: string; badgeClass: string }> = {
-  draft: DEFAULT_STATUS_META,
-  in_progress: { label: 'In Progress', badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
-  review: { label: 'Under Review', badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
-  confirmed: { label: 'Confirmed', badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  exported: { label: 'Exported & Filed', badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },
-}
-
-const CANTON_NAMES: Record<string, string> = {
-  ZH: 'Zurich', ZG: 'Zug', SZ: 'Schwyz', SG: 'St. Gallen',
-  AG: 'Aargau', BE: 'Bern', BS: 'Basel-Stadt', LU: 'Lucerne',
-  UR: 'Uri', OW: 'Obwalden', NW: 'Nidwalden', GL: 'Glarus',
-  FR: 'Fribourg', SO: 'Solothurn', BL: 'Basel-Landschaft',
-  SH: 'Schaffhausen', AR: 'Appenzell Ausserrhoden', AI: 'Appenzell Innerrhoden',
-  GR: 'Graubünden', TG: 'Thurgau', TI: 'Ticino', VD: 'Vaud',
-  VS: 'Valais', NE: 'Neuchâtel', GE: 'Geneva', JU: 'Jura',
-}
+  Plus,
+  FileText,
+  Trash2,
+  Search,
+  ChevronRight,
+  AlertTriangle,
+  Loader2,
+} from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/toast';
+import { api } from '@/lib/api';
+import { TaxReturn } from '@/types';
+import { cn } from '@/lib/utils';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
+import { de } from '@/lib/i18n/translations/de';
+import { en } from '@/lib/i18n/translations/en';
 
 export default function TaxReturnsPage() {
-  const { toast } = useToast()
-  const [taxReturns, setTaxReturns] = useState<TaxReturn[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'in_progress' | 'confirmed'>('all')
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const { toast } = useToast();
+  const { t, isGerman, dict } = useTranslation();
+  const [taxReturns, setTaxReturns] = useState<TaxReturn[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'in_progress' | 'confirmed'>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      const response = await api.taxReturns.list()
-      const list = Array.isArray(response) ? response : (response?.items || [])
-      setTaxReturns(list)
+      const response = await api.taxReturns.list();
+      const list = Array.isArray(response) ? response : response?.items || [];
+      setTaxReturns(list);
     } catch {
-      toast({ title: 'Failed to load tax returns', variant: 'destructive' })
+      toast({
+        title: t('returns.loadErrorToast'),
+        variant: 'destructive',
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load();
+  }, []);
 
   const handleDelete = async (id: string) => {
-    setDeletingId(id)
+    setDeletingId(id);
     try {
-      await api.taxReturns.delete(id)
-      toast({ title: 'Tax return deleted successfully' })
-      setTaxReturns(prev => prev.filter(t => t.id !== id))
+      await api.taxReturns.delete(id);
+      toast({ title: t('returns.deleteSuccessToast') });
+      setTaxReturns((prev) => prev.filter((tr) => tr.id !== id));
     } catch {
-      toast({ title: 'Could not delete tax return', variant: 'destructive' })
+      toast({
+        title: t('returns.deleteErrorToast'),
+        variant: 'destructive',
+      });
     } finally {
-      setDeletingId(null)
-      setConfirmDeleteId(null)
+      setDeletingId(null);
+      setConfirmDeleteId(null);
     }
-  }
+  };
+
+  const getStatusMeta = (status: string) => {
+    switch (status) {
+      case 'in_progress':
+        return {
+          label: t('returns.statusInProgress'),
+          badgeClass: 'bg-blue-50 text-blue-700 border-blue-200',
+        };
+      case 'review':
+        return {
+          label: t('returns.statusReview'),
+          badgeClass: 'bg-amber-50 text-amber-700 border-amber-200',
+        };
+      case 'confirmed':
+        return {
+          label: t('returns.statusConfirmed'),
+          badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        };
+      case 'exported':
+        return {
+          label: t('returns.statusExported'),
+          badgeClass: 'bg-purple-50 text-purple-700 border-purple-200',
+        };
+      case 'submitted':
+        return {
+          label: t('returns.statusSubmitted'),
+          badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        };
+      case 'completed':
+        return {
+          label: t('returns.statusCompleted'),
+          badgeClass: 'bg-teal-50 text-teal-700 border-teal-200',
+        };
+      case 'draft':
+      default:
+        return {
+          label: t('returns.statusDraft'),
+          badgeClass: 'bg-slate-100 text-slate-700 border-slate-200',
+        };
+    }
+  };
 
   const filteredReturns = useMemo(() => {
-    return taxReturns.filter(tr => {
-      const canton = (CANTON_NAMES[tr.canton_code] || tr.canton_code).toLowerCase()
-      const muni = (tr.municipality_name || '').toLowerCase()
-      const matchesSearch = canton.includes(searchQuery.toLowerCase()) || muni.includes(searchQuery.toLowerCase())
+    return taxReturns.filter((tr) => {
+      const deName = (de.cantons[tr.canton_code] || '').toLowerCase();
+      const enName = (en.cantons[tr.canton_code] || '').toLowerCase();
+      const code = (tr.canton_code || '').toLowerCase();
+      const muni = (tr.municipality_name || '').toLowerCase();
+      const query = searchQuery.trim().toLowerCase();
 
-      if (!matchesSearch) return false
-      if (statusFilter === 'all') return true
-      const s = String(tr.status)
-      if (statusFilter === 'confirmed') return s === 'confirmed' || s === 'exported' || s === 'completed'
-      return s === statusFilter
-    })
-  }, [taxReturns, searchQuery, statusFilter])
+      const matchesSearch =
+        !query ||
+        code.includes(query) ||
+        deName.includes(query) ||
+        enName.includes(query) ||
+        muni.includes(query);
+
+      if (!matchesSearch) return false;
+      if (statusFilter === 'all') return true;
+
+      const s = String(tr.status);
+      if (statusFilter === 'confirmed') {
+        return s === 'confirmed' || s === 'exported' || s === 'submitted' || s === 'completed';
+      }
+      return s === statusFilter;
+    });
+  }, [taxReturns, searchQuery, statusFilter]);
+
+  const formatDateLocalized = (dateStr?: string) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString(isGerman ? 'de-CH' : 'en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    } catch {
+      return dateStr;
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
-        <div className="animate-spin rounded-full h-9 w-9 border-2 border-primary border-t-transparent" />
-        <p className="text-xs font-medium text-slate-500">Deine Steuererklärungen werden geladen...</p>
+        <div className="animate-spin rounded-full h-9 w-9 border-2 border-[#1E7B52] border-t-transparent" />
+        <p className="text-xs font-medium text-slate-500">{t('returns.loadingText')}</p>
       </div>
-    )
+    );
   }
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* Page Header */}
+      {/* Page Header with One Clear Primary CTA */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Meine Steuererklärungen
+            {t('returns.pageTitle')}
           </h2>
           <p className="text-sm text-slate-500 mt-1">
-            Verwalte deine Steuererklärungen für alle 26 Schweizer Kantone.
+            {t('returns.pageSubtitle')}
           </p>
         </div>
-        <Button asChild className="bg-primary hover:bg-primary-700 text-white shadow-xs font-semibold h-10 px-4">
+        <Button
+          asChild
+          className="bg-[#1E7B52] hover:bg-[#165C3D] text-white shadow-xs font-semibold h-10 px-4 rounded-xl flex-shrink-0"
+        >
           <Link href="/tax-returns/new">
             <Plus className="h-4 w-4 mr-2" />
-            Neue Steuererklärung
+            {t('returns.newReturnBtn')}
           </Link>
         </Button>
       </div>
 
       {/* Filter and Search Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 bg-white rounded-xl border border-slate-200/80 shadow-sm">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-2 bg-white rounded-xl border border-[#ECE8DF] shadow-xs">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Nach Kanton oder Gemeinde suchen..."
+            placeholder={t('returns.searchPlaceholder')}
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-transparent rounded-lg border-none focus:outline-none focus:ring-1 focus:ring-primary text-slate-900 placeholder:text-slate-400"
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 text-xs sm:text-sm bg-transparent rounded-lg border-none focus:outline-none focus:ring-1 focus:ring-[#1E7B52] text-slate-900 placeholder:text-slate-400"
           />
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-lg flex-shrink-0">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-lg flex-shrink-0 overflow-x-auto">
           {[
-            { id: 'all', label: 'Alle' },
-            { id: 'draft', label: 'Entwürfe' },
-            { id: 'in_progress', label: 'In Bearbeitung' },
-            { id: 'confirmed', label: 'Bestätigt' },
-          ].map(f => (
+            { id: 'all', label: t('returns.filterAll') },
+            { id: 'draft', label: t('returns.filterDraft') },
+            { id: 'in_progress', label: t('returns.filterInProgress') },
+            { id: 'confirmed', label: t('returns.filterConfirmed') },
+          ].map((f) => (
             <button
               key={f.id}
               onClick={() => setStatusFilter(f.id as any)}
               className={cn(
-                'px-3 py-1.5 text-xs font-semibold rounded-md transition-all',
+                'px-3 py-1.5 text-xs font-semibold rounded-md transition-all whitespace-nowrap cursor-pointer',
                 statusFilter === f.id
                   ? 'bg-white text-slate-900 shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
@@ -153,26 +219,28 @@ export default function TaxReturnsPage() {
 
       {/* Returns List */}
       {filteredReturns.length === 0 ? (
-        <Card className="border-dashed border-2 border-slate-200 bg-slate-50/50">
+        <Card className="border-dashed border-2 border-slate-200 bg-slate-50/50 rounded-2xl">
           <CardContent className="py-16 text-center space-y-4">
-            <div className="h-14 w-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-xs">
+            <div className="h-14 w-14 rounded-2xl bg-emerald-50 text-[#1E7B52] border border-emerald-200 flex items-center justify-center mx-auto shadow-xs">
               <FileText className="h-7 w-7" />
             </div>
             <div className="space-y-1">
               <h3 className="text-base font-bold text-slate-900">
-                {searchQuery || statusFilter !== 'all' ? 'Keine passenden Steuererklärungen gefunden' : 'Noch keine Steuererklärungen'}
+                {searchQuery || statusFilter !== 'all'
+                  ? t('returns.emptySearchTitle')
+                  : t('returns.emptyTitle')}
               </h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {searchQuery || statusFilter !== 'all'
-                  ? 'Versuche, deinen Suchbegriff anzupassen oder den Filter zurückzusetzen.'
-                  : 'Starte deine amtliche Erklärung mit den verifizierten Steuerregeln 2025/2026.'}
+                  ? t('returns.emptySearchSubtitle')
+                  : t('returns.emptySubtitle')}
               </p>
             </div>
             {!searchQuery && statusFilter === 'all' && (
-              <Button asChild className="bg-primary hover:bg-primary-700 text-white text-xs">
+              <Button asChild className="bg-[#1E7B52] hover:bg-[#165C3D] text-white text-xs rounded-xl shadow-xs">
                 <Link href="/tax-returns/new">
                   <Plus className="h-4 w-4 mr-1.5" />
-                  Erste Steuererklärung erstellen
+                  {t('returns.createFirstBtn')}
                 </Link>
               </Button>
             )}
@@ -180,14 +248,14 @@ export default function TaxReturnsPage() {
         </Card>
       ) : (
         <div className="grid gap-3.5">
-          {filteredReturns.map(tr => {
-            const cantonName = CANTON_NAMES[tr.canton_code] || tr.canton_code
-            const statusMeta = STATUS_CONFIG[String(tr.status)] || DEFAULT_STATUS_META
+          {filteredReturns.map((tr) => {
+            const cantonName = dict.cantons[tr.canton_code] || tr.canton_code;
+            const statusMeta = getStatusMeta(String(tr.status));
 
             return (
               <Card
                 key={tr.id}
-                className="group border-slate-200/90 hover:border-primary/40 hover:shadow-md transition-all duration-200 overflow-hidden"
+                className="group border-[#ECE8DF] hover:border-[#1E7B52]/40 hover:shadow-md transition-all duration-200 rounded-2xl overflow-hidden bg-white"
               >
                 <CardContent className="p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -196,30 +264,30 @@ export default function TaxReturnsPage() {
                       href={`/tax-returns/${tr.id}`}
                       className="flex items-center gap-4 flex-1 min-w-0"
                     >
-                      <div className="h-12 w-12 rounded-xl bg-slate-100 border border-slate-200/80 group-hover:bg-primary/10 group-hover:text-primary group-hover:border-primary/30 text-slate-800 font-bold text-base flex items-center justify-center flex-shrink-0 transition-colors">
+                      <div className="h-12 w-12 rounded-xl bg-slate-100 border border-slate-200/80 group-hover:bg-emerald-50 group-hover:text-[#1E7B52] group-hover:border-emerald-200 text-slate-800 font-bold text-base flex items-center justify-center flex-shrink-0 transition-colors">
                         {tr.canton_code}
                       </div>
 
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-base text-slate-900 group-hover:text-primary transition-colors truncate">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-bold text-base text-slate-900 group-hover:text-[#1E7B52] transition-colors truncate">
                             {cantonName} – {tr.municipality_name}
                           </p>
                           <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                            Steuerjahr {tr.tax_year}
+                            {t('returns.taxYearLabel', { year: tr.tax_year })}
                           </span>
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-slate-500 mt-1">
-                          <span>BFS-Gemeindenummer: #{tr.municipality_code}</span>
-                          <span>•</span>
-                          <span>Erstellt am {formatDate(tr.created_at)}</span>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 mt-1">
+                          <span>{t('returns.bfsNumberLabel', { code: tr.municipality_code || '—' })}</span>
+                          <span className="hidden sm:inline">•</span>
+                          <span>{t('returns.createdOnLabel', { date: formatDateLocalized(tr.created_at) })}</span>
                         </div>
                       </div>
                     </Link>
 
                     {/* Actions and Status */}
-                    <div className="flex items-center gap-3 self-end sm:self-center flex-shrink-0">
-                      <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full border', statusMeta.badgeClass)}>
+                    <div className="flex flex-wrap items-center gap-3 self-end sm:self-center flex-shrink-0">
+                      <span className={cn('text-xs font-semibold px-2.5 py-1 rounded-full border whitespace-nowrap', statusMeta.badgeClass)}>
                         {statusMeta.label}
                       </span>
 
@@ -227,37 +295,47 @@ export default function TaxReturnsPage() {
                         asChild
                         variant="outline"
                         size="sm"
-                        className="text-xs font-semibold text-slate-700 hover:text-primary hover:border-primary/30 h-8"
+                        className="text-xs font-semibold text-slate-700 hover:text-[#1E7B52] hover:border-emerald-200 h-8 rounded-xl"
                       >
                         <Link href={`/tax-returns/${tr.id}`}>
-                          Öffnen <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                          {t('returns.openBtn')} <ChevronRight className="h-3.5 w-3.5 ml-1" />
                         </Link>
                       </Button>
 
                       {confirmDeleteId === tr.id ? (
-                        <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                        <div
+                          role="dialog"
+                          aria-label={t('returns.deleteTitle')}
+                          className="flex items-center gap-1.5 bg-rose-50/80 p-1 rounded-xl border border-rose-200"
+                        >
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-xs text-slate-600"
+                            className="h-7 px-2 text-xs text-slate-600 hover:text-slate-900"
                             onClick={() => setConfirmDeleteId(null)}
                           >
-                            Abbrechen
+                            {t('returns.cancelBtn')}
                           </Button>
                           <Button
                             size="sm"
-                            className="h-7 px-2.5 text-xs bg-rose-600 hover:bg-rose-700 text-white"
+                            className="h-7 px-2.5 text-xs bg-rose-600 hover:bg-rose-700 text-white rounded-lg"
                             disabled={deletingId === tr.id}
                             onClick={() => handleDelete(tr.id)}
                           >
-                            Löschen
+                            {deletingId === tr.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              t('returns.deleteBtn')
+                            )}
                           </Button>
                         </div>
                       ) : (
                         <button
+                          type="button"
                           onClick={() => setConfirmDeleteId(tr.id)}
-                          className="p-1.5 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                          title="Steuererklärung löschen"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          title={t('returns.deleteTitle')}
+                          aria-label={t('returns.deleteTitle')}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -266,10 +344,10 @@ export default function TaxReturnsPage() {
                   </div>
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
       )}
     </div>
-  )
+  );
 }

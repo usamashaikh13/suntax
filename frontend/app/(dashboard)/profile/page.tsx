@@ -10,6 +10,7 @@ import {
   User as UserIcon, ShieldCheck,
   Save, KeyRound, Smartphone, Copy, Check
 } from 'lucide-react'
+import { BRAND } from '@/lib/brand'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import {
   Dialog,
@@ -27,20 +28,21 @@ import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { clearTokens } from '@/lib/auth'
 import { User } from '@/types'
+import { useTranslation } from '@/lib/i18n/LanguageContext'
 
 const profileSchema = z.object({
-  full_name: z.string().min(2, 'Der vollständige Name muss mindestens 2 Zeichen lang sein'),
-  email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein'),
+  full_name: z.string().min(2, 'Name must be at least 2 characters'),
+  email: z.string().email('Please enter a valid email address'),
 })
 
 const passwordSchema = z
   .object({
-    current_password: z.string().min(1, 'Bitte gib dein aktuelles Passwort ein'),
-    new_password: z.string().min(8, 'Das Passwort muss mindestens 8 Zeichen lang sein'),
+    current_password: z.string().min(1, 'Please enter your current password'),
+    new_password: z.string().min(8, 'Password must be at least 8 characters'),
     confirm_password: z.string(),
   })
   .refine(d => d.new_password === d.confirm_password, {
-    message: 'Passwörter stimmen nicht überein',
+    message: 'Passwords do not match',
     path: ['confirm_password'],
   })
 
@@ -50,6 +52,7 @@ type PasswordForm = z.infer<typeof passwordSchema>
 export default function ProfilePage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { t, isGerman, dict } = useTranslation()
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -83,7 +86,7 @@ export default function ProfilePage() {
       setTotpSetup(data)
       setShowTotpSetupModal(true)
     } catch {
-      toast({ title: '2FA-Einrichtung konnte nicht gestartet werden', variant: 'destructive' })
+      toast({ title: dict.profile.toast2faStartError, variant: 'destructive' })
     }
   }
 
@@ -92,7 +95,7 @@ export default function ProfilePage() {
     setVerifyingTotp(true)
     try {
       await api.auth.verify2fa(totpCode.trim())
-      toast({ title: '2FA erfolgreich aktiviert', description: 'Die Zwei-Faktor-Authentifizierung ist jetzt aktiv.' })
+      toast({ title: dict.profile.toast2faEnabled, description: isGerman ? 'Die Zwei-Faktor-Authentifizierung ist jetzt aktiv.' : 'Two-factor authentication is now active.' })
       setShowTotpSetupModal(false)
       setTotpCode('')
       setTotpSetup(null)
@@ -102,8 +105,8 @@ export default function ProfilePage() {
       setSecurityStatus(s)
     } catch (err: any) {
       toast({
-        title: 'Bestätigung fehlgeschlagen',
-        description: err?.response?.data?.detail || 'Ungültiger Code. Bitte versuche es erneut.',
+        title: dict.profile.toast2faConfirmError,
+        description: err?.response?.data?.detail || (isGerman ? 'Ungültiger Code. Bitte versuche es erneut.' : 'Invalid code. Please try again.'),
         variant: 'destructive',
       })
     } finally {
@@ -112,19 +115,19 @@ export default function ProfilePage() {
   }
 
   const handleDisable2fa = async () => {
-    const password = window.prompt('Gib dein Kontopasswort ein, um 2FA zu deaktivieren:')
+    const password = window.prompt(isGerman ? 'Gib dein Kontopasswort ein, um 2FA zu deaktivieren:' : 'Enter your password to disable 2FA:')
     if (!password) return
     try {
       await api.auth.disable2fa(password)
-      toast({ title: '2FA deaktiviert', description: 'Die Zwei-Faktor-Authentifizierung wurde entfernt.' })
+      toast({ title: dict.profile.toast2faDisabled, description: isGerman ? 'Die Zwei-Faktor-Authentifizierung wurde entfernt.' : 'Two-factor authentication was disabled.' })
       const u = await api.auth.getMe()
       setUser(u)
       const s = await api.auth.getSecurityStatus()
       setSecurityStatus(s)
     } catch (err: any) {
       toast({
-        title: 'Fehler beim Deaktivieren',
-        description: err?.response?.data?.detail || 'Falsches Passwort.',
+        title: dict.profile.toast2faDisableError,
+        description: err?.response?.data?.detail || (isGerman ? 'Falsches Passwort.' : 'Incorrect password.'),
         variant: 'destructive',
       })
     }
@@ -134,9 +137,9 @@ export default function ProfilePage() {
     try {
       const updated = await api.auth.updateProfile(data)
       setUser(updated)
-      toast({ title: 'Profil erfolgreich gespeichert' })
+      toast({ title: dict.profile.toastProfileSaved })
     } catch {
-      toast({ title: 'Profiländerungen konnten nicht gespeichert werden', variant: 'destructive' })
+      toast({ title: dict.profile.toastProfileError, variant: 'destructive' })
     }
   }
 
@@ -147,11 +150,11 @@ export default function ProfilePage() {
         new_password: data.new_password,
       })
       passwordForm.reset()
-      toast({ title: 'Passwort erfolgreich aktualisiert' })
+      toast({ title: dict.profile.toastPasswordSaved })
     } catch (error: any) {
       toast({
-        title: 'Passwortänderung fehlgeschlagen',
-        description: error?.response?.data?.detail || 'Bitte überprüfe dein aktuelles Passwort.',
+        title: isGerman ? 'Passwortänderung fehlgeschlagen' : 'Password update failed',
+        description: error?.response?.data?.detail || (isGerman ? 'Bitte überprüfe dein aktuelles Passwort.' : 'Please check your current password.'),
         variant: 'destructive',
       })
     }
@@ -159,16 +162,18 @@ export default function ProfilePage() {
 
   const handleDeleteAccount = async () => {
     const password = window.prompt(
-      'Gib dein Passwort ein, um dein Konto und alle Steuererklärungen endgültig zu löschen:'
+      isGerman
+        ? 'Gib dein Passwort ein, um dein Konto und alle Steuererklärungen endgültig zu löschen:'
+        : 'Enter your password to permanently delete your account and all tax declarations:'
     )
     if (!password) return
     try {
       await api.auth.deleteAccount(password)
       clearTokens()
-      toast({ title: 'Konto endgültig gelöscht' })
+      toast({ title: isGerman ? 'Konto endgültig gelöscht' : 'Account permanently deleted' })
       router.push('/')
     } catch {
-      toast({ title: 'Löschen fehlgeschlagen', variant: 'destructive' })
+      toast({ title: isGerman ? 'Löschen fehlgeschlagen' : 'Deletion failed', variant: 'destructive' })
     }
   }
 
@@ -176,7 +181,7 @@ export default function ProfilePage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[350px] space-y-3">
         <div className="animate-spin rounded-full h-8 w-8 border-2 border-primary border-t-transparent" />
-        <p className="text-xs text-slate-500 font-medium">Kontoeinstellungen werden geladen...</p>
+        <p className="text-xs text-slate-500 font-medium">{dict.common.loading}</p>
       </div>
     )
   }
@@ -185,9 +190,9 @@ export default function ProfilePage() {
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Konto & Sicherheit</h2>
+        <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">{dict.profile.title}</h2>
         <p className="text-sm text-slate-500 mt-1">
-          Verwalte deine persönliche Steueridentität, Datensouveränität und Schweizer Datenschutzeinstellungen.
+          {dict.profile.subtitle}
         </p>
       </div>
 
@@ -203,30 +208,30 @@ export default function ProfilePage() {
             <CardContent className="pt-8 pb-5 space-y-4">
               <div>
                 <h3 className="text-base font-bold text-slate-900 truncate">
-                  {user?.full_name || 'Steuerpflichtige Person'}
+                  {user?.full_name || (isGerman ? 'Steuerpflichtige Person' : 'Taxpayer')}
                 </h3>
                 <p className="text-xs text-slate-500 truncate">{user?.email}</p>
               </div>
 
               <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Kontostatus</span>
+                  <span className="text-slate-500">{isGerman ? 'Kontostatus' : 'Account Status'}</span>
                   {user?.is_verified ? (
                     <Badge variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-200 text-[10px]">
-                      Verifiziert
+                      {isGerman ? 'Verifiziert' : 'Verified'}
                     </Badge>
                   ) : (
                     <Badge variant="outline" className="text-amber-700 bg-amber-50 border-amber-200 text-[10px]">
-                      Bestätigung ausstehend
+                      {isGerman ? 'Bestätigung ausstehend' : 'Pending Verification'}
                     </Badge>
                   )}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Server-Standort</span>
-                  <span className="font-semibold text-slate-800">Schweiz (CH)</span>
+                  <span className="text-slate-500">{isGerman ? 'Server-Standort' : 'Server Location'}</span>
+                  <span className="font-semibold text-slate-800">{isGerman ? 'Schweiz (CH)' : 'Switzerland (CH)'}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Amtliches Format</span>
+                  <span className="text-slate-500">{isGerman ? 'Amtliches Format' : 'Official Format'}</span>
                   <span className="font-mono text-[11px] text-slate-600">eCH-0119 / eCH-0196</span>
                 </div>
               </div>
@@ -237,10 +242,12 @@ export default function ProfilePage() {
           <div className="p-4 rounded-xl bg-slate-900 text-white space-y-2 border border-slate-800">
             <div className="flex items-center gap-2 text-xs font-bold text-slate-200">
               <ShieldCheck className="h-4 w-4 text-emerald-400" />
-              <span>Schweizer nDSG garantiert</span>
+              <span>{isGerman ? 'Schweizer nDSG garantiert' : 'Swiss FDPIC/nDSG Guaranteed'}</span>
             </div>
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              Deine Dokumente und Steuerdaten werden isoliert verschlüsselt gespeichert und niemals für öffentliche KI-Trainingsmodelle genutzt.
+              {isGerman
+                ? 'Deine Dokumente und Steuerdaten werden isoliert verschlüsselt gespeichert und niemals für öffentliche KI-Trainingsmodelle genutzt.'
+                : 'Your documents and tax data are stored with isolated encryption and never used for public AI training.'}
             </p>
           </div>
         </div>
@@ -252,17 +259,17 @@ export default function ProfilePage() {
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <UserIcon className="h-4 w-4 text-primary" />
-                Persönliche Angaben
+                {dict.profile.personalDataTitle}
               </CardTitle>
               <CardDescription className="text-xs">
-                Dieser Name erscheint auf deiner Steuererklärung und dem eCH-0119-Export.
+                {dict.profile.personalDataDesc}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={profileForm.handleSubmit(onProfileSave)} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="full_name" className="text-xs font-semibold text-slate-700">
-                    Vollständiger amtlicher Name
+                    {dict.profile.fullNameLabel}
                   </Label>
                   <Input
                     id="full_name"
@@ -278,7 +285,7 @@ export default function ProfilePage() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-xs font-semibold text-slate-700">
-                    E-Mail-Adresse
+                    {dict.profile.emailLabel}
                   </Label>
                   <Input
                     id="email"
@@ -304,7 +311,7 @@ export default function ProfilePage() {
                   ) : (
                     <Save className="h-3.5 w-3.5 mr-1.5" />
                   )}
-                  Änderungen speichern
+                  {dict.profile.saveProfileBtn}
                 </Button>
               </form>
             </CardContent>
@@ -315,17 +322,17 @@ export default function ProfilePage() {
             <CardHeader className="pb-4">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <KeyRound className="h-4 w-4 text-primary" />
-                Sicherheit & Passwort
+                {dict.profile.passwordTitle}
               </CardTitle>
               <CardDescription className="text-xs">
-                Aktualisiere dein Passwort zum Schutz deiner Steuerdaten.
+                {dict.profile.passwordDesc}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={passwordForm.handleSubmit(onPasswordChange)} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="current_password" className="text-xs font-semibold text-slate-700">
-                    Aktuelles Passwort
+                    {dict.profile.currentPasswordLabel}
                   </Label>
                   <Input
                     id="current_password"
@@ -344,12 +351,12 @@ export default function ProfilePage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="new_password" className="text-xs font-semibold text-slate-700">
-                      Neues Passwort
+                      {dict.profile.newPasswordLabel}
                     </Label>
                     <Input
                       id="new_password"
                       type="password"
-                      placeholder="Mind. 8 Zeichen"
+                      placeholder="••••••••••••"
                       className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-primary"
                       {...passwordForm.register('new_password')}
                     />
@@ -362,12 +369,12 @@ export default function ProfilePage() {
 
                   <div className="space-y-1.5">
                     <Label htmlFor="confirm_password" className="text-xs font-semibold text-slate-700">
-                      Neues Passwort wiederholen
+                      {dict.profile.confirmPasswordLabel}
                     </Label>
                     <Input
                       id="confirm_password"
                       type="password"
-                      placeholder="Passwort wiederholen"
+                      placeholder="••••••••••••"
                       className="text-xs sm:text-sm h-10 border-slate-200 focus:ring-1 focus:ring-primary"
                       {...passwordForm.register('confirm_password')}
                     />
@@ -389,7 +396,7 @@ export default function ProfilePage() {
                   {passwordForm.formState.isSubmitting && (
                     <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                   )}
-                  Passwort aktualisieren
+                  {dict.profile.savePasswordBtn}
                 </Button>
               </form>
             </CardContent>
@@ -401,20 +408,20 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-bold flex items-center gap-2">
                   <Smartphone className="h-4 w-4 text-primary" />
-                  Zwei-Faktor-Authentifizierung (2FA)
+                  {dict.profile.twoFactorTitle}
                 </CardTitle>
                 {user?.totp_enabled ? (
                   <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-xs gap-1">
-                    <CheckCircle className="h-3 w-3" /> 2FA Aktiv (TOTP)
+                    <CheckCircle className="h-3 w-3" /> {dict.profile.twoFactorActiveBadge}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-xs gap-1">
-                    <AlertTriangle className="h-3 w-3" /> Nicht aktiv
+                    <AlertTriangle className="h-3 w-3" /> {dict.profile.twoFactorInactiveBadge}
                   </Badge>
                 )}
               </div>
               <CardDescription className="text-xs">
-                Schütze dein Konto zusätzlich mit einer Authenticator-App (Google Authenticator, Apple Passwörter, Bitwarden, 1Password) nach RFC 6238.
+                {dict.profile.twoFactorDesc}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -422,10 +429,10 @@ export default function ProfilePage() {
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-lg">
                   <div className="space-y-0.5">
                     <p className="text-xs font-semibold text-emerald-900">
-                      Dein Konto ist mit Zwei-Faktor-Authentifizierung geschützt
+                      {isGerman ? 'Dein Konto ist mit Zwei-Faktor-Authentifizierung geschützt' : 'Your account is secured with two-factor authentication'}
                     </p>
                     <p className="text-[11px] text-emerald-700">
-                      Bei jeder Anmeldung wird ein 6-stelliger TOTP-Code abgefragt.
+                      {isGerman ? 'Bei jeder Anmeldung wird ein 6-stelliger TOTP-Code abgefragt.' : 'A 6-digit TOTP code is required on every login.'}
                     </p>
                   </div>
                   <Button
@@ -434,17 +441,17 @@ export default function ProfilePage() {
                     className="border-rose-300 text-rose-700 hover:bg-rose-50 text-xs shrink-0"
                     onClick={handleDisable2fa}
                   >
-                    2FA deaktivieren
+                    {dict.profile.disable2faBtn}
                   </Button>
                 </div>
               ) : (
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-lg">
                   <div className="space-y-0.5">
                     <p className="text-xs font-semibold text-slate-800">
-                      TOTP-Zwei-Faktor-Authentifizierung aktivieren
+                      {isGerman ? 'TOTP-Zwei-Faktor-Authentifizierung aktivieren' : 'Enable TOTP Two-Factor Authentication'}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Vom Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) für Steuerdaten empfohlen.
+                      {isGerman ? 'Vom Eidgenössischen Datenschutz- und Öffentlichkeitsbeauftragten (EDÖB) empfohlen.' : 'Recommended by Swiss FDPIC (EDÖB) for financial and tax data.'}
                     </p>
                   </div>
                   <Button
@@ -452,7 +459,7 @@ export default function ProfilePage() {
                     className="bg-primary hover:bg-primary-600 text-white text-xs shrink-0"
                     onClick={handleStart2faSetup}
                   >
-                    2FA aktivieren (TOTP)
+                    {dict.profile.enable2faBtn}
                   </Button>
                 </div>
               )}
@@ -464,83 +471,83 @@ export default function ProfilePage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-base font-bold flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                Sicherheits- & EDÖB-Architektur
+                {isGerman ? 'Sicherheits- & EDÖB-Architektur' : 'Security & FDPIC Compliance Architecture'}
               </CardTitle>
               <CardDescription className="text-xs">
-                Geprüfte technische und organisatorische Sicherheitsmassnahmen gemäss revidiertem Schweizer Datenschutzgesetz (nDSG).
+                {isGerman ? 'Geprüfte technische und organisatorische Sicherheitsmassnahmen gemäss revidiertem Schweizer Datenschutzgesetz (nDSG).' : 'Audited technical and organizational security controls compliant with revised Swiss Data Protection Act (nDSG).'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Passwort-Hashing</span>
+                    <span className="text-xs font-bold text-slate-900">{isGerman ? 'Passwort-Hashing' : 'Password Hashing'}</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
                       Argon2id
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Speicherharter Algorithmus zur Abwehr von Brute-Force-Angriffen gemäss BSI/EDÖB-Empfehlung.
+                    {isGerman ? 'Speicherharter Algorithmus zur Abwehr von Brute-Force-Angriffen gemäss BSI/EDÖB-Empfehlung.' : 'Memory-hard algorithm mitigating brute force attacks per BSI/FDPIC recommendations.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Verschlüsselung im Ruhezustand</span>
+                    <span className="text-xs font-bold text-slate-900">{isGerman ? 'Verschlüsselung im Ruhezustand' : 'Encryption at Rest'}</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-emerald-700 border-emerald-300">
                       AES-256-GCM
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Mehrschichtige Envelope-Verschlüsselung mit individuellen DEKs pro Dokument.
+                    {isGerman ? 'Mehrschichtige Envelope-Verschlüsselung mit individuellen DEKs pro Dokument.' : 'Multi-layered envelope encryption with unique data encryption keys per document.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Übertragungssicherheit</span>
+                    <span className="text-xs font-bold text-slate-900">{isGerman ? 'Übertragungssicherheit' : 'In-Transit Security'}</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
                       TLS 1.3 + HSTS
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Erzwungene TLS 1.3-Verbindungen mit Perfect Forward Secrecy und HSTS.
+                    {isGerman ? 'Erzwungene TLS 1.3-Verbindungen mit Perfect Forward Secrecy und HSTS.' : 'Enforced TLS 1.3 connections with Perfect Forward Secrecy and HSTS.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Sitzungsverwaltung</span>
+                    <span className="text-xs font-bold text-slate-900">{isGerman ? 'Sitzungsverwaltung' : 'Session Management'}</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
                       15 Min. Sliding
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Kurzlebige Access-Tokens mit automatischer Token-Rotation und sofortiger Sperrung bei Logout.
+                    {isGerman ? 'Kurzlebige Access-Tokens mit automatischer Token-Rotation und sofortiger Sperrung bei Logout.' : 'Short-lived access tokens with automatic rotation and immediate invalidation on logout.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Brute-Force-Schutz</span>
+                    <span className="text-xs font-bold text-slate-900">{isGerman ? 'Brute-Force-Schutz' : 'Brute-Force Protection'}</span>
                     <Badge variant="outline" className="text-[10px] bg-white text-slate-700 border-slate-300">
-                      5 Fehlversuche / 15 Min.
+                      5 / 15 Min.
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Automatische Kontosperre nach 5 aufeinanderfolgenden fehlerhaften Anmeldeversuchen.
+                    {isGerman ? 'Automatische Kontosperre nach 5 aufeinanderfolgenden fehlerhaften Anmeldeversuchen.' : 'Automatic account lockout after 5 consecutive failed sign-in attempts.'}
                   </p>
                 </div>
 
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-900">Deklarationsprinzip</span>
+                    <span className="text-xs font-bold text-slate-900">{isGerman ? 'Deklarationsprinzip' : 'Declaration Principle'}</span>
                     <Badge variant="outline" className="text-[10px] bg-emerald-50 text-emerald-800 border-emerald-300">
                       Art. 110 DBG
                     </Badge>
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Selbstdeklaration: Steuerpflichtige Person prüft und übermittelt amtliche Unterlagen selbstständig.
+                    {isGerman ? 'Selbstdeklaration: Steuerpflichtige Person prüft und übermittelt amtliche Unterlagen selbstständig.' : 'Self-declaration: The taxpayer independently verifies and files their tax return.'}
                   </p>
                 </div>
               </div>
@@ -552,12 +559,12 @@ export default function ProfilePage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-bold text-rose-700 flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                Konto endgültig löschen
+                {dict.profile.deleteAccountTitle}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-xs text-slate-600 leading-relaxed">
-                Lösche dein Konto, alle verschlüsselten Belege und Steuererklärungsdaten unwiderruflich. Gemäss Art. 32 nDSG werden sämtliche Daten sofort physisch gelöscht.
+                {dict.profile.deleteAccountDesc}
               </p>
               {!showDeleteConfirm ? (
                 <Button
@@ -567,12 +574,12 @@ export default function ProfilePage() {
                   onClick={() => setShowDeleteConfirm(true)}
                 >
                   <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                  Konto löschen
+                  {dict.profile.deleteAccountBtn}
                 </Button>
               ) : (
                 <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 space-y-2.5">
                   <p className="text-xs font-semibold text-rose-800">
-                    Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.
+                    {isGerman ? 'Bist du sicher? Dieser Vorgang kann nicht rückgängig gemacht werden.' : 'Are you sure? This action is permanent and irreversible.'}
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -581,14 +588,14 @@ export default function ProfilePage() {
                       className="h-7 px-2.5 text-xs text-slate-600"
                       onClick={() => setShowDeleteConfirm(false)}
                     >
-                      Abbrechen
+                      {dict.common.cancel}
                     </Button>
                     <Button
                       size="sm"
                       className="h-7 px-3 text-xs bg-rose-600 hover:bg-rose-700 text-white"
                       onClick={handleDeleteAccount}
                     >
-                      Ja, alles endgültig löschen
+                      {isGerman ? 'Ja, alles endgültig löschen' : 'Yes, permanently delete'}
                     </Button>
                   </div>
                 </div>
@@ -604,17 +611,17 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-primary" />
-              Zwei-Faktor-Authentifizierung einrichten
+              {isGerman ? 'Zwei-Faktor-Authentifizierung einrichten' : 'Set Up Two-Factor Authentication'}
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500">
-              Kopple deine Authenticator-App (z. B. Google Authenticator, Apple Passwörter, 1Password, Bitwarden) mit SunTax.
+              {isGerman ? `Kopple deine Authenticator-App (z. B. Google Authenticator, 1Password, Bitwarden) mit ${BRAND.name}.` : `Connect your authenticator app (e.g. Google Authenticator, 1Password, Bitwarden) to ${BRAND.name}.`}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 py-2">
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold text-slate-700">
-                1. Authenticator-Geheimschlüssel
+                {isGerman ? '1. Authenticator-Geheimschlüssel' : '1. Authenticator Setup Key'}
               </Label>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-slate-100 border border-slate-200 rounded-lg px-3 py-2 font-mono text-xs tracking-widest text-slate-800 break-all select-all">
@@ -635,23 +642,23 @@ export default function ProfilePage() {
                 >
                   {copiedSecret ? (
                     <>
-                      <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Kopiert
+                      <Check className="h-3.5 w-3.5 mr-1 text-emerald-600" /> {dict.profile.copiedKeyBtn}
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3.5 w-3.5 mr-1" /> Kopieren
+                      <Copy className="h-3.5 w-3.5 mr-1" /> {dict.profile.copyKeyBtn}
                     </>
                   )}
                 </Button>
               </div>
               <p className="text-[11px] text-slate-500">
-                Gib diesen Schlüssel in deiner Authenticator-App unter &laquo;Konto hinzufügen &rarr; Manueller Schlüssel&raquo; ein.
+                {dict.profile.manualKeyDesc}
               </p>
             </div>
 
             <div className="space-y-1.5 pt-2 border-t border-slate-100">
               <Label htmlFor="setup-totp-code" className="text-xs font-semibold text-slate-700">
-                2. 6-stelligen Bestätigungscode eingeben
+                {dict.profile.enterCodeDesc}
               </Label>
               <Input
                 id="setup-totp-code"
@@ -664,7 +671,7 @@ export default function ProfilePage() {
                 className="text-center tracking-widest font-mono text-lg h-11 border-slate-300 focus:ring-primary"
               />
               <p className="text-[11px] text-slate-500">
-                Gib den aktuellen 6-stelligen Code aus deiner App ein, um die Einrichtung abzuschliessen.
+                {isGerman ? 'Gib den aktuellen 6-stelligen Code aus deiner App ein, um die Einrichtung abzuschliessen.' : 'Enter the current 6-digit code from your app to complete setup.'}
               </p>
             </div>
           </div>
@@ -680,7 +687,7 @@ export default function ProfilePage() {
                 setTotpCode('')
               }}
             >
-              Abbrechen
+              {dict.common.cancel}
             </Button>
             <Button
               type="button"
@@ -691,10 +698,10 @@ export default function ProfilePage() {
             >
               {verifyingTotp ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Bestätigen...
+                  <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> {dict.common.confirm}...
                 </>
               ) : (
-                '2FA aktivieren'
+                dict.profile.enable2faBtn
               )}
             </Button>
           </DialogFooter>

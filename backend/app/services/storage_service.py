@@ -21,12 +21,26 @@ logger = logging.getLogger(__name__)
 
 # ── Local dev storage ─────────────────────────────────────────────────────────
 
-_LOCAL_STORAGE = pathlib.Path("./dev_storage")
+_BACKEND_DIR = pathlib.Path(__file__).resolve().parent.parent.parent
+_LOCAL_STORAGE = _BACKEND_DIR / "dev_storage"
+if not _LOCAL_STORAGE.exists() and (_BACKEND_DIR.parent / "dev_storage").exists():
+    _LOCAL_STORAGE = _BACKEND_DIR.parent / "dev_storage"
 
 
 def _local_key_to_path(key: str) -> pathlib.Path:
     safe = key.replace("/", "_").replace("..", "__")
-    return _LOCAL_STORAGE / safe
+    p1 = _LOCAL_STORAGE / safe
+    if p1.exists():
+        return p1
+    alt_dir = (
+        _BACKEND_DIR.parent / "dev_storage"
+        if _LOCAL_STORAGE == (_BACKEND_DIR / "dev_storage")
+        else (_BACKEND_DIR / "dev_storage")
+    )
+    p2 = alt_dir / safe
+    if p2.exists():
+        return p2
+    return p1
 
 
 class _LocalStorageService:

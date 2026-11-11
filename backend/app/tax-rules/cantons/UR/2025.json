@@ -14,7 +14,7 @@
       "multiplier": 90
     },
     "1205": {
-      "name": "B\u00fcrglen",
+      "name": "Bürglen",
       "multiplier": 100
     }
   },
@@ -100,5 +100,6 @@
     "child_deduction_per_child": 9000,
     "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100
-  }
+  },
+  "tariff_status": "estimate_only"
 }

@@ -6,30 +6,106 @@
   "source": "https://www.zg.ch/behoerden/finanzdirektion/steuerverwaltung",
   "notes": "IMPORTANT: 2026 values carried forward from 2025. Update when official Zug 2026 rates are published.",
   "municipality_multipliers": {
-    "1701": {"name": "Zug",         "multiplier": 82},
-    "1702": {"name": "Baar",        "multiplier": 80},
-    "1703": {"name": "Cham",        "multiplier": 74},
-    "1704": {"name": "Hünenberg",   "multiplier": 72},
-    "1705": {"name": "Menzingen",   "multiplier": 80},
-    "1706": {"name": "Neuheim",     "multiplier": 68},
-    "1707": {"name": "Oberägeri",   "multiplier": 78},
-    "1708": {"name": "Risch",       "multiplier": 72},
-    "1709": {"name": "Steinhausen", "multiplier": 79},
-    "1710": {"name": "Unterägeri",  "multiplier": 80},
-    "1711": {"name": "Walchwil",    "multiplier": 68}
+    "1701": {
+      "name": "Zug",
+      "multiplier": 82
+    },
+    "1702": {
+      "name": "Baar",
+      "multiplier": 80
+    },
+    "1703": {
+      "name": "Cham",
+      "multiplier": 74
+    },
+    "1704": {
+      "name": "Hünenberg",
+      "multiplier": 72
+    },
+    "1705": {
+      "name": "Menzingen",
+      "multiplier": 80
+    },
+    "1706": {
+      "name": "Neuheim",
+      "multiplier": 68
+    },
+    "1707": {
+      "name": "Oberägeri",
+      "multiplier": 78
+    },
+    "1708": {
+      "name": "Risch",
+      "multiplier": 72
+    },
+    "1709": {
+      "name": "Steinhausen",
+      "multiplier": 79
+    },
+    "1710": {
+      "name": "Unterägeri",
+      "multiplier": 80
+    },
+    "1711": {
+      "name": "Walchwil",
+      "multiplier": 68
+    }
   },
   "income_tax_brackets_canton": [
-    {"from": 0,      "to": 11800,  "rate": 0.0000, "base_tax": 0.00},
-    {"from": 11800,  "to": 20000,  "rate": 0.0122, "base_tax": 0.00},
-    {"from": 20000,  "to": 35000,  "rate": 0.0166, "base_tax": 100.04},
-    {"from": 35000,  "to": 60000,  "rate": 0.0265, "base_tax": 349.04},
-    {"from": 60000,  "to": 100000, "rate": 0.0364, "base_tax": 1011.54},
-    {"from": 100000, "to": 200000, "rate": 0.0562, "base_tax": 2467.54},
-    {"from": 200000, "to": null,   "rate": 0.0660, "base_tax": 8087.54}
+    {
+      "from": 0,
+      "to": 11800,
+      "rate": 0.0,
+      "base_tax": 0.0
+    },
+    {
+      "from": 11800,
+      "to": 20000,
+      "rate": 0.0122,
+      "base_tax": 0.0
+    },
+    {
+      "from": 20000,
+      "to": 35000,
+      "rate": 0.0166,
+      "base_tax": 100.04
+    },
+    {
+      "from": 35000,
+      "to": 60000,
+      "rate": 0.0265,
+      "base_tax": 349.04
+    },
+    {
+      "from": 60000,
+      "to": 100000,
+      "rate": 0.0364,
+      "base_tax": 1011.54
+    },
+    {
+      "from": 100000,
+      "to": 200000,
+      "rate": 0.0562,
+      "base_tax": 2467.54
+    },
+    {
+      "from": 200000,
+      "to": null,
+      "rate": 0.066,
+      "base_tax": 8087.54
+    }
   ],
   "wealth_tax_brackets": [
-    {"from": 0,       "to": 100000, "rate": 0.00000},
-    {"from": 100000,  "to": null,   "rate": 0.00030}
+    {
+      "from": 0,
+      "to": 100000,
+      "rate": 0.0
+    },
+    {
+      "from": 100000,
+      "to": null,
+      "rate": 0.0003
+    }
   ],
   "wealth_tax_social_deductions": {
     "per_taxpayer": 100000,
@@ -57,10 +133,11 @@
     "childcare_reference": "StG ZG § 32 Abs. 3",
     "child_deduction_per_child": 11800,
     "child_deduction_reference": "StG ZG § 36 Abs. 1 lit. b",
-    "donation_max_pct_of_income": 0.20,
+    "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100,
     "donation_reference": "StG ZG § 32 Abs. 1 lit. i",
     "interest_deduction_max": null,
     "interest_deduction_reference": "StG ZG § 32 Abs. 1 lit. a"
-  }
+  },
+  "tariff_status": "estimate_only"
 }

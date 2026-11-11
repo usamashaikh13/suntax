@@ -5,10 +5,10 @@ Pydantic v2 schemas for TaxReturn and canton/municipality lookups.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ── Canton / Municipality ─────────────────────────────────────────────────────
@@ -19,6 +19,19 @@ class CantonResponse(BaseModel):
 
     code: str = Field(..., min_length=2, max_length=2, examples=["ZH"])
     name: str = Field(..., examples=["Zürich"])
+    availability: Optional[Dict[str, str]] = Field(
+        None,
+        description="Rollout availability per tax year ('available' or 'coming_soon')",
+    )
+
+
+class WaitlistCreateRequest(BaseModel):
+    """Payload for POST /waitlist (Addendum 1 Section 2)."""
+
+    email: EmailStr = Field(..., description="Email address to notify when canton opens")
+    canton_code: str = Field(..., min_length=2, max_length=2, examples=["BE"])
+    tax_year: int = Field(2025, ge=2024, le=2030)
+    postal_code: Optional[str] = Field(None, max_length=10)
 
 
 class MunicipalityResponse(BaseModel):

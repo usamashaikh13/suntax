@@ -6,43 +6,165 @@
   "source": "https://www.taxinfo.sv.fin.be.ch/",
   "notes": "Bern is a relatively high-tax canton. Kirchensteuer (church tax) not included here.",
   "municipality_multipliers": {
-    "351": {"name": "Bern",              "multiplier": 149},
-    "352": {"name": "Biel/Bienne",       "multiplier": 165},
-    "353": {"name": "Thun",              "multiplier": 155},
-    "354": {"name": "Köniz",             "multiplier": 147},
-    "355": {"name": "Langenthal",        "multiplier": 158},
-    "356": {"name": "Burgdorf",          "multiplier": 162},
-    "357": {"name": "Steffisburg",       "multiplier": 148},
-    "358": {"name": "Ostermundigen",     "multiplier": 154},
-    "359": {"name": "Ittigen",           "multiplier": 143},
-    "360": {"name": "Münsingen",         "multiplier": 153},
-    "361": {"name": "Lyss",              "multiplier": 153},
-    "362": {"name": "Spiez",             "multiplier": 145},
-    "363": {"name": "Worb",              "multiplier": 148},
-    "364": {"name": "Zollikofen",        "multiplier": 143},
-    "365": {"name": "Bettlach",          "multiplier": 155},
-    "366": {"name": "Interlaken",        "multiplier": 162},
-    "367": {"name": "Muri bei Bern",     "multiplier": 131},
-    "368": {"name": "Belp",              "multiplier": 150},
-    "369": {"name": "Kirchlindach",      "multiplier": 139},
-    "370": {"name": "Frenkendorf",       "multiplier": 145}
+    "351": {
+      "name": "Bern",
+      "multiplier": 149
+    },
+    "352": {
+      "name": "Biel/Bienne",
+      "multiplier": 165
+    },
+    "353": {
+      "name": "Thun",
+      "multiplier": 155
+    },
+    "354": {
+      "name": "Köniz",
+      "multiplier": 147
+    },
+    "355": {
+      "name": "Langenthal",
+      "multiplier": 158
+    },
+    "356": {
+      "name": "Burgdorf",
+      "multiplier": 162
+    },
+    "357": {
+      "name": "Steffisburg",
+      "multiplier": 148
+    },
+    "358": {
+      "name": "Ostermundigen",
+      "multiplier": 154
+    },
+    "359": {
+      "name": "Ittigen",
+      "multiplier": 143
+    },
+    "360": {
+      "name": "Münsingen",
+      "multiplier": 153
+    },
+    "361": {
+      "name": "Lyss",
+      "multiplier": 153
+    },
+    "362": {
+      "name": "Spiez",
+      "multiplier": 145
+    },
+    "363": {
+      "name": "Worb",
+      "multiplier": 148
+    },
+    "364": {
+      "name": "Zollikofen",
+      "multiplier": 143
+    },
+    "365": {
+      "name": "Bettlach",
+      "multiplier": 155
+    },
+    "366": {
+      "name": "Interlaken",
+      "multiplier": 162
+    },
+    "367": {
+      "name": "Muri bei Bern",
+      "multiplier": 131
+    },
+    "368": {
+      "name": "Belp",
+      "multiplier": 150
+    },
+    "369": {
+      "name": "Kirchlindach",
+      "multiplier": 139
+    },
+    "370": {
+      "name": "Frenkendorf",
+      "multiplier": 145
+    }
   },
   "income_tax_brackets_canton": [
-    {"from": 0,      "to": 14800,  "rate": 0.0000, "base_tax": 0.00},
-    {"from": 14800,  "to": 24700,  "rate": 0.0310, "base_tax": 0.00},
-    {"from": 24700,  "to": 36400,  "rate": 0.0410, "base_tax": 306.90},
-    {"from": 36400,  "to": 53100,  "rate": 0.0510, "base_tax": 786.60},
-    {"from": 53100,  "to": 75600,  "rate": 0.0600, "base_tax": 1638.30},
-    {"from": 75600,  "to": 105500, "rate": 0.0690, "base_tax": 2988.30},
-    {"from": 105500, "to": 141200, "rate": 0.0780, "base_tax": 5050.50},
-    {"from": 141200, "to": 185500, "rate": 0.0870, "base_tax": 7835.10},
-    {"from": 185500, "to": 255900, "rate": 0.0940, "base_tax": 11688.30},
-    {"from": 255900, "to": null,   "rate": 0.1050, "base_tax": 18313.90}
+    {
+      "from": 0,
+      "to": 14800,
+      "rate": 0.0,
+      "base_tax": 0.0
+    },
+    {
+      "from": 14800,
+      "to": 24700,
+      "rate": 0.031,
+      "base_tax": 0.0
+    },
+    {
+      "from": 24700,
+      "to": 36400,
+      "rate": 0.041,
+      "base_tax": 306.9
+    },
+    {
+      "from": 36400,
+      "to": 53100,
+      "rate": 0.051,
+      "base_tax": 786.6
+    },
+    {
+      "from": 53100,
+      "to": 75600,
+      "rate": 0.06,
+      "base_tax": 1638.3
+    },
+    {
+      "from": 75600,
+      "to": 105500,
+      "rate": 0.069,
+      "base_tax": 2988.3
+    },
+    {
+      "from": 105500,
+      "to": 141200,
+      "rate": 0.078,
+      "base_tax": 5050.5
+    },
+    {
+      "from": 141200,
+      "to": 185500,
+      "rate": 0.087,
+      "base_tax": 7835.1
+    },
+    {
+      "from": 185500,
+      "to": 255900,
+      "rate": 0.094,
+      "base_tax": 11688.3
+    },
+    {
+      "from": 255900,
+      "to": null,
+      "rate": 0.105,
+      "base_tax": 18313.9
+    }
   ],
   "wealth_tax_brackets": [
-    {"from": 0,       "to": 97000,  "rate": 0.00000},
-    {"from": 97000,   "to": 750000, "rate": 0.00065},
-    {"from": 750000,  "to": null,   "rate": 0.00090}
+    {
+      "from": 0,
+      "to": 97000,
+      "rate": 0.0
+    },
+    {
+      "from": 97000,
+      "to": 750000,
+      "rate": 0.00065
+    },
+    {
+      "from": 750000,
+      "to": null,
+      "rate": 0.0009
+    }
   ],
   "wealth_tax_social_deductions": {
     "per_taxpayer": 97000,
@@ -70,10 +192,11 @@
     "childcare_reference": "StG BE Art. 34",
     "child_deduction_per_child": 8200,
     "child_deduction_reference": "StG BE Art. 39",
-    "donation_max_pct_of_income": 0.20,
+    "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100,
     "donation_reference": "StG BE Art. 34",
     "interest_deduction_max": null,
     "interest_deduction_reference": "StG BE Art. 34"
-  }
+  },
+  "tariff_status": "estimate_only"
 }

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowLeft, Lock, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { BRAND } from '@/lib/brand'
 
 export default function PrivacyPage() {
   return (
@@ -8,7 +9,7 @@ export default function PrivacyPage() {
       <div className="max-w-3xl mx-auto bg-white p-8 sm:p-12 rounded-2xl shadow-sm border border-slate-200 space-y-8">
         <div className="flex items-center justify-between border-b pb-4">
           <Link href="/" className="text-sm font-semibold text-primary hover:text-primary-600 flex items-center gap-1.5">
-            <ArrowLeft className="h-4 w-4" /> Zurück zu SunTax
+            <ArrowLeft className="h-4 w-4" /> Zurück zu {BRAND.name}
           </Link>
           <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
             <ShieldCheck className="h-4 w-4 text-emerald-600" /> Schweizer Datenschutzgesetz (nDSG)
@@ -25,7 +26,7 @@ export default function PrivacyPage() {
         <section className="space-y-4 text-sm text-slate-700 leading-relaxed">
           <h2 className="text-base font-bold text-slate-900">1. Grundsatz und Verantwortlichkeit</h2>
           <p>
-            Der Schutz Ihrer persönlichen und finanziellen Steuerdaten hat für SunTax höchste Priorität.
+            Der Schutz Ihrer persönlichen und finanziellen Steuerdaten hat für {BRAND.name} höchste Priorität.
             Wir verarbeiten Personendaten streng nach den Vorschriften des Schweizerischen Bundesgesetzes über den
             Datenschutz (nDSG) und gewährleisten ein Höchstmass an Vertraulichkeit und technischer Datensicherheit.
           </p>

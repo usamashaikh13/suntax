@@ -99,8 +99,9 @@ class SMSService:
 
     async def send_2fa_code(self, to_phone: str, code: str) -> bool:
         """Send a 6-digit security code for two-factor authentication."""
+        b_name = settings.get_brand_config()["brand_name"]
         message = (
-            f"SunTax Security Code: {code}. "
+            f"{b_name} Security Code: {code}. "
             "Valid for 5 minutes. Do not share this code with anyone."
         )
         return await self.send_sms(to_phone, message)
@@ -109,6 +110,7 @@ class SMSService:
         self, to_phone: str, canton: str, year: int, status: str
     ) -> bool:
         """Send a tax declaration status update notification."""
+        b_name = settings.get_brand_config()["brand_name"]
         status_labels = {
             "draft": "Draft created",
             "review": "Under review",
@@ -117,7 +119,7 @@ class SMSService:
         }
         human_status = status_labels.get(status.lower(), status)
         message = (
-            f"SunTax Update: Your {year} tax return for Canton {canton} "
+            f"{b_name} Update: Your {year} tax return for Canton {canton} "
             f"is now {human_status}. Sign in to review: {settings.FRONTEND_URL}"
         )
         return await self.send_sms(to_phone, message)

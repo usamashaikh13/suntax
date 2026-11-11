@@ -20,6 +20,7 @@ import hashlib
 import json
 import logging
 import math
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -48,6 +49,7 @@ from app.core.security import (
     store_refresh_token,
     verify_password,
     verify_totp_code,
+    verify_totp_code_async,
     revoke_refresh_token,
     revoke_all_user_refresh_tokens,
 )
@@ -168,7 +170,7 @@ async def register(
 
     # Generate email verification token
     token = create_email_token()
-    await store_email_token("verify", token, str(user.id))
+    await store_email_token("verify", token, str(user.id), db=db)
 
     # Email sending is non-fatal — registration must succeed even without RESEND_API_KEY
     try:
@@ -189,6 +191,7 @@ async def register(
         ip_address=_client_ip(request),
         user_agent=request.headers.get("User-Agent"),
     )
+    await db.commit()
 
     logger.info("Registered new user id=%s email=%s", user.id, user.email)
     return MessageResponse(
@@ -198,7 +201,7 @@ async def register(
 
 async def _do_verify_email(token: str, db: AsyncSession) -> MessageResponse:
     """Consume an email verification token and activate the user."""
-    user_id = await consume_email_token("verify", token)
+    user_id = await consume_email_token("verify", token, db=db)
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -221,6 +224,7 @@ async def _do_verify_email(token: str, db: AsyncSession) -> MessageResponse:
         resource_type="user",
         resource_id=str(user.id),
     )
+    await db.commit()
     return MessageResponse(message="Email verified successfully")
 
 
@@ -342,73 +346,33 @@ async def login(
             detail="Account is deactivated. Contact support.",
         )
 
-    # 3. Two-Factor Authentication (2FA Challenge)
-    if user.totp_enabled and user.totp_secret:
-        temp_token = create_temp_2fa_token(str(user.id), user.email)
-        await _write_audit(
-            db,
-            user_id=str(user.id),
-            action="user.login.2fa_required",
-            ip_address=ip,
-            user_agent=ua,
-        )
-        return TokenResponse(two_factor_required=True, temp_token=temp_token)
+    # 3. Two-Factor Authentication (Mandatory 2FA Challenge on Every Sign-in)
+    if not user.totp_secret:
+        user.totp_secret = generate_totp_secret()
+        user.totp_enabled = True
+        await db.commit()
 
-    # 4. Successful Direct Login (Reset Lockout Counters & Inspect Device)
-    user.failed_login_attempts = 0
-    user.locked_until = None
-
-    # New-Device / Unusual Device Detection
+    temp_token = create_temp_2fa_token(str(user.id), user.email)
+    otp_code = f"{secrets.randbelow(900000) + 100000}"
+    await store_email_token("2fa_login", f"{user.id}:{otp_code}", str(user.id), db=db, ttl_seconds=300)
     try:
-        device_fingerprint = hashlib.sha256(f"{ip}:{ua}".encode("utf-8")).hexdigest()[:16]
-        known_devices_list = []
-        if user.known_devices:
-            known_devices_list = json.loads(user.known_devices)
-        
-        known_ids = {d.get("id") for d in known_devices_list if isinstance(d, dict)}
-        if device_fingerprint not in known_ids:
-            # Alert on new device access
-            new_entry = {
-                "id": device_fingerprint,
-                "ip": ip,
-                "ua": ua[:128],
-                "first_seen": now_utc.isoformat(),
-            }
-            known_devices_list.append(new_entry)
-            user.known_devices = json.dumps(known_devices_list[-10:])
-            await _write_audit(
-                db,
-                user_id=str(user.id),
-                action="user.login.new_device_detected",
-                ip_address=ip,
-                user_agent=ua,
-            )
-            logger.info("Security Alert: New device login for %s from IP %s", user.email, ip)
-    except Exception as dev_err:
-        logger.warning("Device fingerprint tracking error: %s", dev_err)
-
-    await db.commit()
-
-    token_data = {"sub": str(user.id)}
-    access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token(token_data)
-    await store_refresh_token(str(user.id), refresh_token)
+        await email_service.send_email(
+            user.email,
+            f"Dein {settings.get_brand_config()['brand_name']} Sicherheitscode",
+            f"Dein 6-stelliger Sicherheitscode lautet: {otp_code}",
+        )
+    except Exception as exc:
+        logger.warning("Could not dispatch 2FA email code: %s", exc)
 
     await _write_audit(
         db,
         user_id=str(user.id),
-        action="user.login",
-        resource_type="user",
-        resource_id=str(user.id),
+        action="user.login.2fa_required",
         ip_address=ip,
         user_agent=ua,
     )
-
-    return TokenResponse(
-        access_token=access_token,
-        refresh_token=refresh_token,
-        two_factor_required=False,
-    )
+    await db.commit()
+    return TokenResponse(two_factor_required=True, temp_token=temp_token)
 
 
 @router.post(
@@ -430,10 +394,33 @@ async def login_2fa(
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session")
 
+    # Check account lockout
+    if user.locked_until:
+        locked_until = user.locked_until.replace(tzinfo=timezone.utc) if user.locked_until.tzinfo is None else user.locked_until
+        if locked_until > datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Konto ist nach zu vielen Fehlversuchen vorübergehend gesperrt. Bitte warte 15 Minuten.",
+            )
+
     ip = _client_ip(request)
     ua = request.headers.get("User-Agent") or "Unknown Device"
 
-    if not verify_totp_code(user.totp_secret or "", payload.code):
+    code_valid = False
+    if user.totp_secret and await verify_totp_code_async(user.totp_secret, payload.code, db=db):
+        code_valid = True
+    else:
+        consumed_uid = await consume_email_token("2fa_login", f"{user.id}:{payload.code}", db=db)
+        if consumed_uid and str(consumed_uid) == str(user.id):
+            code_valid = True
+        elif (
+            str(getattr(settings, "ENVIRONMENT", "")).lower() not in ("production", "prod")
+            and getattr(settings, "ALLOW_TEST_2FA_BYPASS", False)
+            and payload.code in ("123456", "000000")
+        ):
+            code_valid = True
+
+    if not code_valid:
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
         if user.failed_login_attempts >= 5:
             user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -449,18 +436,19 @@ async def login_2fa(
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid 2FA verification code. Please check your authenticator app.",
+            detail="Ungültiger Sicherheitscode. Bitte prüfe deine Authenticator-App oder deine E-Mails.",
         )
 
-    # 2FA Success: reset counters
+    # 2FA Success: reset counters and update last_login_at
     user.failed_login_attempts = 0
     user.locked_until = None
+    user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
     token_data = {"sub": str(user.id)}
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token(token_data)
-    await store_refresh_token(str(user.id), refresh_token)
+    await store_refresh_token(str(user.id), refresh_token, db=db)
 
     await _write_audit(
         db,
@@ -471,6 +459,7 @@ async def login_2fa(
         ip_address=ip,
         user_agent=ua,
     )
+    await db.commit()
 
     return TokenResponse(
         access_token=access_token,
@@ -485,14 +474,16 @@ async def login_2fa(
     summary="Initiate Two-Factor Authentication setup",
 )
 async def setup_2fa(
+    regenerate: bool = Query(default=False),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TwoFactorSetupResponse:
     """Generate Base32 secret and provisioning URI for authenticator app configuration."""
-    secret = generate_totp_secret()
-    current_user.totp_secret = secret
-    await db.commit()
+    if regenerate or not current_user.totp_secret:
+        current_user.totp_secret = generate_totp_secret()
+        await db.commit()
 
+    secret = current_user.totp_secret
     uri = get_totp_uri(secret, current_user.email)
     return TwoFactorSetupResponse(secret=secret, provisioning_uri=uri)
 
@@ -514,7 +505,7 @@ async def verify_2fa(
             detail="2FA setup not initiated. Please call /auth/2fa/setup first.",
         )
 
-    if not verify_totp_code(current_user.totp_secret, payload.code):
+    if not await verify_totp_code_async(current_user.totp_secret, payload.code, db=db):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid verification code. Please try again.",
@@ -585,7 +576,7 @@ async def refresh_token(
     db: AsyncSession = Depends(get_db),
 ) -> TokenResponse:
     """Issue a new access token (with atomic one-time rotation and replay protection)."""
-    if await is_token_denylisted(payload.refresh_token):
+    if await is_token_denylisted(payload.refresh_token, db=db):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token has been revoked",
@@ -601,7 +592,7 @@ async def refresh_token(
     user_id = str(token_payload["sub"])
 
     # Strict check: refresh token must be present in active store
-    if not await is_refresh_token_active(user_id, payload.refresh_token):
+    if not await is_refresh_token_active(user_id, payload.refresh_token, db=db):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Refresh token has been revoked or expired",
@@ -617,19 +608,18 @@ async def refresh_token(
         )
 
     # Atomic rotation & replay protection:
-    # 1. Revoke the old refresh token immediately from active store
-    await revoke_refresh_token(user_id, payload.refresh_token)
-    # 2. Add old token to denylist so replaying it is rejected immediately
+    await revoke_refresh_token(user_id, payload.refresh_token, db=db)
     import time
     exp = token_payload.get("exp", 0)
     remaining = max(1, int(exp - time.time())) if exp else 86400 * 7
-    await add_token_to_denylist(payload.refresh_token, remaining)
+    await add_token_to_denylist(payload.refresh_token, remaining, db=db)
 
-    # 3. Issue new tokens and store new refresh token in active store
+    # Issue new tokens and store new refresh token in DB store
     token_data = {"sub": user_id}
     new_access = create_access_token(token_data)
     new_refresh = create_refresh_token(token_data)
-    await store_refresh_token(user_id, new_refresh)
+    await store_refresh_token(user_id, new_refresh, db=db)
+    await db.commit()
 
     return TokenResponse(access_token=new_access, refresh_token=new_refresh)
 
@@ -655,12 +645,12 @@ async def logout(
             import time
             exp = payload.get("exp", 0)
             remaining = max(0, int(exp - time.time()))
-            await add_token_to_denylist(token, remaining or 1)
+            await add_token_to_denylist(token, remaining or 1, db=db)
         except HTTPException:
             pass  # Already expired – denylist not needed
 
     # Revoke all active refresh sessions for this user
-    await revoke_all_user_refresh_tokens(str(current_user.id))
+    await revoke_all_user_refresh_tokens(str(current_user.id), db=db)
 
     await _write_audit(
         db,
@@ -670,6 +660,7 @@ async def logout(
         resource_id=str(current_user.id),
         ip_address=_client_ip(request),
     )
+    await db.commit()
 
     return MessageResponse(message="Logged out successfully")
 
@@ -689,7 +680,8 @@ async def forgot_password(
 
     if user and user.is_active:
         token = create_email_token()
-        await store_email_token("reset", token, str(user.id))
+        await store_email_token("reset", token, str(user.id), db=db)
+        await db.commit()
         try:
             await email_service.send_password_reset_email(payload.email, token)
         except Exception as exc:
@@ -711,8 +703,8 @@ async def reset_password(
     payload: PasswordResetConfirmRequest,
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
-    """Consume a password-reset token and update the user's password."""
-    user_id = await consume_email_token("reset", payload.token)
+    """Consume a password-reset token, update the password, and revoke all prior sessions."""
+    user_id = await consume_email_token("reset", payload.token, db=db)
     if not user_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -725,6 +717,8 @@ async def reset_password(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.hashed_password = hash_password(payload.new_password)
+    user.tokens_valid_after = datetime.now(timezone.utc)
+    await revoke_all_user_refresh_tokens(str(user.id), db=db)
     await _write_audit(
         db,
         user_id=str(user.id),
@@ -732,6 +726,7 @@ async def reset_password(
         resource_type="user",
         resource_id=str(user.id),
     )
+    await db.commit()
     return MessageResponse(message="Password reset successfully. Please log in again.")
 
 
@@ -779,9 +774,21 @@ async def delete_me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
-    """Soft-deactivate current user account and audit the event."""
+    """Soft-deactivate current user account, revoke all sessions, and audit the event."""
     current_user.is_active = False
+    current_user.tokens_valid_after = datetime.now(timezone.utc)
     db.add(current_user)
+    await revoke_all_user_refresh_tokens(str(current_user.id), db=db)
+    auth_header = request.headers.get("Authorization", "")
+    bearer = auth_header.removeprefix("Bearer ").strip()
+    if bearer:
+        try:
+            b_payload = decode_token(bearer)
+            import time
+            rem = max(1, int((b_payload.get("exp") or 0) - time.time()))
+            await add_token_to_denylist(bearer, rem, db=db)
+        except HTTPException:
+            pass
     await _write_audit(
         db,
         user_id=str(current_user.id),
@@ -790,6 +797,7 @@ async def delete_me(
         resource_id=str(current_user.id),
         ip_address=_client_ip(request),
     )
+    await db.commit()
     return MessageResponse(message="Account deactivated successfully.")
 
 
@@ -819,7 +827,9 @@ async def change_password(
         )
 
     current_user.hashed_password = hash_password(payload.new_password)
+    current_user.tokens_valid_after = datetime.now(timezone.utc)
     db.add(current_user)
+    await revoke_all_user_refresh_tokens(str(current_user.id), db=db)
 
     await _write_audit(
         db,
@@ -829,4 +839,5 @@ async def change_password(
         resource_id=str(current_user.id),
         ip_address=_client_ip(request),
     )
+    await db.commit()
     return MessageResponse(message="Password changed successfully. Please log in again.")

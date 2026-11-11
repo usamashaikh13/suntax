@@ -1,0 +1,2009 @@
+{
+  "meta": {
+    "steuerperiode": 2025,
+    "quelle": "ESTV Steuermäppchen 2025 (Stand 26.11.2025), https://www.estv.admin.ch/de/steuermaeppchen",
+    "bund": {
+      "comm": {
+        "max": 3300,
+        "velo": 700,
+        "car": 0.7
+      },
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        1800,
+        2700,
+        3700,
+        5550,
+        700
+      ],
+      "care": 25800,
+      "wb": 13000,
+      "kid": 6800,
+      "married": 2800,
+      "zweit": {
+        "p": 0.5,
+        "min": 8600,
+        "max": 14100
+      },
+      "supp": 6800,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": 10600,
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "y2026": {
+        "comm": {
+          "max": 3300,
+          "velo": 700,
+          "car": 0.75
+        },
+        "pillar3a_catchup_max": 7258,
+        "pillar3a_catchup_years_max": 10
+      }
+    },
+    "nachpruefen": {
+      "zweit": [
+        "FR",
+        "AI",
+        "BS",
+        "BL",
+        "SO",
+        "SH",
+        "NW",
+        "TG"
+      ],
+      "hinweis": "Werte laut ESTV; Kanton bei Gelegenheit gegenprüfen"
+    },
+    "fristen_quelle": "Blick 26.03.2025 – vor Livegang beim Kanton bestätigen",
+    "pers_format": "[ledig, ledig mit Kindern im Haushalt (alleinerziehend), verheiratet]",
+    "jahr_overrides": "y2026 überschreibt Werte ab Steuerperiode 2026 (z. B. GR Zweiverdiener 2’200, VS 7’000)",
+    "geprueft": {
+      "übrige Berufskosten SZ NW BS BL AR AI SG GR TI GE JU": "wörtlich ESTV-Tabelle bestätigt",
+      "Zweiverdiener SG 500, AG 600": "kantonale Wegleitung 2025 bestätigt",
+      "Zweiverdiener GR 600 (2025), 2’200 (ab 2026)": "Praxis StV GR 038-01",
+      "Versicherung/Kinder/Unterstützung/Fahrkosten SG, AG": "kantonale Wegleitung 2025 bestätigt",
+      "BS Versicherung 4’200/8’400, Kinder 9’000, persönlich 19’500/32’600/38’000": "BS Hauptformular 2025",
+      "persönliche Abzüge BE UR SZ OW ZG": "wörtlich ESTV-Tabelle bestätigt"
+    },
+    "federal_car_rate": {
+      "2025": 0.7,
+      "2026": 0.75
+    },
+    "federal_y2026_confirmed": true,
+    "y2026_confirmed_changed": [
+      "ZH",
+      "AG",
+      "SZ",
+      "SO",
+      "VS"
+    ],
+    "y2026_confirmed_unchanged": [
+      "UR",
+      "GL",
+      "BS",
+      "VD"
+    ],
+    "federal_tariffs": {
+      "2025": {
+        "single": [
+          [
+            15200,
+            0
+          ],
+          [
+            33200,
+            138.6
+          ],
+          [
+            43500,
+            229.2
+          ],
+          [
+            58000,
+            612
+          ],
+          [
+            76100,
+            1149.55
+          ],
+          [
+            82000,
+            1500
+          ],
+          [
+            108800,
+            3268.8
+          ],
+          [
+            141500,
+            6146.4
+          ],
+          [
+            184900,
+            10920.4
+          ],
+          [
+            793300,
+            91229.2
+          ]
+        ],
+        "married": [
+          [
+            29700,
+            0
+          ],
+          [
+            53400,
+            237
+          ],
+          [
+            61300,
+            395
+          ],
+          [
+            79100,
+            929
+          ],
+          [
+            94900,
+            1561
+          ],
+          [
+            108600,
+            2246
+          ],
+          [
+            120500,
+            2960
+          ],
+          [
+            130500,
+            3660
+          ],
+          [
+            138300,
+            4284
+          ],
+          [
+            144200,
+            4815
+          ],
+          [
+            148200,
+            5215
+          ],
+          [
+            150300,
+            5446
+          ],
+          [
+            152300,
+            5686
+          ],
+          [
+            940800,
+            108191
+          ]
+        ]
+      },
+      "2026": {
+        "single": [
+          [
+            15200,
+            0
+          ],
+          [
+            33200,
+            138.6
+          ],
+          [
+            43500,
+            229.2
+          ],
+          [
+            58000,
+            612
+          ],
+          [
+            76200,
+            1152.5
+          ],
+          [
+            82100,
+            1502.95
+          ],
+          [
+            108900,
+            3271.75
+          ],
+          [
+            141500,
+            6140.55
+          ],
+          [
+            185100,
+            10936.55
+          ],
+          [
+            793900,
+            91298.15
+          ]
+        ],
+        "married": [
+          [
+            29700,
+            0
+          ],
+          [
+            53400,
+            237
+          ],
+          [
+            61300,
+            395
+          ],
+          [
+            79100,
+            929
+          ],
+          [
+            94900,
+            1561
+          ],
+          [
+            108700,
+            2251
+          ],
+          [
+            120600,
+            2965
+          ],
+          [
+            130500,
+            3658
+          ],
+          [
+            138400,
+            4290
+          ],
+          [
+            144300,
+            4821
+          ],
+          [
+            148300,
+            5221
+          ],
+          [
+            150400,
+            5452
+          ],
+          [
+            152400,
+            5692
+          ],
+          [
+            941300,
+            108249
+          ]
+        ]
+      }
+    }
+  },
+  "kantone": {
+    "ZH": {
+      "name": "Zürich",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2900,
+        4350,
+        5800,
+        8700,
+        1300
+      ],
+      "care": 25000,
+      "eigen": 0,
+      "wb": 12400,
+      "kid": 9300,
+      "kidNote": "pro Kind",
+      "pers": null,
+      "zweit": {
+        "fix": 6100
+      },
+      "supp": 2800,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10300,
+        20600
+      ],
+      "unt": [
+        0.2,
+        0.2
+      ],
+      "free": [
+        80000,
+        159000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": 5200,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "available",
+        "2026": "available"
+      },
+      "submission_channel": "ech0119_webservice_zh",
+      "submission_note": "Zürich eCH-0119 Webservice (Live ab 1. Jan. 2027, Zugang beantragt bei zh-tax@zh.ch)",
+      "y2026_confirmed": true,
+      "y2026": {
+        "kid": 9400,
+        "care": 25300,
+        "wb": 12600,
+        "zweit": {
+          "fix": 6200
+        },
+        "party": [
+          10500,
+          21000
+        ],
+        "free": [
+          81000,
+          161000
+        ],
+        "comm": {
+          "max": 5200,
+          "velo": 700,
+          "car": 0.75
+        }
+      },
+      "tariff_status": "official_verified"
+    },
+    "BE": {
+      "name": "Bern",
+      "lang": "DE/FR",
+      "deadline": "15. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2450,
+        3600,
+        4900,
+        7200,
+        700
+      ],
+      "care": 16000,
+      "eigen": 0,
+      "wb": 12500,
+      "kid": 8300,
+      "kidNote": "+6,400 bei auswärtiger Ausbildung; Alleinerziehende +1,300",
+      "pers": [
+        5300,
+        7700,
+        10600
+      ],
+      "zweit": {
+        "fix": 9500
+      },
+      "supp": 4800,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        5300,
+        5300
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        0,
+        18000
+      ],
+      "limit": [
+        100000,
+        100000
+      ],
+      "rentner": null,
+      "comm": {
+        "max": 7000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Rollout-Kandidat – Warteliste aktiv",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "LU": {
+      "name": "Luzern",
+      "lang": "DE",
+      "deadline": "30 Tage nach Zustellung",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2600,
+        3300,
+        5200,
+        6700,
+        700
+      ],
+      "care": 20000,
+      "eigen": 2000,
+      "wb": 13000,
+      "kid": 8000,
+      "kidNote": "13,200 bei auswärtigem Wochenaufenthalt in Ausbildung",
+      "pers": null,
+      "zweit": {
+        "fix": 5000
+      },
+      "supp": 2700,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        5600,
+        5600
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        62500,
+        125000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": 6500,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "UR": {
+      "name": "Uri",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        1800,
+        2700,
+        3700,
+        5550,
+        700
+      ],
+      "care": 25800,
+      "eigen": 0,
+      "wb": 13000,
+      "kid": 8500,
+      "kidNote": "+4,500 Studium/Lehre, +13,500 auswärtige Kost und Logis",
+      "pers": [
+        15300,
+        21200,
+        26900
+      ],
+      "zweit": {
+        "fix": 3700
+      },
+      "supp": 3200,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10600,
+        10600
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        105800,
+        211500
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": 13000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": true,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "SZ": {
+      "name": "Schwyz",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.2,
+        "min": 0,
+        "max": 6900
+      },
+      "neben": null,
+      "prem": [
+        3200,
+        4800,
+        6400,
+        9600,
+        400
+      ],
+      "care": 6000,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 9000,
+      "kidNote": "11,000 für volljährige Kinder in Ausbildung",
+      "pers": [
+        3200,
+        9500,
+        6400
+      ],
+      "zweit": {
+        "fix": 2100
+      },
+      "supp": 0,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        6000,
+        6000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        125000,
+        250000
+      ],
+      "limit": null,
+      "rentner": "4,000, sinkt ab Nettoeinkommen 60,000",
+      "comm": {
+        "max": 8000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Rollout-Kandidat – Warteliste aktiv",
+      "y2026_confirmed": true,
+      "y2026": {
+        "kid": 10000,
+        "prem": [
+          4200,
+          4800,
+          8400,
+          9600,
+          500
+        ]
+      },
+      "tariff_status": "estimate_only"
+    },
+    "OW": {
+      "name": "Obwalden",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        1700,
+        2550,
+        3300,
+        4950,
+        700
+      ],
+      "care": 10000,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 6200,
+      "kidNote": "+5,100 bei auswärtiger Ausbildung",
+      "pers": [
+        10000,
+        10000,
+        10000
+      ],
+      "zweit": {
+        "fix": 3400
+      },
+      "supp": 2400,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        25000,
+        50000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": 10000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "NW": {
+      "name": "Nidwalden",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.05,
+        "min": 0,
+        "max": 7000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        1800,
+        2700,
+        3700,
+        5550,
+        700
+      ],
+      "care": 8100,
+      "eigen": 3100,
+      "wb": 12400,
+      "kid": 6400,
+      "kidNote": "+1,700 auswärtige Schule",
+      "pers": null,
+      "zweit": {
+        "fix": 1200
+      },
+      "supp": 5600,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        null,
+        null
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        35000,
+        70000
+      ],
+      "limit": null,
+      "rentner": "3,900 für Alleinstehende, sinkt mit Einkommen",
+      "comm": {
+        "max": 6000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "GL": {
+      "name": "Glarus",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3100,
+        4650,
+        6200,
+        9300,
+        1000
+      ],
+      "care": 25800,
+      "eigen": 0,
+      "wb": 13000,
+      "kid": 7200,
+      "kidNote": "+7,200 bei Ausbildung ausserhalb des Kantons",
+      "pers": null,
+      "zweit": {
+        "p": 0.1,
+        "min": 3600,
+        "max": 10300
+      },
+      "supp": 2100,
+      "sick": 0.02,
+      "don": 0.2,
+      "party": [
+        10600,
+        10600
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        77300,
+        154600
+      ],
+      "limit": null,
+      "rentner": "2,100 für Alleinstehende bis Nettoeinkommen 30,000",
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": true,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "ZG": {
+      "name": "Zug",
+      "lang": "DE",
+      "deadline": "30. April",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3500,
+        5300,
+        7000,
+        10500,
+        1100
+      ],
+      "care": 25400,
+      "eigen": 12200,
+      "wb": 12000,
+      "kid": 12600,
+      "kidNote": "+12,200 ab 16 Jahren in Ausbildung",
+      "pers": [
+        12000,
+        24000,
+        24000
+      ],
+      "zweit": {
+        "fix": 4600
+      },
+      "supp": 3400,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        20000,
+        20000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        204000,
+        408000
+      ],
+      "limit": null,
+      "rentner": "3,400 bis Nettoeinkommen 34,400 (1,700 bis 57,400)",
+      "comm": {
+        "max": 6000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "FR": {
+      "name": "Freiburg",
+      "lang": "FR/DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        4810,
+        4810,
+        9620,
+        9620,
+        1140
+      ],
+      "care": 12000,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 8600,
+      "kidNote": "abgestuft nach Einkommen und Anzahl Kinder",
+      "pers": null,
+      "zweit": {
+        "fix": 500
+      },
+      "supp": 5000,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        5000,
+        5000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        55000,
+        105000
+      ],
+      "limit": null,
+      "rentner": "9,100 / 11,100 bei tiefem Einkommen",
+      "comm": {
+        "max": 12000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "SO": {
+      "name": "Solothurn",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2500,
+        3750,
+        5000,
+        7500,
+        650
+      ],
+      "care": 25000,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 9000,
+      "kidNote": "pro Kind",
+      "pers": null,
+      "zweit": {
+        "fix": 1000
+      },
+      "supp": 2000,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        20000,
+        20000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        60000,
+        100000
+      ],
+      "limit": null,
+      "rentner": "5,000 bis Nettoeinkommen 24,000 / 32,000",
+      "comm": {
+        "max": 7000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Rollout-Kandidat – Warteliste aktiv",
+      "y2026_confirmed": true,
+      "y2026": {
+        "kid": 9300,
+        "prem": [
+          2600,
+          3900,
+          5000,
+          7500,
+          650
+        ],
+        "comm": {
+          "max": 7200,
+          "velo": 700,
+          "car": 0.7
+        }
+      },
+      "tariff_status": "estimate_only"
+    },
+    "BS": {
+      "name": "Basel-Stadt",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "fix": 4200
+      },
+      "neben": null,
+      "prem": [
+        4200,
+        4200,
+        8400,
+        8400,
+        0
+      ],
+      "care": 26000,
+      "eigen": 0,
+      "wb": 19100,
+      "kid": 9000,
+      "kidNote": "pro Kind",
+      "pers": [
+        19500,
+        32600,
+        38000
+      ],
+      "zweit": {
+        "fix": 1100
+      },
+      "supp": 5800,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10600,
+        10600
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        75000,
+        150000
+      ],
+      "limit": null,
+      "rentner": "3,500 zusätzlich",
+      "comm": {
+        "max": 3200,
+        "velo": 824,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": true,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "BL": {
+      "name": "Basel-Landschaft",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "fix": 500
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2000,
+        2000,
+        4000,
+        4000,
+        450
+      ],
+      "care": 10000,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 0,
+      "kidNote": "750 direkt von der Steuer pro Kind (kein Einkommensabzug)",
+      "pers": null,
+      "zweit": {
+        "fix": 1000
+      },
+      "supp": 2000,
+      "sick": 0,
+      "don": 1.0,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.2,
+        0.25
+      ],
+      "free": [
+        90000,
+        180000
+      ],
+      "limit": null,
+      "rentner": "prozentual, abhängig vom Einkommen",
+      "comm": {
+        "max": 6000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "SH": {
+      "name": "Schaffhausen",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3750,
+        3750,
+        7500,
+        7500,
+        1000
+      ],
+      "care": 9400,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 8400,
+      "kidNote": "3,000 unter 5 Jahren; +320 Steuergutschrift",
+      "pers": null,
+      "zweit": {
+        "fix": 800
+      },
+      "supp": 1300,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        15000,
+        15000
+      ],
+      "unt": [
+        0.15,
+        0.25
+      ],
+      "free": [
+        50000,
+        100000
+      ],
+      "limit": null,
+      "rentner": "7,050 / 14,100 bei tiefem Einkommen",
+      "comm": {
+        "max": 6000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "AR": {
+      "name": "Appenzell A.Rh.",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "base": 700,
+        "p": 0.1,
+        "max": 2400
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2700,
+        2700,
+        5400,
+        5400,
+        1000
+      ],
+      "care": 25000,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 7400,
+      "kidNote": "5,300 bis 4 J., 7,400 bis 15 J., 11,600 bis volljährig",
+      "pers": null,
+      "zweit": {
+        "p": 0.1,
+        "min": 2500,
+        "max": 5200
+      },
+      "supp": 0,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        75000,
+        150000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": 6000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "AI": {
+      "name": "Appenzell I.Rh.",
+      "lang": "DE",
+      "deadline": "30. April",
+      "bk": {
+        "base": 1000,
+        "p": 0.05,
+        "max": 5000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2900,
+        3400,
+        5800,
+        6800,
+        600
+      ],
+      "care": 18000,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 6000,
+      "kidNote": "8,000 ab dem 3. Kind; +8,000 auswärtige Ausbildung",
+      "pers": null,
+      "zweit": {
+        "fix": 500
+      },
+      "supp": 0,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.2,
+        0.2
+      ],
+      "free": [
+        50000,
+        100000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "SG": {
+      "name": "St. Gallen",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "base": 700,
+        "p": 0.1,
+        "max": 2400
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3400,
+        3900,
+        6800,
+        7900,
+        1100
+      ],
+      "care": 26700,
+      "eigen": 0,
+      "wb": 13000,
+      "kid": 10800,
+      "kidNote": "7,600 vor der Schule; bis 13,700 mit Ausbildungskosten",
+      "pers": null,
+      "zweit": {
+        "fix": 500
+      },
+      "supp": 0,
+      "sick": 0.02,
+      "don": 0.2,
+      "party": [
+        10700,
+        21400
+      ],
+      "unt": [
+        0.2,
+        0.2
+      ],
+      "free": [
+        75000,
+        150000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": 8000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "GR": {
+      "name": "Graubünden",
+      "lang": "DE/IT/RM",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.1,
+        "min": 1400,
+        "max": 3300
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        4600,
+        5800,
+        9200,
+        11600,
+        1000
+      ],
+      "care": 10900,
+      "eigen": 0,
+      "wb": 13000,
+      "kid": 9900,
+      "kidNote": "6,600 vor der Schule; 19,700 Ausbildung auswärts",
+      "pers": null,
+      "zweit": {
+        "fix": 600
+      },
+      "supp": 5500,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        69000,
+        138000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.7
+      },
+      "y2026": {
+        "zweit": {
+          "fix": 2200
+        }
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "tariff_status": "estimate_only"
+    },
+    "AG": {
+      "name": "Aargau",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3600,
+        3600,
+        7200,
+        7200,
+        0
+      ],
+      "care": 25000,
+      "eigen": 0,
+      "wb": 18000,
+      "kid": 9300,
+      "kidNote": "10,300 bis 18 J., 12,400 volljährig in Ausbildung",
+      "pers": null,
+      "zweit": {
+        "fix": 600
+      },
+      "supp": 2600,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        130000,
+        260000
+      ],
+      "limit": null,
+      "rentner": "3,200 bei mindestens halber IV-Rente",
+      "comm": {
+        "max": 7000,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": true,
+      "y2026": {
+        "kid": 9500,
+        "prem": [
+          3800,
+          3800,
+          7200,
+          7200,
+          0
+        ]
+      },
+      "tariff_status": "estimate_only"
+    },
+    "TG": {
+      "name": "Thurgau",
+      "lang": "DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3500,
+        3500,
+        7000,
+        7000,
+        1000
+      ],
+      "care": 10100,
+      "eigen": 0,
+      "wb": 13000,
+      "kid": 7400,
+      "kidNote": "8,500 Ausbildung bis 20, 10,600 bis 26; +100 Steuergutschrift",
+      "pers": null,
+      "zweit": {
+        "fix": 0
+      },
+      "supp": 2700,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        100000,
+        200000
+      ],
+      "limit": null,
+      "rentner": "4,200, sinkt mit Einkommen",
+      "comm": {
+        "max": 6000,
+        "velo": 700,
+        "car": 0.6
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Rollout-Kandidat – Warteliste aktiv",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "TI": {
+      "name": "Tessin",
+      "lang": "IT",
+      "deadline": "30. April",
+      "bk": {
+        "fix": 3000
+      },
+      "neben": null,
+      "prem": [
+        5500,
+        7800,
+        10900,
+        15400,
+        1200
+      ],
+      "care": 26200,
+      "eigen": 0,
+      "wb": 10700,
+      "kid": 11500,
+      "kidNote": "+ bis 13,900 für Studierende",
+      "pers": null,
+      "zweit": {
+        "fix": 8100
+      },
+      "supp": 5900,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10600,
+        10600
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        0,
+        0
+      ],
+      "limit": [
+        200000,
+        200000
+      ],
+      "rentner": "8,000 bei tiefem Einkommen",
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.6
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "VD": {
+      "name": "Waadt",
+      "lang": "FR",
+      "deadline": "15. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        5000,
+        5000,
+        9900,
+        9900,
+        1300
+      ],
+      "care": 15200,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 0,
+      "kidNote": "Familienquotient: je Kind 0.5 Teile statt fixer Abzug",
+      "pers": null,
+      "zweit": {
+        "fix": 1700
+      },
+      "supp": 3400,
+      "sick": 0.05,
+      "don": 0.2,
+      "party": [
+        10100,
+        10100
+      ],
+      "unt": [
+        0.2,
+        0.3
+      ],
+      "free": [
+        0,
+        0
+      ],
+      "limit": [
+        60000,
+        120000
+      ],
+      "rentner": null,
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": true,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "VS": {
+      "name": "Wallis",
+      "lang": "FR/DE",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3620,
+        3620,
+        7240,
+        7240,
+        1130
+      ],
+      "care": 10000,
+      "eigen": 3130,
+      "wb": 12550,
+      "kid": 8940,
+      "kidNote": "7,860 bis 6 J., 11,930 ab 16 in Ausbildung; +300 Steuerreduktion",
+      "pers": null,
+      "zweit": {
+        "fix": 6290
+      },
+      "supp": 2510,
+      "sick": 0.02,
+      "don": 0.2,
+      "party": [
+        20920,
+        20920
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        45000,
+        90000
+      ],
+      "limit": null,
+      "rentner": null,
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.75
+      },
+      "y2026": {
+        "zweit": {
+          "fix": 7000
+        },
+        "prem": [
+          3800,
+          3800,
+          7240,
+          7240,
+          1130
+        ]
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": true,
+      "tariff_status": "estimate_only"
+    },
+    "NE": {
+      "name": "Neuenburg",
+      "lang": "FR",
+      "deadline": "laut Steuerbrief",
+      "bk": {
+        "p": 0.03,
+        "min": 2000,
+        "max": 4000
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        2500,
+        3125,
+        4900,
+        6125,
+        800
+      ],
+      "care": 20400,
+      "eigen": 0,
+      "wb": 12400,
+      "kid": 6700,
+      "kidNote": "6,200 bis 4 J., 8,200 über 14; +200 Steuerreduktion",
+      "pers": null,
+      "zweit": {
+        "p": 0.25,
+        "min": 0,
+        "max": 1200
+      },
+      "supp": 3100,
+      "sick": 0.05,
+      "don": 0.05,
+      "party": [
+        5200,
+        5200
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        0,
+        0
+      ],
+      "limit": [
+        50000,
+        93000
+      ],
+      "rentner": null,
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.6
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "GE": {
+      "name": "Genf",
+      "lang": "FR",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.03,
+        "min": 640,
+        "max": 1812
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 807,
+        "max": 2422
+      },
+      "prem": [
+        2345,
+        4690,
+        3518,
+        7036,
+        959
+      ],
+      "care": 26320,
+      "eigen": 0,
+      "wb": 12756,
+      "kid": 13660,
+      "kidNote": "volle Last; halbe Last 6,830",
+      "pers": null,
+      "zweit": {
+        "fix": 1051
+      },
+      "supp": 6830,
+      "sick": 0.005,
+      "don": 0.2,
+      "party": [
+        10000,
+        10000
+      ],
+      "unt": [
+        0.15,
+        0.25
+      ],
+      "free": [
+        87632,
+        175264
+      ],
+      "limit": null,
+      "rentner": "10,661 bei Einkommen bis 98,080",
+      "comm": {
+        "max": 534,
+        "velo": null,
+        "car": null
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    },
+    "JU": {
+      "name": "Jura",
+      "lang": "FR",
+      "deadline": "31. März",
+      "bk": {
+        "p": 0.2,
+        "min": 0,
+        "max": 4100
+      },
+      "neben": {
+        "p": 0.2,
+        "min": 800,
+        "max": 2400
+      },
+      "prem": [
+        3400,
+        4190,
+        6800,
+        8380,
+        1020
+      ],
+      "care": 10600,
+      "eigen": 0,
+      "wb": 12000,
+      "kid": 5700,
+      "kidNote": "6,400 ab 3 Kindern; + auswärtige Ausbildung",
+      "pers": null,
+      "zweit": {
+        "fix": 2700
+      },
+      "supp": 2400,
+      "sick": 0.05,
+      "don": 0.1,
+      "party": [
+        10600,
+        10600
+      ],
+      "unt": [
+        0.1,
+        0.2
+      ],
+      "free": [
+        28500,
+        57000
+      ],
+      "limit": null,
+      "rentner": "8,900 / 10,300 bei tiefem Einkommen",
+      "comm": {
+        "max": null,
+        "velo": 700,
+        "car": 0.7
+      },
+      "availability": {
+        "2025": "coming_soon",
+        "2026": "coming_soon"
+      },
+      "submission_channel": "pending_certification",
+      "submission_note": "Kanton wird schrittweise aufgeschaltet",
+      "y2026_confirmed": false,
+      "y2026": {},
+      "tariff_status": "estimate_only"
+    }
+  }
+}

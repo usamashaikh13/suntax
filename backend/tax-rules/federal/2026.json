@@ -1,70 +1,239 @@
 {
   "level": "federal",
   "tax_year": 2026,
-  "version": "1.0.0",
-  "source": "https://www.estv.admin.ch/",
-  "notes": "IMPORTANT: 2026 brackets are carried forward from 2025 pending official ESTV indexation announcement. Update this file when ESTV publishes the 2026 indexed values (typically Q4 of prior year).",
+  "version": "2.0.0",
+  "tariff_status": "official_verified",
+  "source": "ESTV Rundschreiben 2-215-D-2025 (Steuerperiode 2025 & 2026), Art. 36 DBG / VKP",
+  "notes": "Official Direct Federal Tax (DBG/LIFD) brackets and deduction limits for 2026. Rounded down to nearest CHF 0.05 per Art. 36 DBG.",
   "income_tax_brackets_single": [
-    {"from": 0,      "to": 17800,  "rate": 0.0000, "base_tax": 0.00},
-    {"from": 17800,  "to": 31600,  "rate": 0.0077, "base_tax": 0.00},
-    {"from": 31600,  "to": 41400,  "rate": 0.0088, "base_tax": 106.30},
-    {"from": 41400,  "to": 55200,  "rate": 0.0264, "base_tax": 192.70},
-    {"from": 55200,  "to": 72500,  "rate": 0.0297, "base_tax": 557.10},
-    {"from": 72500,  "to": 78100,  "rate": 0.0561, "base_tax": 1071.50},
-    {"from": 78100,  "to": 103600, "rate": 0.0616, "base_tax": 1385.60},
-    {"from": 103600, "to": 134600, "rate": 0.0825, "base_tax": 2956.30},
-    {"from": 134600, "to": 176000, "rate": 0.0880, "base_tax": 5513.80},
-    {"from": 176000, "to": 755200, "rate": 0.1132, "base_tax": 9156.40},
-    {"from": 755200, "to": null,   "rate": 0.1150, "base_tax": 74726.60}
+    {
+      "from": 0,
+      "to": 15200,
+      "rate": 0.0,
+      "base_tax": 0.0,
+      "end_tax": 0.0
+    },
+    {
+      "from": 15200,
+      "to": 33200,
+      "rate": 0.0077,
+      "base_tax": 0.0,
+      "end_tax": 138.6
+    },
+    {
+      "from": 33200,
+      "to": 43500,
+      "rate": 0.00879611650485437,
+      "base_tax": 138.6,
+      "end_tax": 229.2
+    },
+    {
+      "from": 43500,
+      "to": 58000,
+      "rate": 0.0264,
+      "base_tax": 229.2,
+      "end_tax": 612.0
+    },
+    {
+      "from": 58000,
+      "to": 76200,
+      "rate": 0.029697802197802197,
+      "base_tax": 612.0,
+      "end_tax": 1152.5
+    },
+    {
+      "from": 76200,
+      "to": 82100,
+      "rate": 0.059398305084745764,
+      "base_tax": 1152.5,
+      "end_tax": 1502.95
+    },
+    {
+      "from": 82100,
+      "to": 108900,
+      "rate": 0.066,
+      "base_tax": 1502.95,
+      "end_tax": 3271.75
+    },
+    {
+      "from": 108900,
+      "to": 141500,
+      "rate": 0.088,
+      "base_tax": 3271.75,
+      "end_tax": 6140.55
+    },
+    {
+      "from": 141500,
+      "to": 185100,
+      "rate": 0.11,
+      "base_tax": 6140.55,
+      "end_tax": 10936.55
+    },
+    {
+      "from": 185100,
+      "to": 793900,
+      "rate": 0.132,
+      "base_tax": 10936.55,
+      "end_tax": 91298.15
+    },
+    {
+      "from": 793900,
+      "to": null,
+      "rate": 0.115,
+      "base_tax": 91298.5,
+      "flat_on_total": true
+    }
   ],
   "income_tax_brackets_married": [
-    {"from": 0,      "to": 28300,  "rate": 0.0000, "base_tax": 0.00},
-    {"from": 28300,  "to": 50900,  "rate": 0.0100, "base_tax": 0.00},
-    {"from": 50900,  "to": 58400,  "rate": 0.0200, "base_tax": 226.00},
-    {"from": 58400,  "to": 75300,  "rate": 0.0300, "base_tax": 376.00},
-    {"from": 75300,  "to": 90300,  "rate": 0.0400, "base_tax": 883.00},
-    {"from": 90300,  "to": 103400, "rate": 0.0500, "base_tax": 1483.00},
-    {"from": 103400, "to": 114700, "rate": 0.0600, "base_tax": 2138.00},
-    {"from": 114700, "to": 124200, "rate": 0.0700, "base_tax": 2816.00},
-    {"from": 124200, "to": 131700, "rate": 0.0800, "base_tax": 3481.00},
-    {"from": 131700, "to": 141200, "rate": 0.0900, "base_tax": 4081.00},
-    {"from": 141200, "to": 154900, "rate": 0.1000, "base_tax": 4936.00},
-    {"from": 154900, "to": 176000, "rate": 0.1050, "base_tax": 6306.00},
-    {"from": 176000, "to": 755200, "rate": 0.1132, "base_tax": 8522.50},
-    {"from": 755200, "to": null,   "rate": 0.1150, "base_tax": 74199.20}
+    {
+      "from": 0,
+      "to": 29700,
+      "rate": 0.0,
+      "base_tax": 0.0,
+      "end_tax": 0.0
+    },
+    {
+      "from": 29700,
+      "to": 53400,
+      "rate": 0.01,
+      "base_tax": 0.0,
+      "end_tax": 237.0
+    },
+    {
+      "from": 53400,
+      "to": 61300,
+      "rate": 0.02,
+      "base_tax": 237.0,
+      "end_tax": 395.0
+    },
+    {
+      "from": 61300,
+      "to": 79100,
+      "rate": 0.03,
+      "base_tax": 395.0,
+      "end_tax": 929.0
+    },
+    {
+      "from": 79100,
+      "to": 94900,
+      "rate": 0.04,
+      "base_tax": 929.0,
+      "end_tax": 1561.0
+    },
+    {
+      "from": 94900,
+      "to": 108700,
+      "rate": 0.05,
+      "base_tax": 1561.0,
+      "end_tax": 2251.0
+    },
+    {
+      "from": 108700,
+      "to": 120600,
+      "rate": 0.06,
+      "base_tax": 2251.0,
+      "end_tax": 2965.0
+    },
+    {
+      "from": 120600,
+      "to": 130500,
+      "rate": 0.07,
+      "base_tax": 2965.0,
+      "end_tax": 3658.0
+    },
+    {
+      "from": 130500,
+      "to": 138400,
+      "rate": 0.08,
+      "base_tax": 3658.0,
+      "end_tax": 4290.0
+    },
+    {
+      "from": 138400,
+      "to": 144300,
+      "rate": 0.09,
+      "base_tax": 4290.0,
+      "end_tax": 4821.0
+    },
+    {
+      "from": 144300,
+      "to": 148300,
+      "rate": 0.1,
+      "base_tax": 4821.0,
+      "end_tax": 5221.0
+    },
+    {
+      "from": 148300,
+      "to": 150400,
+      "rate": 0.11,
+      "base_tax": 5221.0,
+      "end_tax": 5452.0
+    },
+    {
+      "from": 150400,
+      "to": 152400,
+      "rate": 0.12,
+      "base_tax": 5452.0,
+      "end_tax": 5692.0
+    },
+    {
+      "from": 152400,
+      "to": 941300,
+      "rate": 0.13,
+      "base_tax": 5692.0,
+      "end_tax": 108249.0
+    },
+    {
+      "from": 941300,
+      "to": null,
+      "rate": 0.115,
+      "base_tax": 108249.5,
+      "flat_on_total": true
+    }
   ],
   "deduction_limits": {
     "pillar3a_employed_max": 7258,
     "pillar3a_self_employed_max": 36288,
+    "pillar3a_catchup_max": 7258,
     "commuting_max_chf": 3300,
-    "commuting_note": "Federal cap 2025/2026, DBG Art. 26 para 1 lit. a",
+    "commuting_bike_chf": 700,
+    "commuting_car_rate": 0.75,
+    "commuting_note": "Federal cap 2025/2026, DBG Art. 26 Abs. 1 lit. a",
     "professional_expenses_flat_rate_pct": 0.03,
     "professional_expenses_min": 2000,
     "professional_expenses_max": 4000,
     "professional_expenses_reference": "DBG Art. 26",
+    "side_job_flat_rate_pct": 0.2,
+    "side_job_min": 800,
+    "side_job_max": 2400,
     "meal_deduction_annual": 3200,
+    "meal_deduction_reduced": 1600,
     "home_office_per_day": 15,
     "home_office_max_days": 200,
-    "health_insurance_deduction_single": 2800,
-    "health_insurance_deduction_married": 5600,
+    "health_insurance_deduction_single": 1800,
+    "health_insurance_deduction_single_no_pension": 2700,
+    "health_insurance_deduction_married": 3700,
+    "health_insurance_deduction_married_no_pension": 5550,
     "health_insurance_deduction_per_child": 700,
-    "health_insurance_reference": "DBG Art. 33 para 1 lit. g",
+    "health_insurance_reference": "DBG Art. 33 Abs. 1 lit. g",
     "medical_expense_threshold_pct": 0.05,
-    "medical_expense_reference": "DBG Art. 33 para 1 lit. h",
-    "donation_max_pct_of_income": 0.20,
+    "medical_expense_reference": "DBG Art. 33 Abs. 1 lit. h",
+    "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100,
     "donation_reference": "DBG Art. 33a",
     "child_deduction_per_child": 6800,
+    "support_deduction_per_person": 6800,
     "childcare_max": 25800,
-    "childcare_reference": "DBG Art. 33 para 3",
+    "childcare_reference": "DBG Art. 33 Abs. 3",
     "training_max": 13000,
     "party_donation_max": 10600,
     "married_deduction": 2800,
     "two_earner_min": 8600,
     "two_earner_max": 14100,
-    "two_earner_rate": 0.50,
+    "two_earner_rate": 0.5,
     "child_tax_credit_per_child": 263,
     "interest_deduction_max": null,
-    "interest_deduction_reference": "DBG Art. 33 para 1 lit. a"
+    "interest_deduction_extra_above_yield": 50000,
+    "interest_deduction_reference": "DBG Art. 33 Abs. 1 lit. a"
   }
 }

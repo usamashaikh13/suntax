@@ -15,12 +15,13 @@ from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db, set_rls_user_id
 from app.core.security import get_current_user
 from app.core.config import settings
+from app.models.security_state import AiChatMessage
 from app.models.user import User
 from app.models.tax_return import TaxReturn
 from app.models.tax_profile import TaxProfile
@@ -115,63 +116,49 @@ class ChatResponse(BaseModel):
 # Helpers
 # ---------------------------------------------------------------------------
 
-_chat_history_memory: dict[str, list[dict]] = {}
-
-
-async def _get_redis():
-    """Return an async Redis client, or None if unavailable."""
-    try:
-        import fakeredis.aioredis as fakeredis_aio
-        if settings.ENVIRONMENT in ("development", "test"):
-            return fakeredis_aio.FakeRedis(decode_responses=True)
-    except ImportError:
-        pass
-    try:
-        import redis.asyncio as aioredis
-        return aioredis.from_url(
-            settings.REDIS_URL,
-            decode_responses=True,
-            socket_connect_timeout=2.0,
-            socket_timeout=2.0,
+async def _load_history_db(db: AsyncSession, user_id: str, tax_return_id: str) -> list[dict]:
+    res = await db.execute(
+        select(AiChatMessage)
+        .where(
+            AiChatMessage.user_id == str(user_id),
+            AiChatMessage.tax_return_id == str(tax_return_id),
         )
-    except Exception:
-        return None
+        .order_by(AiChatMessage.created_at.asc())
+    )
+    rows = res.scalars().all()
+    return [{"role": row.role, "content": row.content} for row in rows][-40:]
 
 
-async def _load_history(history_key: str) -> list[dict]:
-    try:
-        r = await _get_redis()
-        if r is not None:
-            raw = await r.get(history_key)
-            if raw:
-                return json.loads(raw)
-    except Exception as exc:
-        logger.warning("Redis load history error: %s", exc)
-    return list(_chat_history_memory.get(history_key, []))
+async def _append_turn_db(
+    db: AsyncSession, user_id: str, tax_return_id: str, user_msg: str, model_msg: str
+) -> None:
+    db.add(
+        AiChatMessage(
+            user_id=str(user_id),
+            tax_return_id=str(tax_return_id),
+            role="user",
+            content=user_msg,
+        )
+    )
+    db.add(
+        AiChatMessage(
+            user_id=str(user_id),
+            tax_return_id=str(tax_return_id),
+            role="model",
+            content=model_msg,
+        )
+    )
+    await db.commit()
 
 
-async def _save_history(history_key: str, history: list[dict]) -> None:
-    _chat_history_memory[history_key] = history
-    try:
-        r = await _get_redis()
-        if r is not None:
-            await r.setex(history_key, 86400 * 7, json.dumps(history))
-    except Exception as exc:
-        logger.warning("Redis save history error: %s", exc)
-
-
-async def _clear_history(history_key: str) -> None:
-    _chat_history_memory.pop(history_key, None)
-    try:
-        r = await _get_redis()
-        if r is not None:
-            await r.delete(history_key)
-    except Exception as exc:
-        logger.warning("Redis clear history error: %s", exc)
-
-
-def _history_key(user_id: str, tax_return_id: str) -> str:
-    return f"chat:{user_id}:{tax_return_id}"
+async def _clear_history_db(db: AsyncSession, user_id: str, tax_return_id: str) -> None:
+    await db.execute(
+        delete(AiChatMessage).where(
+            AiChatMessage.user_id == str(user_id),
+            AiChatMessage.tax_return_id == str(tax_return_id),
+        )
+    )
+    await db.commit()
 
 
 async def _get_tax_return_with_context(
@@ -570,8 +557,7 @@ async def chat(
         f"Calculation: {'Calculated (Total CHF ' + str(calc.total_tax_due) + ')' if calc else 'Not yet calculated'}\n"
     )
 
-    history_key = _history_key(str(current_user.id), tax_return_id)
-    history = await _load_history(history_key)
+    history = await _load_history_db(db, str(current_user.id), tax_return_id)
 
     assistant_reply = ""
     suggestions: List[str] = [
@@ -581,9 +567,10 @@ async def chat(
     ]
     next_step = "review" if calc else ("calculation" if docs else "documents")
 
-    # Attempt Gemini API if key is available and not placeholder
+    # Enforce strict FDPIC / nDSG privacy gate before sending any taxpayer data to external AI
+    allow_external_ai = bool(getattr(settings, "ENABLE_EXTERNAL_AI_EXTRACTION", False))
     gemini_key = settings.GEMINI_API_KEY
-    is_valid_key = bool(gemini_key and not gemini_key.startswith("your_") and len(gemini_key) > 15)
+    is_valid_key = allow_external_ai and bool(gemini_key and not gemini_key.startswith("your_") and len(gemini_key) > 15)
 
     if is_valid_key:
         try:
@@ -621,11 +608,8 @@ async def chat(
             body.message, tr, profile, docs, calc
         )
 
-    # Save conversation
-    history.append({"role": "user", "content": body.message})
-    history.append({"role": "model", "content": assistant_reply})
-    history = history[-40:]
-    await _save_history(history_key, history)
+    # Save conversation persistently to DB
+    await _append_turn_db(db, str(current_user.id), tax_return_id, body.message, assistant_reply)
 
     return ChatResponse(
         message=assistant_reply,
@@ -642,10 +626,9 @@ async def get_chat_history(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Retrieve conversation history."""
+    """Retrieve persistent DB conversation history."""
     await _get_tax_return_with_context(tax_return_id, db, current_user)
-    history_key = _history_key(str(current_user.id), tax_return_id)
-    history = await _load_history(history_key)
+    history = await _load_history_db(db, str(current_user.id), tax_return_id)
     return {"history": history}
 
 
@@ -655,7 +638,7 @@ async def clear_chat_history(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Clear conversation history."""
+    """Clear persistent DB conversation history."""
     await _get_tax_return_with_context(tax_return_id, db, current_user)
-    await _clear_history(_history_key(str(current_user.id), tax_return_id))
+    await _clear_history_db(db, str(current_user.id), tax_return_id)
     return {"message": "History cleared"}

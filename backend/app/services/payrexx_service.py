@@ -130,6 +130,10 @@ class PayrexxService:
                 raise RuntimeError(f"Payrexx-Zahlung konnte nicht initiiert werden: {exc}") from exc
 
         # ── 2. Sandbox / Test Gateway Fallback ────────────────────────────────
+        if str(getattr(settings, "ENVIRONMENT", "")).lower() in ("production", "prod"):
+            logger.error("Payrexx live merchant credentials are not configured in production.")
+            raise RuntimeError("Payrexx live payment provider is not configured in production. Sandbox fallback is strictly disabled.")
+
         gateway_id = f"gw_sandbox_{uuid.uuid4().hex[:12]}"
         checkout_url = f"https://suntax-sandbox.payrexx.com/pay/{gateway_id}"
         record = {
@@ -251,6 +255,12 @@ class PayrexxService:
                 return {"verified": False, "error": f"Verbindungsfehler zu Payrexx: {exc}"}
 
         # ── 2. Sandbox Verification (Strict Status Check) ─────────────────────
+        if str(getattr(settings, "ENVIRONMENT", "")).lower() in ("production", "prod"):
+            return {
+                "verified": False,
+                "error": "Payment provider is unconfigured in production. Sandbox fallback is strictly forbidden in production.",
+            }
+
         target_gw = None
         if gateway_id and gateway_id in self._sandbox_gateways:
             target_gw = self._sandbox_gateways[gateway_id]
@@ -326,7 +336,7 @@ class PayrexxService:
         """
         Validates webhook payload authenticity and parses confirmed transaction details.
         """
-        if enforce_signature and self.is_configured:
+        if enforce_signature:
             if not self.verify_webhook_signature(raw_body, signature):
                 return {
                     "valid": False,

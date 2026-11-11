@@ -5,6 +5,7 @@ import { MessageCircle, X, Send, Loader2, Bot, User, Sparkles, ChevronRight } fr
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { api } from '@/lib/api'
+import { BRAND } from '@/lib/brand'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -37,7 +38,7 @@ export function TaxAssistant({
     {
       role: 'assistant',
       content:
-        'Grüezi! Ich bin dein persönlicher SunTax Steuer-Assistent. Ich helfe dir dabei, deine Schweizer Steuererklärung auszufüllen, steuerliche Abzüge zu prüfen und die Unterlagen amtlich vorzubereiten. Was möchtest du wissen?',
+        `Grüezi! Ich bin dein persönlicher ${BRAND.name} Steuer-Assistent. Ich helfe dir dabei, deine Schweizer Steuererklärung auszufüllen, steuerliche Abzüge zu prüfen und die Unterlagen amtlich vorzubereiten. Was möchtest du wissen?`,
       suggestions: DEFAULT_SUGGESTIONS,
     },
   ])
@@ -98,10 +99,10 @@ export function TaxAssistant({
         onClick={() => setOpen(true)}
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary hover:bg-primary-600 shadow-xl z-50 group flex items-center justify-center transition-all duration-300 hover:scale-105"
         size="icon"
-        title="SunTax Steuer-Assistent öffnen"
+        title={`${BRAND.name} Steuer-Assistent öffnen`}
       >
         <MessageCircle className="h-6 w-6 text-white" />
-        <span className="sr-only">SunTax Steuer-Assistent öffnen</span>
+        <span className="sr-only">{BRAND.name} Steuer-Assistent öffnen</span>
         {/* Glow indicator */}
         <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -123,7 +124,7 @@ export function TaxAssistant({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-bold text-sm">SunTax Assistent</span>
+                  <span className="font-bold text-sm">{BRAND.name} Assistent</span>
                   <Badge variant="outline" className="text-[10px] bg-white/20 text-white border-none py-0 px-1.5">
                     Ausfüllhilfe
                   </Badge>

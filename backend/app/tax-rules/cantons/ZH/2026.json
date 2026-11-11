@@ -2,85 +2,2503 @@
   "canton": "ZH",
   "canton_name": "Zürich",
   "tax_year": 2026,
-  "version": "1.0.0",
-  "source": "https://www.steueramt.zh.ch/",
-  "notes": "IMPORTANT: 2026 multipliers and brackets are carried forward from 2025. Update when official Zürich 2026 rates are published.",
+  "version": "2.0.0",
+  "tariff_status": "official_verified",
+  "state_multiplier": 95,
+  "source": "Verordnung über den Ausgleich der kalten Progression ZH ab 1.1.2026, Statistisches Amt Kanton Zürich OGD Steuerfüsse 2026, VPBU ZH",
+  "notes": "Verified official Canton Zürich indexed rates & tax brackets for 2026 (Staatssteuerfuss 95%). Includes all 160 ZH municipalities & parish multipliers.",
   "municipality_multipliers": {
-    "261": {"name": "Zürich",            "multiplier": 119},
-    "230": {"name": "Winterthur",        "multiplier": 122},
-    "218": {"name": "Uster",             "multiplier": 100},
-    "157": {"name": "Küsnacht",          "multiplier": 75},
-    "133": {"name": "Thalwil",           "multiplier": 84},
-    "241": {"name": "Dietikon",          "multiplier": 118},
-    "192": {"name": "Kloten",            "multiplier": 107},
-    "195": {"name": "Opfikon",           "multiplier": 102},
-    "175": {"name": "Männedorf",         "multiplier": 93},
-    "176": {"name": "Meilen",            "multiplier": 72},
-    "293": {"name": "Bülach",            "multiplier": 109},
-    "211": {"name": "Dübendorf",         "multiplier": 107},
-    "162": {"name": "Horgen",            "multiplier": 105},
-    "131": {"name": "Adliswil",          "multiplier": 97},
-    "168": {"name": "Kilchberg",         "multiplier": 71},
-    "152": {"name": "Erlenbach",         "multiplier": 70},
-    "164": {"name": "Oberrieden",        "multiplier": 70},
-    "112": {"name": "Affoltern am Albis","multiplier": 108},
-    "198": {"name": "Regensdorf",        "multiplier": 109},
-    "214": {"name": "Schlieren",         "multiplier": 119},
-    "295": {"name": "Embrach",           "multiplier": 105},
-    "153": {"name": "Herrliberg",        "multiplier": 72},
-    "155": {"name": "Hombrechtikon",     "multiplier": 93},
-    "183": {"name": "Pfäffikon",         "multiplier": 100}
+    "1": {
+      "name": "Aeugst a.A.",
+      "multiplier": 92,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "2": {
+      "name": "Affoltern a.A.",
+      "multiplier": 122,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "3": {
+      "name": "Bonstetten",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "4": {
+      "name": "Hausen a.A.",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "5": {
+      "name": "Hedingen",
+      "multiplier": 100,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "6": {
+      "name": "Kappel a.A.",
+      "multiplier": 102,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "7": {
+      "name": "Knonau",
+      "multiplier": 116,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "8": {
+      "name": "Maschwanden",
+      "multiplier": 128,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "9": {
+      "name": "Mettmenstetten",
+      "multiplier": 98,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "10": {
+      "name": "Obfelden",
+      "multiplier": 118,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "11": {
+      "name": "Ottenbach",
+      "multiplier": 115,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "12": {
+      "name": "Rifferswil",
+      "multiplier": 120,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "13": {
+      "name": "Stallikon",
+      "multiplier": 101,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "14": {
+      "name": "Wettswil a.A.",
+      "multiplier": 89,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "22": {
+      "name": "Benken",
+      "multiplier": 110,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "23": {
+      "name": "Berg a.I.",
+      "multiplier": 98,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "24": {
+      "name": "Buch a.I.",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "25": {
+      "name": "Dachsen",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "26": {
+      "name": "Dorf",
+      "multiplier": 99,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "27": {
+      "name": "Feuerthalen",
+      "multiplier": 114,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "28": {
+      "name": "Flaach",
+      "multiplier": 107,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "29": {
+      "name": "Flurlingen",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "31": {
+      "name": "Henggart",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "33": {
+      "name": "Kleinandelfingen",
+      "multiplier": 118,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "34": {
+      "name": "Laufen-Uhwiesen",
+      "multiplier": 104,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "35": {
+      "name": "Marthalen",
+      "multiplier": 107,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "37": {
+      "name": "Ossingen",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "38": {
+      "name": "Rheinau",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "39": {
+      "name": "Thalheim a.d.Th.",
+      "multiplier": 117,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "40": {
+      "name": "Trüllikon",
+      "multiplier": 110,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "41": {
+      "name": "Truttikon",
+      "multiplier": 107,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "43": {
+      "name": "Volken",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "51": {
+      "name": "Bachenbülach",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "52": {
+      "name": "Bassersdorf",
+      "multiplier": 114,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "53": {
+      "name": "Bülach",
+      "multiplier": 114,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "54": {
+      "name": "Dietlikon",
+      "multiplier": 105,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 8,
+        "roman_catholic": 8,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "55": {
+      "name": "Eglisau",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "56": {
+      "name": "Embrach",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "57": {
+      "name": "Freienstein-Teufen",
+      "multiplier": 99,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "58": {
+      "name": "Glattfelden",
+      "multiplier": 120,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "59": {
+      "name": "Hochfelden",
+      "multiplier": 116,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "60": {
+      "name": "Höri",
+      "multiplier": 110,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "61": {
+      "name": "Hüntwangen",
+      "multiplier": 108,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "62": {
+      "name": "Kloten",
+      "multiplier": 100,
+      "church_multipliers": {
+        "protestant": 9,
+        "reformed": 9,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "63": {
+      "name": "Lufingen",
+      "multiplier": 97,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "64": {
+      "name": "Nürensdorf",
+      "multiplier": 90,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "65": {
+      "name": "Oberembrach",
+      "multiplier": 117,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "66": {
+      "name": "Opfikon",
+      "multiplier": 94,
+      "church_multipliers": {
+        "protestant": 8,
+        "reformed": 8,
+        "catholic": 7,
+        "roman_catholic": 7,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "67": {
+      "name": "Rafz",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "68": {
+      "name": "Rorbas",
+      "multiplier": 103,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "69": {
+      "name": "Wallisellen",
+      "multiplier": 93,
+      "church_multipliers": {
+        "protestant": 7,
+        "reformed": 7,
+        "catholic": 8,
+        "roman_catholic": 8,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "70": {
+      "name": "Wasterkingen",
+      "multiplier": 116,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "71": {
+      "name": "Wil",
+      "multiplier": 97,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "72": {
+      "name": "Winkel",
+      "multiplier": 76,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "81": {
+      "name": "Bachs",
+      "multiplier": 128,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "82": {
+      "name": "Boppelsen",
+      "multiplier": 94,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "83": {
+      "name": "Buchs",
+      "multiplier": 105,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "84": {
+      "name": "Dällikon",
+      "multiplier": 107,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "85": {
+      "name": "Dänikon",
+      "multiplier": 120,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "86": {
+      "name": "Dielsdorf",
+      "multiplier": 105,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "87": {
+      "name": "Hüttikon",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "88": {
+      "name": "Neerach",
+      "multiplier": 77,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "89": {
+      "name": "Niederglatt",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "90": {
+      "name": "Niederhasli",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "91": {
+      "name": "Niederweningen",
+      "multiplier": 100,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "92": {
+      "name": "Oberglatt",
+      "multiplier": 119,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "93": {
+      "name": "Oberweningen",
+      "multiplier": 94,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "94": {
+      "name": "Otelfingen",
+      "multiplier": 108,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "95": {
+      "name": "Regensberg",
+      "multiplier": 115,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "96": {
+      "name": "Regensdorf",
+      "multiplier": 117,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "97": {
+      "name": "Rümlang",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "98": {
+      "name": "Schleinikon",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "99": {
+      "name": "Schöfflisdorf",
+      "multiplier": 94,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "100": {
+      "name": "Stadel",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "101": {
+      "name": "Steinmaur",
+      "multiplier": 108,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "102": {
+      "name": "Weiach",
+      "multiplier": 96,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "111": {
+      "name": "Bäretswil",
+      "multiplier": 104,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "112": {
+      "name": "Bubikon",
+      "multiplier": 118,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "113": {
+      "name": "Dürnten",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "114": {
+      "name": "Fischenthal",
+      "multiplier": 122,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "115": {
+      "name": "Gossau",
+      "multiplier": 117,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "116": {
+      "name": "Grüningen",
+      "multiplier": 116,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "117": {
+      "name": "Hinwil",
+      "multiplier": 116,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 16,
+        "roman_catholic": 16,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "118": {
+      "name": "Rüti",
+      "multiplier": 119,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "119": {
+      "name": "Seegräben",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "120": {
+      "name": "Wald",
+      "multiplier": 122,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "121": {
+      "name": "Wetzikon",
+      "multiplier": 119,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "131": {
+      "name": "Adliswil",
+      "multiplier": 104,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "135": {
+      "name": "Kilchberg",
+      "multiplier": 72,
+      "church_multipliers": {
+        "protestant": 8,
+        "reformed": 8,
+        "catholic": 6,
+        "roman_catholic": 6,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "136": {
+      "name": "Langnau a.A.",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "137": {
+      "name": "Oberrieden",
+      "multiplier": 84,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "138": {
+      "name": "Richterswil",
+      "multiplier": 99,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "139": {
+      "name": "Rüschlikon",
+      "multiplier": 75,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "141": {
+      "name": "Thalwil",
+      "multiplier": 78,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "151": {
+      "name": "Erlenbach",
+      "multiplier": 76,
+      "church_multipliers": {
+        "protestant": 8,
+        "reformed": 8,
+        "catholic": 7,
+        "roman_catholic": 7,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "152": {
+      "name": "Herrliberg",
+      "multiplier": 73,
+      "church_multipliers": {
+        "protestant": 9,
+        "reformed": 9,
+        "catholic": 8,
+        "roman_catholic": 8,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "153": {
+      "name": "Hombrechtikon",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "154": {
+      "name": "Küsnacht",
+      "multiplier": 73,
+      "church_multipliers": {
+        "protestant": 7,
+        "reformed": 7,
+        "catholic": 7,
+        "roman_catholic": 7,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "155": {
+      "name": "Männedorf",
+      "multiplier": 87,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "156": {
+      "name": "Meilen",
+      "multiplier": 79,
+      "church_multipliers": {
+        "protestant": 9,
+        "reformed": 9,
+        "catholic": 7,
+        "roman_catholic": 7,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "157": {
+      "name": "Oetwil a.S.",
+      "multiplier": 114,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "158": {
+      "name": "Stäfa",
+      "multiplier": 83,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "159": {
+      "name": "Uetikon a.S.",
+      "multiplier": 84,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "160": {
+      "name": "Zumikon",
+      "multiplier": 71,
+      "church_multipliers": {
+        "protestant": 8,
+        "reformed": 8,
+        "catholic": 8,
+        "roman_catholic": 8,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "161": {
+      "name": "Zollikon",
+      "multiplier": 76,
+      "church_multipliers": {
+        "protestant": 8,
+        "reformed": 8,
+        "catholic": 8,
+        "roman_catholic": 8,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "172": {
+      "name": "Fehraltorf",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "173": {
+      "name": "Hittnau",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "176": {
+      "name": "Lindau",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "177": {
+      "name": "Pfäffikon",
+      "multiplier": 110,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "178": {
+      "name": "Russikon",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "180": {
+      "name": "Weisslingen",
+      "multiplier": 116,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "181": {
+      "name": "Wila",
+      "multiplier": 122,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "182": {
+      "name": "Wildberg",
+      "multiplier": 124,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "191": {
+      "name": "Dübendorf",
+      "multiplier": 92,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "192": {
+      "name": "Egg",
+      "multiplier": 101,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "193": {
+      "name": "Fällanden",
+      "multiplier": 99,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "194": {
+      "name": "Greifensee",
+      "multiplier": 101,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "195": {
+      "name": "Maur",
+      "multiplier": 81,
+      "church_multipliers": {
+        "protestant": 9,
+        "reformed": 9,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "196": {
+      "name": "Mönchaltorf",
+      "multiplier": 108,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "197": {
+      "name": "Schwerzenbach",
+      "multiplier": 103,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "198": {
+      "name": "Uster",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      },
+      "school_variant_multipliers": [
+        112,
+        110
+      ]
+    },
+    "199": {
+      "name": "Volketswil",
+      "multiplier": 101,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "200": {
+      "name": "Wangen-Brüttisellen",
+      "multiplier": 101,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 8,
+        "roman_catholic": 8,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "211": {
+      "name": "Altikon",
+      "multiplier": 114,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "213": {
+      "name": "Brütten",
+      "multiplier": 85,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "214": {
+      "name": "Dägerlen",
+      "multiplier": 106,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "215": {
+      "name": "Dättlikon",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "216": {
+      "name": "Dinhard",
+      "multiplier": 90,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "218": {
+      "name": "Ellikon a.d.Th.",
+      "multiplier": 117,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "219": {
+      "name": "Elsau",
+      "multiplier": 117,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "220": {
+      "name": "Hagenbuch",
+      "multiplier": 121,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "221": {
+      "name": "Hettlingen",
+      "multiplier": 97,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "223": {
+      "name": "Neftenbach",
+      "multiplier": 98,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "224": {
+      "name": "Pfungen",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "225": {
+      "name": "Rickenbach",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "226": {
+      "name": "Schlatt",
+      "multiplier": 123,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "227": {
+      "name": "Seuzach",
+      "multiplier": 100,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "228": {
+      "name": "Turbenthal",
+      "multiplier": 122,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      },
+      "school_variant_multipliers": [
+        122,
+        112
+      ]
+    },
+    "230": {
+      "name": "Winterthur",
+      "multiplier": 125,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 17,
+        "roman_catholic": 17,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "231": {
+      "name": "Zell",
+      "multiplier": 115,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "241": {
+      "name": "Aesch",
+      "multiplier": 91,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "242": {
+      "name": "Birmensdorf",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "243": {
+      "name": "Dietikon",
+      "multiplier": 121,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "244": {
+      "name": "Geroldswil",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "245": {
+      "name": "Oberengstringen",
+      "multiplier": 109,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "246": {
+      "name": "Oetwil a.d.L.",
+      "multiplier": 107,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "247": {
+      "name": "Schlieren",
+      "multiplier": 111,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "248": {
+      "name": "Uitikon",
+      "multiplier": 78,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "249": {
+      "name": "Unterengstringen",
+      "multiplier": 102,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "250": {
+      "name": "Urdorf",
+      "multiplier": 115,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 11,
+        "roman_catholic": 11,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "251": {
+      "name": "Weiningen",
+      "multiplier": 107,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 9,
+        "roman_catholic": 9,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "261": {
+      "name": "Zürich",
+      "multiplier": 119,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 10,
+        "roman_catholic": 10,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "291": {
+      "name": "Andelfingen",
+      "multiplier": 119,
+      "church_multipliers": {
+        "protestant": 12,
+        "reformed": 12,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "292": {
+      "name": "Stammheim",
+      "multiplier": 112,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "293": {
+      "name": "Wädenswil",
+      "multiplier": 102,
+      "church_multipliers": {
+        "protestant": 11,
+        "reformed": 11,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "294": {
+      "name": "Elgg",
+      "multiplier": 119,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 14,
+        "roman_catholic": 14,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "295": {
+      "name": "Horgen",
+      "multiplier": 90,
+      "church_multipliers": {
+        "protestant": 10,
+        "reformed": 10,
+        "catholic": 8,
+        "roman_catholic": 8,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "296": {
+      "name": "Illnau-Effretikon",
+      "multiplier": 113,
+      "church_multipliers": {
+        "protestant": 13,
+        "reformed": 13,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "297": {
+      "name": "Bauma",
+      "multiplier": 120,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 13,
+        "roman_catholic": 13,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    },
+    "298": {
+      "name": "Wiesendangen",
+      "multiplier": 86,
+      "church_multipliers": {
+        "protestant": 14,
+        "reformed": 14,
+        "catholic": 12,
+        "roman_catholic": 12,
+        "christ_catholic": 14,
+        "none": 0,
+        "other": 0
+      }
+    }
   },
   "income_tax_brackets_canton": [
-    {"from": 0,      "to": 13500,  "rate": 0.0000, "base_tax": 0.00},
-    {"from": 13500,  "to": 19600,  "rate": 0.0200, "base_tax": 0.00},
-    {"from": 19600,  "to": 27300,  "rate": 0.0300, "base_tax": 122.00},
-    {"from": 27300,  "to": 36700,  "rate": 0.0400, "base_tax": 353.00},
-    {"from": 36700,  "to": 51500,  "rate": 0.0500, "base_tax": 729.00},
-    {"from": 51500,  "to": 72800,  "rate": 0.0600, "base_tax": 1469.00},
-    {"from": 72800,  "to": 100000, "rate": 0.0700, "base_tax": 2747.00},
-    {"from": 100000, "to": 134000, "rate": 0.0800, "base_tax": 4651.00},
-    {"from": 134000, "to": 185000, "rate": 0.0900, "base_tax": 7371.00},
-    {"from": 185000, "to": 254000, "rate": 0.1000, "base_tax": 11961.00},
-    {"from": 254000, "to": null,   "rate": 0.1300, "base_tax": 18861.00}
+    {
+      "from": 0,
+      "to": 7000,
+      "rate": 0.0,
+      "base_tax": 0.0
+    },
+    {
+      "from": 7000,
+      "to": 12000,
+      "rate": 0.02,
+      "base_tax": 0.0
+    },
+    {
+      "from": 12000,
+      "to": 16800,
+      "rate": 0.03,
+      "base_tax": 100.0
+    },
+    {
+      "from": 16800,
+      "to": 24800,
+      "rate": 0.04,
+      "base_tax": 244.0
+    },
+    {
+      "from": 24800,
+      "to": 34500,
+      "rate": 0.05,
+      "base_tax": 564.0
+    },
+    {
+      "from": 34500,
+      "to": 45700,
+      "rate": 0.06,
+      "base_tax": 1049.0
+    },
+    {
+      "from": 45700,
+      "to": 58800,
+      "rate": 0.07,
+      "base_tax": 1721.0
+    },
+    {
+      "from": 58800,
+      "to": 76400,
+      "rate": 0.08,
+      "base_tax": 2638.0
+    },
+    {
+      "from": 76400,
+      "to": 110400,
+      "rate": 0.09,
+      "base_tax": 4046.0
+    },
+    {
+      "from": 110400,
+      "to": 144100,
+      "rate": 0.1,
+      "base_tax": 7106.0
+    },
+    {
+      "from": 144100,
+      "to": 197400,
+      "rate": 0.11,
+      "base_tax": 10476.0
+    },
+    {
+      "from": 197400,
+      "to": 266700,
+      "rate": 0.12,
+      "base_tax": 16339.0
+    },
+    {
+      "from": 266700,
+      "to": null,
+      "rate": 0.13,
+      "base_tax": 24655.0
+    }
+  ],
+  "income_tax_brackets_single": [
+    {
+      "from": 0,
+      "to": 7000,
+      "rate": 0.0,
+      "base_tax": 0.0
+    },
+    {
+      "from": 7000,
+      "to": 12000,
+      "rate": 0.02,
+      "base_tax": 0.0
+    },
+    {
+      "from": 12000,
+      "to": 16800,
+      "rate": 0.03,
+      "base_tax": 100.0
+    },
+    {
+      "from": 16800,
+      "to": 24800,
+      "rate": 0.04,
+      "base_tax": 244.0
+    },
+    {
+      "from": 24800,
+      "to": 34500,
+      "rate": 0.05,
+      "base_tax": 564.0
+    },
+    {
+      "from": 34500,
+      "to": 45700,
+      "rate": 0.06,
+      "base_tax": 1049.0
+    },
+    {
+      "from": 45700,
+      "to": 58800,
+      "rate": 0.07,
+      "base_tax": 1721.0
+    },
+    {
+      "from": 58800,
+      "to": 76400,
+      "rate": 0.08,
+      "base_tax": 2638.0
+    },
+    {
+      "from": 76400,
+      "to": 110400,
+      "rate": 0.09,
+      "base_tax": 4046.0
+    },
+    {
+      "from": 110400,
+      "to": 144100,
+      "rate": 0.1,
+      "base_tax": 7106.0
+    },
+    {
+      "from": 144100,
+      "to": 197400,
+      "rate": 0.11,
+      "base_tax": 10476.0
+    },
+    {
+      "from": 197400,
+      "to": 266700,
+      "rate": 0.12,
+      "base_tax": 16339.0
+    },
+    {
+      "from": 266700,
+      "to": null,
+      "rate": 0.13,
+      "base_tax": 24655.0
+    }
+  ],
+  "income_tax_brackets_married": [
+    {
+      "from": 0,
+      "to": 14100,
+      "rate": 0.0,
+      "base_tax": 0.0
+    },
+    {
+      "from": 14100,
+      "to": 20500,
+      "rate": 0.02,
+      "base_tax": 0.0
+    },
+    {
+      "from": 20500,
+      "to": 28600,
+      "rate": 0.03,
+      "base_tax": 128.0
+    },
+    {
+      "from": 28600,
+      "to": 38400,
+      "rate": 0.04,
+      "base_tax": 371.0
+    },
+    {
+      "from": 38400,
+      "to": 49600,
+      "rate": 0.05,
+      "base_tax": 763.0
+    },
+    {
+      "from": 49600,
+      "to": 64100,
+      "rate": 0.06,
+      "base_tax": 1323.0
+    },
+    {
+      "from": 64100,
+      "to": 96300,
+      "rate": 0.07,
+      "base_tax": 2193.0
+    },
+    {
+      "from": 96300,
+      "to": 128700,
+      "rate": 0.08,
+      "base_tax": 4447.0
+    },
+    {
+      "from": 128700,
+      "to": 177200,
+      "rate": 0.09,
+      "base_tax": 7039.0
+    },
+    {
+      "from": 177200,
+      "to": 235100,
+      "rate": 0.1,
+      "base_tax": 11404.0
+    },
+    {
+      "from": 235100,
+      "to": 298000,
+      "rate": 0.11,
+      "base_tax": 17194.0
+    },
+    {
+      "from": 298000,
+      "to": 370600,
+      "rate": 0.12,
+      "base_tax": 24113.0
+    },
+    {
+      "from": 370600,
+      "to": null,
+      "rate": 0.13,
+      "base_tax": 32825.0
+    }
   ],
   "wealth_tax_brackets": [
-    {"from": 0,       "to": 76000,  "rate": 0.00000},
-    {"from": 76000,   "to": 150000, "rate": 0.00025},
-    {"from": 150000,  "to": 250000, "rate": 0.00050},
-    {"from": 250000,  "to": null,   "rate": 0.00075}
+    {
+      "from": 0,
+      "to": 81000,
+      "rate": 0.0
+    },
+    {
+      "from": 81000,
+      "to": 322000,
+      "rate": 0.0005
+    },
+    {
+      "from": 322000,
+      "to": 726000,
+      "rate": 0.001
+    },
+    {
+      "from": 726000,
+      "to": 1371000,
+      "rate": 0.0015
+    },
+    {
+      "from": 1371000,
+      "to": 2339000,
+      "rate": 0.002
+    },
+    {
+      "from": 2339000,
+      "to": 3304000,
+      "rate": 0.0025
+    },
+    {
+      "from": 3304000,
+      "to": null,
+      "rate": 0.003
+    }
+  ],
+  "wealth_tax_brackets_single": [
+    {
+      "from": 0,
+      "to": 81000,
+      "rate": 0.0
+    },
+    {
+      "from": 81000,
+      "to": 322000,
+      "rate": 0.0005
+    },
+    {
+      "from": 322000,
+      "to": 726000,
+      "rate": 0.001
+    },
+    {
+      "from": 726000,
+      "to": 1371000,
+      "rate": 0.0015
+    },
+    {
+      "from": 1371000,
+      "to": 2339000,
+      "rate": 0.002
+    },
+    {
+      "from": 2339000,
+      "to": 3304000,
+      "rate": 0.0025
+    },
+    {
+      "from": 3304000,
+      "to": null,
+      "rate": 0.003
+    }
+  ],
+  "wealth_tax_brackets_married": [
+    {
+      "from": 0,
+      "to": 161000,
+      "rate": 0.0
+    },
+    {
+      "from": 161000,
+      "to": 403000,
+      "rate": 0.0005
+    },
+    {
+      "from": 403000,
+      "to": 805000,
+      "rate": 0.001
+    },
+    {
+      "from": 805000,
+      "to": 1451000,
+      "rate": 0.0015
+    },
+    {
+      "from": 1451000,
+      "to": 2418000,
+      "rate": 0.002
+    },
+    {
+      "from": 2418000,
+      "to": 3385000,
+      "rate": 0.0025
+    },
+    {
+      "from": 3385000,
+      "to": null,
+      "rate": 0.003
+    }
   ],
   "wealth_tax_social_deductions": {
-    "per_taxpayer": 92000,
-    "per_spouse": 92000,
-    "per_child": 21000
+    "per_taxpayer": 0,
+    "per_spouse": 0,
+    "per_child": 0,
+    "note": "In ZH StG § 47, tax-free wealth allowances (80k/159k in 2025; 81k/161k in 2026) are embedded directly in the 0-promille bracket."
   },
   "deduction_limits": {
-    "commuting_max_chf": 5000,
+    "commuting_max_chf": 5200,
+    "commuting_bike_chf": 700,
+    "commuting_car_rate": 0.75,
     "commuting_max_km": null,
-    "commuting_reference": "StG ZH § 26 Abs. 1 lit. a",
+    "commuting_reference": "StG ZH § 26 Abs. 1 lit. a / VPBU Ziff. I/1 (75 Rp./km ab 2026)",
     "meal_deduction_annual": 3200,
+    "meal_deduction_reduced": 1600,
     "professional_expenses_flat_rate_pct": 0.03,
     "professional_expenses_min": 2000,
     "professional_expenses_max": 4000,
-    "professional_expenses_reference": "StG ZH § 26",
-    "health_insurance_deduction_single": 2600,
-    "health_insurance_deduction_married": 5200,
+    "professional_expenses_reference": "StG ZH § 26 / VPBU Ziff. I/3",
+    "side_job_flat_rate_pct": 0.2,
+    "side_job_min": 800,
+    "side_job_max": 2400,
+    "health_insurance_deduction_single": 2900,
+    "health_insurance_deduction_single_no_pension": 4350,
+    "health_insurance_deduction_married": 5800,
+    "health_insurance_deduction_married_no_pension": 8700,
     "health_insurance_deduction_per_child": 1300,
     "health_insurance_reference": "StG ZH § 31 Abs. 1 lit. g",
     "medical_expense_threshold_pct": 0.05,
-    "medical_expense_reference": "StG ZH § 31 Abs. 1 lit. h",
+    "medical_expense_reference": "StG ZH § 32 lit. a",
     "pillar3a_employed_max": 7258,
     "pillar3a_self_employed_max": 36288,
-    "pillar3a_reference": "BVG Art. 82",
-    "childcare_max": 10100,
-    "childcare_reference": "StG ZH § 31 Abs. 3",
-    "child_deduction_per_child": 9000,
-    "child_deduction_reference": "StG ZH § 35 Abs. 1 lit. b",
-    "donation_max_pct_of_income": 0.20,
+    "pillar3a_catchup_max": 7258,
+    "pillar3a_reference": "BVG Art. 82 / BVV3 (incl. 2026 catch-up)",
+    "childcare_max": 25300,
+    "childcare_reference": "StG ZH § 31 Abs. 1 lit. j (2026 indexation)",
+    "training_max": 12600,
+    "training_reference": "StG ZH § 31 Abs. 1 lit. k (2026 indexation)",
+    "two_earner_deduction": 6200,
+    "two_earner_reference": "StG ZH § 31 Abs. 2 (2026 indexation)",
+    "party_donation_max_single": 10500,
+    "party_donation_max_married": 21000,
+    "party_donation_reference": "StG ZH § 31 Abs. 1 lit. h (2026 indexation)",
+    "child_deduction_per_child": 9400,
+    "child_deduction_reference": "StG ZH § 34 Abs. 1 lit. a (2026 indexation)",
+    "support_deduction_per_person": 2800,
+    "support_deduction_reference": "StG ZH § 34 Abs. 1 lit. b",
+    "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100,
-    "donation_reference": "StG ZH § 31 Abs. 1 lit. i",
+    "donation_reference": "StG ZH § 32 lit. b",
     "interest_deduction_max": null,
+    "interest_deduction_extra_above_yield": 50000,
     "interest_deduction_reference": "StG ZH § 31 Abs. 1 lit. a"
   }
 }

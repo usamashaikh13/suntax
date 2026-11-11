@@ -1,37 +1,41 @@
 """
-SunTax security module.
+SunTax security module — DB-backed persistence across restarts and workers.
 
 Responsibilities:
-- Password hashing / verification (bcrypt via passlib)
-- JWT access-token creation and decoding (python-jose)
-- Refresh-token lifecycle managed in Redis
-- Token denylist for logout (stored in Redis)
+- Password hashing / verification (Argon2id primary, bcrypt fallback)
+- JWT access/refresh-token creation and decoding (python-jose)
+- Refresh-token lifecycle persisted in SQLAlchemy `security_tokens`
+- Token denylist for logout persisted in SQLAlchemy `security_tokens`
+- Single-use email / 2FA challenge tokens persisted in `security_tokens`
+- TOTP replay protection persisted atomically in `totp_replay_entries`
 - FastAPI dependency helpers: get_current_user, get_current_admin_user
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
-import uuid
-from uuid import UUID
 
-import redis.asyncio as aioredis
+import pyotp
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 from passlib.context import CryptContext
-from sqlalchemy import select
+from sqlalchemy import create_engine, delete, select
+from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.core.config import settings
+import app.core.database as _db_mod
 from app.core.database import get_db
 
 logger = logging.getLogger(__name__)
-
-import pyotp
 
 # ── Passlib context (Argon2id primary, bcrypt fallback) ───────────────────────
 
@@ -41,47 +45,53 @@ _pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
 
 _bearer_scheme = HTTPBearer(auto_error=False)
 
-# ── Redis client (lazy singleton) ─────────────────────────────────────────────
+# Kept exported only for backward compatibility with existing test imports;
+# replay protection is strictly persisted in the SQLAlchemy database.
+_USED_TOTP_CODES: dict[tuple[str, str], float] = {}
 
-_redis_client: Optional[aioredis.Redis] = None
-_redis_disabled: bool = False
-
-_memory_denylist: set[str] = set()
-_memory_refresh_tokens: dict[str, str] = {}
-_memory_email_tokens: dict[str, tuple[str, datetime]] = {}
+_sync_engine_cache: dict[str, Engine] = {}
 
 
-def _get_redis() -> Optional[aioredis.Redis]:
-    global _redis_client, _redis_disabled
-    if _redis_disabled:
+def _utc_now() -> datetime:
+    return datetime.now(tz=timezone.utc)
+
+
+def _hash_value(raw: str) -> str:
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def _sync_database_url() -> str:
+    url = str(settings.DATABASE_URL)
+    if url.startswith("postgresql+asyncpg://"):
+        return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    if url.startswith("sqlite+aiosqlite://"):
+        return url.replace("sqlite+aiosqlite://", "sqlite://", 1)
+    return url
+
+
+def _get_sync_security_engine() -> Optional[Engine]:
+    """Return a cached synchronous SQLAlchemy engine for sync TOTP replay checks."""
+    url = _sync_database_url()
+    eng = _sync_engine_cache.get(url)
+    if eng is not None:
+        return eng
+    try:
+        kwargs: dict[str, Any] = {"pool_pre_ping": True}
+        if url.startswith("sqlite"):
+            kwargs["connect_args"] = {"check_same_thread": False}
+        eng = create_engine(url, **kwargs)
+        is_prod = str(getattr(settings, "ENVIRONMENT", "")).lower() in ("production", "prod")
+        if not is_prod:
+            from app.models.security_state import SecurityToken, TotpReplayEntry
+            TotpReplayEntry.__table__.create(bind=eng, checkfirst=True)
+            SecurityToken.__table__.create(bind=eng, checkfirst=True)
+        _sync_engine_cache[url] = eng
+        return eng
+    except Exception as exc:
+        logger.error("Sync security DB engine initialization failed: %s", type(exc).__name__)
         return None
-    if _redis_client is None:
-        try:
-            if settings.ENVIRONMENT in ("development", "test"):
-                try:
-                    import fakeredis.aioredis as fakeredis_async
-                    _redis_client = fakeredis_async.FakeRedis(decode_responses=True)
-                    return _redis_client
-                except (ImportError, AttributeError):
-                    try:
-                        import fakeredis
-                        server = fakeredis.FakeServer()
-                        _redis_client = fakeredis.FakeRedis(server=server, decode_responses=True)
-                        return _redis_client
-                    except ImportError:
-                        pass
-            _redis_client = aioredis.from_url(
-                settings.REDIS_URL,
-                encoding="utf-8",
-                decode_responses=True,
-                socket_connect_timeout=2.0,
-                socket_timeout=2.0,
-            )
-        except Exception as exc:
-            logger.warning("Redis client initialization failed, using in-memory store: %s", exc)
-            _redis_disabled = True
-            return None
-    return _redis_client
 
 
 # ── Password helpers (Argon2id / FDPIC-compliant memory-hard hashing) ─────────
@@ -119,28 +129,120 @@ def get_totp_uri(secret: str, email: str) -> str:
     return pyotp.totp.TOTP(secret).provisioning_uri(name=email, issuer_name="SunTax")
 
 
+def _totp_replay_hash(secret: str, clean_code: str) -> str:
+    secret_hash = _hash_value(secret)
+    return _hash_value(f"{secret_hash}:{clean_code}")
+
+
 def verify_totp_code(secret: str, code: str) -> bool:
-    """Verify 6-digit TOTP code with a ±1 time step window (30-second leeway)."""
+    """
+    Synchronously verify a 6-digit TOTP code with DB-backed replay prevention.
+
+    Security invariants:
+      - Fixed test bypass codes ('123456', '000000') are strictly forbidden in production.
+      - In non-production, bypass codes are permitted ONLY when settings.ALLOW_TEST_2FA_BYPASS is explicitly True.
+      - Replay prevention writes atomically to `totp_replay_entries` (survives restarts & shared across workers).
+      - In production/staging or on DB error, TOTP verification FAILS CLOSED (never falls back to process memory).
+    """
     if not secret or not code:
         return False
     clean_code = str(code).strip().replace(" ", "")
+    if len(clean_code) != 6 or not clean_code.isdigit():
+        return False
+
+    env = str(getattr(settings, "ENVIRONMENT", "")).lower()
+    is_prod = env in ("production", "prod")
+    allow_test_bypass = getattr(settings, "ALLOW_TEST_2FA_BYPASS", False)
+
+    if not is_prod and allow_test_bypass and clean_code in ("123456", "000000"):
+        return True
+
     try:
-        totp = pyotp.TOTP(secret)
-        return bool(totp.verify(clean_code, valid_window=1))
+        if not pyotp.TOTP(secret).verify(clean_code, valid_window=1):
+            return False
     except Exception as exc:
-        logger.warning("TOTP verification error: %s", exc)
+        logger.warning("TOTP verification internal error: %s", type(exc).__name__)
+        return False
+
+    eng = _get_sync_security_engine()
+    if eng is None:
+        logger.error("Rejecting TOTP verification: DB replay protection unavailable")
+        return False
+
+    from app.models.security_state import TotpReplayEntry
+
+    replay_key = _totp_replay_hash(secret, clean_code)
+    now = _utc_now()
+    expires = now + timedelta(seconds=120)
+
+    try:
+        with Session(eng) as session:
+            session.execute(delete(TotpReplayEntry).where(TotpReplayEntry.expires_at <= now))
+            session.add(TotpReplayEntry(replay_hash=replay_key, expires_at=expires))
+            session.commit()
+            return True
+    except IntegrityError:
+        logger.warning("TOTP replay detected via shared DB table: code already consumed.")
+        return False
+    except Exception as exc:
+        logger.error("TOTP DB replay persistence failed (%s) — failing closed.", type(exc).__name__)
+        return False
+
+
+async def verify_totp_code_async(secret: str, code: str, db: Optional[AsyncSession] = None) -> bool:
+    """Asynchronously verify a 6-digit TOTP code inside the active DB session (works across workers & tests)."""
+    if not secret or not code:
+        return False
+    clean_code = str(code).strip().replace(" ", "")
+    if len(clean_code) != 6 or not clean_code.isdigit():
+        return False
+
+    env = str(getattr(settings, "ENVIRONMENT", "")).lower()
+    is_prod = env in ("production", "prod")
+    allow_test_bypass = getattr(settings, "ALLOW_TEST_2FA_BYPASS", False)
+
+    if not is_prod and allow_test_bypass and clean_code in ("123456", "000000"):
+        return True
+
+    try:
+        if not pyotp.TOTP(secret).verify(clean_code, valid_window=1):
+            return False
+    except Exception:
+        return False
+
+    if db is None:
+        return verify_totp_code(secret, clean_code)
+
+    from app.models.security_state import TotpReplayEntry
+
+    replay_key = _totp_replay_hash(secret, clean_code)
+    now = _utc_now()
+    expires = now + timedelta(seconds=120)
+
+    try:
+        await db.execute(delete(TotpReplayEntry).where(TotpReplayEntry.expires_at <= now))
+        async with db.begin_nested():
+            db.add(TotpReplayEntry(replay_hash=replay_key, expires_at=expires))
+            await db.flush()
+        return True
+    except IntegrityError:
+        logger.warning("TOTP replay detected via shared DB table: code already consumed.")
+        return False
+    except Exception as exc:
+        logger.error("Async TOTP DB replay persistence failed (%s) — failing closed.", type(exc).__name__)
         return False
 
 
 def create_temp_2fa_token(user_id: str, email: str) -> str:
     """Create a 5-minute temporary JWT token for completing the 2FA login challenge."""
-    expire = _utc_now() + timedelta(minutes=5)
+    now = _utc_now()
+    expire = now + timedelta(minutes=5)
     payload = {
         "sub": user_id,
         "email": email,
         "type": "2fa_pending",
         "exp": expire,
-        "iat": _utc_now(),
+        "iat": now,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
@@ -173,133 +275,129 @@ def decode_temp_2fa_token(token: str) -> dict[str, Any]:
 
 # ── JWT helpers ───────────────────────────────────────────────────────────────
 
-_DENYLIST_PREFIX = "token:denylist:"
-_REFRESH_PREFIX = "token:refresh:"
-_USER_REFRESH_SET_PREFIX = "user:refresh:"
-
-
-def _utc_now() -> datetime:
-    return datetime.now(tz=timezone.utc)
-
 
 def create_access_token(
     data: dict[str, Any],
     expires_delta: Optional[timedelta] = None,
 ) -> str:
-    """
-    Create a signed JWT access token.
-
-    Args:
-        data: Payload dict. Must contain at least ``sub`` (user id string).
-        expires_delta: Custom TTL; defaults to ACCESS_TOKEN_EXPIRE_MINUTES.
-
-    Returns:
-        Encoded JWT string.
-    """
-    expire = _utc_now() + (
+    """Create a signed JWT access token with unique jti and microsecond issued timestamp."""
+    now = _utc_now()
+    expire = now + (
         expires_delta
         or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
-    payload = {**data, "exp": expire, "iat": _utc_now(), "type": "access"}
+    payload = {
+        **data,
+        "exp": expire,
+        "iat": now,
+        "iat_us": int(now.timestamp() * 1_000_000),
+        "jti": str(uuid.uuid4()),
+        "type": "access",
+    }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
 def create_refresh_token(data: dict[str, Any]) -> str:
-    """
-    Create a signed JWT refresh token and persist it in Redis.
-
-    Refresh tokens have a longer TTL (REFRESH_TOKEN_EXPIRE_DAYS) and are
-    stored in Redis so they can be explicitly revoked on logout.
-
-    Args:
-        data: Payload dict. Must contain ``sub`` (user id string).
-
-    Returns:
-        Encoded JWT string.
-    """
-    expire = _utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+    """Create a signed JWT refresh token (persisted via store_refresh_token)."""
+    now = _utc_now()
+    expire = now + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     payload = {
         **data,
         "exp": expire,
-        "iat": _utc_now(),
+        "iat": now,
         "type": "refresh",
         "jti": str(uuid.uuid4()),
     }
-    token = jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return token
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 
-async def store_refresh_token(user_id: str, token: str) -> None:
-    """Persist refresh token in Redis (for revocation tracking) or in-memory fallback."""
-    key = f"{user_id}:{token[-16:]}"
-    _memory_refresh_tokens[key] = token
-    redis = _get_redis()
-    if redis is not None:
-        try:
-            ttl = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-            ttl_seconds = int(ttl.total_seconds())
-            await redis.setex(
-                f"{_REFRESH_PREFIX}{key}",
-                ttl_seconds,
-                token,
+async def _run_db(db: Optional[AsyncSession], fn):
+    if db is not None:
+        return await fn(db, own=False)
+    async with _db_mod.AsyncSessionLocal() as session:
+        res = await fn(session, own=True)
+        await session.commit()
+        return res
+
+
+async def store_refresh_token(user_id: str, token: str, db: Optional[AsyncSession] = None) -> None:
+    """Persist hashed refresh token in SQLAlchemy security_tokens table."""
+    from app.models.security_state import SecurityToken
+
+    thash = _hash_value(f"refresh:{user_id}:{token}")
+    expires = _utc_now() + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
+
+    async def _op(session: AsyncSession, own: bool) -> None:
+        session.add(
+            SecurityToken(
+                token_hash=thash,
+                token_type="refresh",
+                user_id=str(user_id),
+                expires_at=expires,
             )
-            await redis.sadd(f"{_USER_REFRESH_SET_PREFIX}{user_id}", key)
-            await redis.expire(f"{_USER_REFRESH_SET_PREFIX}{user_id}", ttl_seconds)
-        except Exception as exc:
-            logger.warning("Redis store_refresh_token failed: %s", exc)
+        )
+        await session.flush()
+
+    await _run_db(db, _op)
 
 
-async def is_refresh_token_active(user_id: str, token: str) -> bool:
-    """Return True if *token* is currently present in the active refresh store for *user_id*."""
-    key = f"{user_id}:{token[-16:]}"
-    redis = _get_redis()
-    if redis is not None:
-        try:
-            return bool(await redis.exists(f"{_REFRESH_PREFIX}{key}"))
-        except Exception as exc:
-            logger.warning("Redis is_refresh_token_active check failed: %s", exc)
-    return key in _memory_refresh_tokens
+async def is_refresh_token_active(user_id: str, token: str, db: Optional[AsyncSession] = None) -> bool:
+    """Return True if *token* is currently present and unexpired in security_tokens."""
+    from app.models.security_state import SecurityToken
+
+    thash = _hash_value(f"refresh:{user_id}:{token}")
+    now = _utc_now()
+
+    async def _op(session: AsyncSession, own: bool) -> bool:
+        res = await session.execute(
+            select(SecurityToken.id).where(
+                SecurityToken.token_hash == thash,
+                SecurityToken.token_type == "refresh",
+                SecurityToken.user_id == str(user_id),
+                SecurityToken.expires_at > now,
+            )
+        )
+        return res.scalar_one_or_none() is not None
+
+    return await _run_db(db, _op)
 
 
-async def revoke_refresh_token(user_id: str, token: str) -> None:
-    """Remove a specific refresh token from Redis and memory."""
-    key = f"{user_id}:{token[-16:]}"
-    _memory_refresh_tokens.pop(key, None)
-    redis = _get_redis()
-    if redis is not None:
-        try:
-            await redis.delete(f"{_REFRESH_PREFIX}{key}")
-            await redis.srem(f"{_USER_REFRESH_SET_PREFIX}{user_id}", key)
-        except Exception as exc:
-            logger.warning("Redis revoke_refresh_token failed: %s", exc)
+async def revoke_refresh_token(user_id: str, token: str, db: Optional[AsyncSession] = None) -> None:
+    """Delete a specific refresh token from security_tokens."""
+    from app.models.security_state import SecurityToken
+
+    thash = _hash_value(f"refresh:{user_id}:{token}")
+
+    async def _op(session: AsyncSession, own: bool) -> None:
+        await session.execute(
+            delete(SecurityToken).where(
+                SecurityToken.token_hash == thash,
+                SecurityToken.token_type == "refresh",
+            )
+        )
+        await session.flush()
+
+    await _run_db(db, _op)
 
 
-async def revoke_all_user_refresh_tokens(user_id: str) -> None:
-    """Revoke all active refresh tokens for *user_id* across memory and Redis."""
-    keys_to_del = [k for k in list(_memory_refresh_tokens.keys()) if k.startswith(f"{user_id}:")]
-    for k in keys_to_del:
-        _memory_refresh_tokens.pop(k, None)
+async def revoke_all_user_refresh_tokens(user_id: str, db: Optional[AsyncSession] = None) -> None:
+    """Revoke all active refresh tokens for *user_id* across workers and restarts."""
+    from app.models.security_state import SecurityToken
 
-    redis = _get_redis()
-    if redis is not None:
-        try:
-            set_key = f"{_USER_REFRESH_SET_PREFIX}{user_id}"
-            members = await redis.smembers(set_key)
-            if members:
-                del_keys = [f"{_REFRESH_PREFIX}{m}" for m in members]
-                await redis.delete(*del_keys)
-            await redis.delete(set_key)
-        except Exception as exc:
-            logger.warning("Redis revoke_all_user_refresh_tokens failed: %s", exc)
+    async def _op(session: AsyncSession, own: bool) -> None:
+        await session.execute(
+            delete(SecurityToken).where(
+                SecurityToken.user_id == str(user_id),
+                SecurityToken.token_type == "refresh",
+            )
+        )
+        await session.flush()
+
+    await _run_db(db, _op)
 
 
 def decode_token(token: str) -> dict[str, Any]:
-    """
-    Decode and validate a JWT token.
-
-    Raises:
-        HTTPException 401: If the token is expired, invalid, or missing fields.
-    """
+    """Decode and validate a JWT token."""
     try:
         payload = jwt.decode(
             token,
@@ -327,31 +425,53 @@ def decode_token(token: str) -> dict[str, Any]:
         )
 
 
-# ── Denylist (logout) ─────────────────────────────────────────────────────────
+# ── Denylist (logout & token rotation) ────────────────────────────────────────
 
 
-async def add_token_to_denylist(token: str, expires_in: int) -> None:
-    """Add a JWT to the denylist."""
-    _memory_denylist.add(token)
-    redis = _get_redis()
-    if redis is not None:
+async def add_token_to_denylist(
+    token: str, expires_in: int, db: Optional[AsyncSession] = None
+) -> None:
+    """Add a JWT hash to the persistent DB denylist."""
+    from app.models.security_state import SecurityToken
+
+    thash = _hash_value(f"deny:{token}")
+    expires = _utc_now() + timedelta(seconds=max(1, int(expires_in)))
+
+    async def _op(session: AsyncSession, own: bool) -> None:
         try:
-            await redis.setex(f"{_DENYLIST_PREFIX}{token}", expires_in, "1")
-        except Exception as exc:
-            logger.warning("Redis add_token_to_denylist error: %s", exc)
+            async with session.begin_nested():
+                session.add(
+                    SecurityToken(
+                        token_hash=thash,
+                        token_type="denylist",
+                        expires_at=expires,
+                    )
+                )
+                await session.flush()
+        except IntegrityError:
+            pass
+
+    await _run_db(db, _op)
 
 
-async def is_token_denylisted(token: str) -> bool:
-    """Return True if *token* is in the denylist."""
-    if token in _memory_denylist:
-        return True
-    redis = _get_redis()
-    if redis is not None:
-        try:
-            return bool(await redis.exists(f"{_DENYLIST_PREFIX}{token}"))
-        except Exception as exc:
-            logger.debug("Redis is_token_denylisted error: %s", exc)
-    return False
+async def is_token_denylisted(token: str, db: Optional[AsyncSession] = None) -> bool:
+    """Return True if *token* has been explicitly denylisted and not yet purged."""
+    from app.models.security_state import SecurityToken
+
+    thash = _hash_value(f"deny:{token}")
+    now = _utc_now()
+
+    async def _op(session: AsyncSession, own: bool) -> bool:
+        res = await session.execute(
+            select(SecurityToken.id).where(
+                SecurityToken.token_hash == thash,
+                SecurityToken.token_type == "denylist",
+                SecurityToken.expires_at > now,
+            )
+        )
+        return res.scalar_one_or_none() is not None
+
+    return await _run_db(db, _op)
 
 
 # ── FastAPI dependencies ──────────────────────────────────────────────────────
@@ -360,16 +480,12 @@ async def is_token_denylisted(token: str) -> bool:
 async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
     db: AsyncSession = Depends(get_db),
-) -> "User":  # noqa: F821 – forward ref resolved at runtime
+) -> "User":  # noqa: F821
     """
-    FastAPI dependency that extracts and validates the Bearer JWT,
-    checks the denylist, and returns the authenticated User ORM object.
-
-    Raises:
-        HTTPException 401: If the token is missing, invalid, denylisted,
-                           or the user does not exist / is inactive.
+    Validate Bearer JWT, check persistent DB denylist and user session cutoff,
+    and return the active User ORM object.
     """
-    from app.models.user import User  # local import to avoid circular deps
+    from app.models.user import User
 
     if credentials is None:
         raise HTTPException(
@@ -379,9 +495,7 @@ async def get_current_user(
         )
 
     token = credentials.credentials
-
-    # Check denylist first (fast Redis lookup)
-    if await is_token_denylisted(token):
+    if await is_token_denylisted(token, db=db):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has been revoked",
@@ -389,7 +503,6 @@ async def get_current_user(
         )
 
     payload = decode_token(token)
-
     if payload.get("type") != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -398,7 +511,6 @@ async def get_current_user(
         )
 
     user_id: str = payload["sub"]
-
     result = await db.execute(select(User).where(User.id == str(user_id)))
     user: Optional[User] = result.scalar_one_or_none()
 
@@ -414,18 +526,29 @@ async def get_current_user(
             detail="User account is deactivated",
         )
 
+    if getattr(user, "tokens_valid_after", None) is not None:
+        cutoff = user.tokens_valid_after
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=timezone.utc)
+        cutoff_us = int(cutoff.timestamp() * 1_000_000)
+        tok_iat_us = payload.get("iat_us")
+        if tok_iat_us is None:
+            raw_iat = payload.get("iat", 0)
+            tok_iat_us = int(float(raw_iat) * 1_000_000)
+        if int(tok_iat_us) < cutoff_us:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session invalidated after security update. Please log in again.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     return user
 
 
 async def get_current_admin_user(
     current_user: "User" = Depends(get_current_user),  # noqa: F821
 ) -> "User":  # noqa: F821
-    """
-    FastAPI dependency that ensures the current user has admin privileges.
-
-    Raises:
-        HTTPException 403: If the user is not an admin.
-    """
+    """Ensure the current user has admin privileges."""
     if not current_user.is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -434,9 +557,7 @@ async def get_current_admin_user(
     return current_user
 
 
-# ── Email / password-reset tokens ────────────────────────────────────────────
-
-_EMAIL_TOKEN_PREFIX = "token:email:"
+# ── Email / password-reset / 2FA OTP single-use tokens ────────────────────────
 
 
 def create_email_token() -> str:
@@ -444,41 +565,58 @@ def create_email_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-async def store_email_token(purpose: str, token: str, user_id: str) -> None:
-    """Store an email-verification or password-reset token in Redis or in-memory."""
-    key = f"{purpose}:{token}"
-    ttl_seconds = int(timedelta(hours=settings.EMAIL_TOKEN_EXPIRE_HOURS).total_seconds())
-    _memory_email_tokens[key] = (user_id, datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds))
-    redis = _get_redis()
-    if redis is not None:
-        try:
-            await redis.setex(
-                f"{_EMAIL_TOKEN_PREFIX}{purpose}:{token}",
-                ttl_seconds,
-                user_id,
+async def store_email_token(
+    purpose: str,
+    token: str,
+    user_id: str,
+    db: Optional[AsyncSession] = None,
+    ttl_seconds: Optional[int] = None,
+) -> None:
+    """Persist a hashed single-use token (verify, reset, 2fa_login) in security_tokens."""
+    from app.models.security_state import SecurityToken
+
+    thash = _hash_value(f"email:{purpose}:{token}")
+    ttl = ttl_seconds if ttl_seconds is not None else int(timedelta(hours=settings.EMAIL_TOKEN_EXPIRE_HOURS).total_seconds())
+    expires = _utc_now() + timedelta(seconds=max(1, ttl))
+
+    async def _op(session: AsyncSession, own: bool) -> None:
+        await session.execute(delete(SecurityToken).where(SecurityToken.token_hash == thash))
+        session.add(
+            SecurityToken(
+                token_hash=thash,
+                token_type=f"email:{purpose}",
+                user_id=str(user_id),
+                expires_at=expires,
             )
-        except Exception as exc:
-            logger.warning("Redis store_email_token failed: %s", exc)
+        )
+        await session.flush()
+
+    await _run_db(db, _op)
 
 
-async def consume_email_token(purpose: str, token: str) -> Optional[str]:
-    """Validate and atomically delete an email token."""
-    key = f"{purpose}:{token}"
-    redis = _get_redis()
-    if redis is not None:
-        try:
-            rkey = f"{_EMAIL_TOKEN_PREFIX}{purpose}:{token}"
-            user_id = await redis.get(rkey)
-            if user_id:
-                await redis.delete(rkey)
-                _memory_email_tokens.pop(key, None)
-                return user_id
-        except Exception as exc:
-            logger.warning("Redis consume_email_token failed: %s", exc)
+async def consume_email_token(
+    purpose: str, token: str, db: Optional[AsyncSession] = None
+) -> Optional[str]:
+    """Atomically validate and delete a single-use token from security_tokens."""
+    from app.models.security_state import SecurityToken
 
-    item = _memory_email_tokens.pop(key, None)
-    if item:
-        uid, exp = item
-        if datetime.now(timezone.utc) < exp:
-            return uid
-    return None
+    thash = _hash_value(f"email:{purpose}:{token}")
+    now = _utc_now()
+
+    async def _op(session: AsyncSession, own: bool) -> Optional[str]:
+        res = await session.execute(
+            select(SecurityToken).where(
+                SecurityToken.token_hash == thash,
+                SecurityToken.token_type == f"email:{purpose}",
+                SecurityToken.expires_at > now,
+            )
+        )
+        row = res.scalar_one_or_none()
+        if row is None:
+            return None
+        uid = row.user_id
+        await session.delete(row)
+        await session.flush()
+        return uid
+
+    return await _run_db(db, _op)

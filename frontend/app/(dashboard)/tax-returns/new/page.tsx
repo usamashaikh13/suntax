@@ -15,6 +15,8 @@ import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
 import { Canton } from '@/types'
 import { cn } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { BRAND } from '@/lib/brand'
 
 const CANTON_NAMES: Record<string, string> = {
   ZH: 'Zürich', BE: 'Bern', LU: 'Luzern', UR: 'Uri', SZ: 'Schwyz', OW: 'Obwalden',
@@ -28,6 +30,7 @@ const CANTON_NAMES: Record<string, string> = {
 export default function NewTaxReturnPage() {
   const router = useRouter()
   const { toast } = useToast()
+  const { isGerman, t } = useTranslation()
 
   // Pre-check state (Eligibility: Angestellte/Rentner, keine Quellensteuer, keine Selbstständigkeit, keine Auslandsliegenschaft)
   const [eligibility, setEligibility] = useState({
@@ -40,11 +43,13 @@ export default function NewTaxReturnPage() {
   // Start Form fields
   const [plz, setPlz] = useState('')
   const [plzLoading, setPlzLoading] = useState(false)
+  const [plzError, setPlzError] = useState<string | null>(null)
   const [plzResult, setPlzResult] = useState<{
     canton: string;
     bfs: string;
     name: string;
-    municipalities: Array<{ bfs: string; name: string; canton: string }>;
+    availability?: Record<string, string>;
+    municipalities: Array<{ bfs: string; name: string; canton: string; availability?: Record<string, string> }>;
   } | null>(null)
   const [selectedBfs, setSelectedBfs] = useState('')
   const [taxYear, setTaxYear] = useState<number>(2025)
@@ -52,37 +57,67 @@ export default function NewTaxReturnPage() {
   const [numChildren, setNumChildren] = useState<number>(0)
   const [submitting, setSubmitting] = useState(false)
 
+  // Waitlist state for coming_soon cantons (Addendum 1 Section 2)
+  const [waitlistEmail, setWaitlistEmail] = useState('')
+  const [waitlistBusy, setWaitlistBusy] = useState(false)
+  const [waitlistDone, setWaitlistDone] = useState<string | null>(null)
+  const [waitlistError, setWaitlistError] = useState<string | null>(null)
+
   // PLZ Auto-Lookup
   useEffect(() => {
     const cleanPlz = plz.trim()
+    setWaitlistDone(null)
+    setWaitlistError(null)
     if (cleanPlz.length === 4 && /^\d{4}$/.test(cleanPlz)) {
       setPlzLoading(true)
+      setPlzError(null)
       api.cantons.lookupPlz(cleanPlz)
         .then(res => {
+          const defaultCanton = res.default_canton || (res as any).canton || 'ZH'
+          const defaultBfs = res.default_bfs || (res as any).bfs_code || ''
+          const defaultName = res.default_name || (res as any).municipality_name || ''
+          const rawMunis = res.municipalities || (res as any).options || []
+          const munis = rawMunis.map((m: any) => ({
+            bfs: m.bfs || m.bfs_code,
+            name: m.name || m.municipality_name,
+            canton: m.canton,
+            availability: m.availability || res.availability,
+          }))
+
           setPlzResult({
-            canton: res.default_canton,
-            bfs: res.default_bfs,
-            name: res.default_name,
-            municipalities: res.municipalities || [],
+            canton: defaultCanton,
+            bfs: defaultBfs,
+            name: defaultName,
+            availability: res.availability,
+            municipalities: munis.length > 0 ? munis : [{ bfs: defaultBfs, name: defaultName, canton: defaultCanton, availability: res.availability }],
           })
-          setSelectedBfs(res.default_bfs)
+          setSelectedBfs(defaultBfs)
+          setPlzError(null)
         })
         .catch(() => {
-          // Fallback to Zurich if unknown PLZ
-          setPlzResult({
-            canton: 'ZH',
-            bfs: '261',
-            name: 'Zürich',
-            municipalities: [{ bfs: '261', name: 'Zürich', canton: 'ZH' }],
-          })
-          setSelectedBfs('261')
+          // Do NOT silently default to Zurich. Report error and clear selection
+          setPlzResult(null)
+          setSelectedBfs('')
+          setPlzError(
+            isGerman
+              ? 'Diese Postleitzahl wurde nicht gefunden. Bitte prüfe deine Eingabe.'
+              : 'This postal code was not found. Please verify your entry.'
+          )
         })
         .finally(() => setPlzLoading(false))
     } else {
       setPlzResult(null)
       setSelectedBfs('')
+      setPlzError(null)
     }
-  }, [plz])
+  }, [plz, isGerman])
+
+  const selectedMuniObj = plzResult?.municipalities.find(m => m.bfs === selectedBfs)
+  const activeCantonAvailMap = selectedMuniObj?.availability || plzResult?.availability
+  const activeAvailability = activeCantonAvailMap
+    ? (activeCantonAvailMap[String(taxYear)] || activeCantonAvailMap['2025'] || 'coming_soon')
+    : (plzResult ? (plzResult.canton === 'ZH' ? 'available' : 'coming_soon') : 'available')
+  const isCantonAvailable = !plzResult || activeAvailability === 'available'
 
   const isEligible =
     eligibility.isEmployedOrPensioner &&
@@ -90,7 +125,27 @@ export default function NewTaxReturnPage() {
     !eligibility.hasRentedOrForeignProperty &&
     !eligibility.isSelfEmployed
 
-  const canCreate = isEligible && plzResult && selectedBfs && !submitting
+  const canCreate = isEligible && isCantonAvailable && plzResult && selectedBfs && !submitting
+
+  const handleJoinWaitlist = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!plzResult || !waitlistEmail.trim()) return
+    setWaitlistBusy(true)
+    setWaitlistError(null)
+    try {
+      const res = await api.cantons.joinWaitlist({
+        email: waitlistEmail.trim(),
+        canton_code: plzResult.canton,
+        tax_year: taxYear,
+        postal_code: plz.trim(),
+      })
+      setWaitlistDone(res.message || t('cantonRollout.waitlistSuccess', { canton: plzResult.canton }))
+    } catch (err: any) {
+      setWaitlistError(err?.response?.data?.detail || (isGerman ? 'Bitte gib eine gültige E-Mail-Adresse ein.' : 'Please enter a valid email address.'))
+    } finally {
+      setWaitlistBusy(false)
+    }
+  }
 
   const handleCreate = async () => {
     if (!canCreate || !plzResult) return
@@ -122,14 +177,14 @@ export default function NewTaxReturnPage() {
       } catch {}
 
       toast({
-        title: 'Steuererklärung eröffnet',
-        description: `Dossier für ${CANTON_NAMES[selectedMuni.canton] || selectedMuni.canton} (${selectedMuni.name}) erstellt.`,
+        title: isGerman ? 'Steuererklärung eröffnet' : 'Tax return created',
+        description: `${isGerman ? 'Dossier für' : 'Dossier for'} ${CANTON_NAMES[selectedMuni.canton] || selectedMuni.canton} (${selectedMuni.name}) ${isGerman ? 'erstellt.' : 'created.'}`,
       })
       router.push(`/tax-returns/${created.id}`)
     } catch (err: any) {
       toast({
-        title: 'Erstellen fehlgeschlagen',
-        description: err?.response?.data?.detail || 'Bitte versuche es erneut.',
+        title: isGerman ? 'Erstellen fehlgeschlagen' : 'Creation failed',
+        description: err?.response?.data?.detail || (isGerman ? 'Bitte versuche es erneut.' : 'Please try again.'),
         variant: 'destructive',
       })
       setSubmitting(false)
@@ -137,21 +192,25 @@ export default function NewTaxReturnPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8 pb-16">
+    <div className="max-w-3xl mx-auto space-y-6 pb-20">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 mb-1.5">
           <Badge className="bg-emerald-50 text-[#1E7B52] border-emerald-200 text-xs font-semibold">
-            Schritt 1 von 6 · Start
+            {isGerman ? 'Schritt 1 von 6 · Start' : 'Step 1 of 6 · Start'}
           </Badge>
           <span className="text-xs text-slate-400">•</span>
-          <span className="text-xs text-slate-500 font-medium">Offizielle ESTV-Regeln</span>
+          <span className="text-xs text-slate-500 font-medium">
+            {isGerman ? 'Offizielle ESTV-Regeln' : 'Official ESTV rules'}
+          </span>
         </div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[#14181F] tracking-tight">
-          Kurz zu dir
+          {isGerman ? 'Kurz zu dir' : 'About you'}
         </h1>
         <p className="text-xs sm:text-sm text-slate-500 mt-1">
-          Drei kurze Angaben – damit wir die richtigen kantonalen Steuerregeln für dich anwenden.
+          {isGerman
+            ? 'Drei kurze Angaben – damit wir die richtigen kantonalen Steuerregeln für dich anwenden.'
+            : 'Three brief questions – so we apply the correct cantonal tax rules for your situation.'}
         </p>
       </div>
 
@@ -160,10 +219,12 @@ export default function NewTaxReturnPage() {
         <CardHeader className="pb-3 border-b border-slate-100">
           <CardTitle className="text-base font-bold text-[#14181F] flex items-center gap-2">
             <MapPin className="h-4 w-4 text-[#1E7B52]" />
-            <span>Wo hast du am 31. Dezember gewohnt?</span>
+            <span>{isGerman ? 'Wo hast du am 31. Dezember gewohnt?' : 'Where did you reside on December 31st?'}</span>
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
-            Gib deine 4-stellige Postleitzahl ein. Wir ordnen Kanton und Gemeinde automatisch zu.
+            {isGerman
+              ? 'Gib deine 4-stellige Postleitzahl ein. Wir ordnen Kanton und Gemeinde automatisch zu.'
+              : 'Enter your 4-digit postal code. We match canton and municipality automatically.'}
           </CardDescription>
         </CardHeader>
 
@@ -182,25 +243,114 @@ export default function NewTaxReturnPage() {
             {plzLoading && (
               <div className="flex items-center gap-2 text-xs text-slate-500">
                 <Loader2 className="h-4 w-4 animate-spin text-[#1E7B52]" />
-                <span>Gemeinde wird ermittelt...</span>
+                <span>{isGerman ? 'Gemeinde wird ermittelt...' : 'Resolving municipality...'}</span>
+              </div>
+            )}
+            {plzError && !plzLoading && (
+              <div className="flex-1 p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                {plzError}
               </div>
             )}
             {plzResult && !plzLoading && (
-              <div className="flex-1 p-2.5 bg-[#F0FDF4] border border-emerald-200 rounded-xl text-xs text-emerald-950 font-medium">
-                <span className="font-bold text-[#1E7B52]">{plzResult.canton}</span> – {plzResult.name} (BFS #{selectedBfs})
+              <div className={cn(
+                'flex-1 p-2.5 rounded-xl text-xs font-medium border flex items-center justify-between gap-2',
+                isCantonAvailable
+                  ? 'bg-[#F0FDF4] border-emerald-200 text-emerald-950'
+                  : 'bg-amber-50 border-amber-200 text-amber-950'
+              )}>
+                <span>
+                  <span className={cn('font-bold', isCantonAvailable ? 'text-[#1E7B52]' : 'text-amber-700')}>
+                    {plzResult.canton}
+                  </span>{' '}
+                  – {plzResult.name} (BFS #{selectedBfs})
+                </span>
+                <span className={cn(
+                  'text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap',
+                  isCantonAvailable ? 'bg-emerald-100 text-[#1E7B52]' : 'bg-amber-200/70 text-amber-900'
+                )}>
+                  {isCantonAvailable ? t('cantonRollout.availableBadge') : t('cantonRollout.comingSoonBadge')}
+                </span>
               </div>
             )}
           </div>
+
+          {/* Coming Soon Canton Waitlist Banner (Addendum 1 Section 2: No Payment, Waitlist Email) */}
+          {plzResult && !plzLoading && !isCantonAvailable && (
+            <div
+              data-testid="canton-coming-soon-banner"
+              className="mt-3 p-4 rounded-xl bg-amber-50/90 border border-amber-200 space-y-3"
+            >
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h3 className="text-sm font-bold text-amber-950">
+                    {t('cantonRollout.comingSoonTitle')} ({CANTON_NAMES[plzResult.canton] || plzResult.canton})
+                  </h3>
+                  <p className="text-xs text-amber-900/90">
+                    {t('cantonRollout.comingSoonSubtitle')} {t('cantonRollout.comingSoonNoPayment')}
+                  </p>
+                </div>
+              </div>
+
+              {waitlistDone ? (
+                <div
+                  data-testid="waitlist-success"
+                  className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-900 flex items-center gap-2"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
+                  <span>{waitlistDone}</span>
+                </div>
+              ) : (
+                <form onSubmit={handleJoinWaitlist} className="space-y-2 pt-1">
+                  <p className="text-xs font-semibold text-slate-700">
+                    {t('cantonRollout.waitlistDesc', { canton: `${CANTON_NAMES[plzResult.canton] || plzResult.canton} (${plzResult.canton})` })}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="email"
+                      required
+                      value={waitlistEmail}
+                      onChange={e => setWaitlistEmail(e.target.value)}
+                      placeholder={t('cantonRollout.waitlistEmailPlaceholder')}
+                      data-testid="waitlist-email-input"
+                      className="flex-1 text-xs px-3 py-2 rounded-lg border border-amber-300 bg-white focus:outline-none focus:border-[#1E7B52]"
+                    />
+                    <Button
+                      type="submit"
+                      disabled={waitlistBusy || !waitlistEmail.trim()}
+                      data-testid="waitlist-submit-btn"
+                      className="bg-[#14181F] hover:bg-slate-800 text-white text-xs font-semibold h-9 px-4 rounded-lg"
+                    >
+                      {waitlistBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+                      {t('cantonRollout.waitlistBtn')}
+                    </Button>
+                  </div>
+                  {waitlistError && (
+                    <p className="text-xs text-red-700 font-medium">{waitlistError}</p>
+                  )}
+                </form>
+              )}
+            </div>
+          )}
 
           {/* Ambiguous PLZ Dropdown */}
           {plzResult && plzResult.municipalities.length > 1 && (
             <div className="space-y-1.5 pt-2">
               <label className="text-xs font-semibold text-slate-700">
-                Mehrere Gemeinden gefunden – bitte wähle deine genaue Wohngemeinde:
+                {isGerman
+                  ? 'Mehrere Gemeinden gefunden – bitte wähle deine genaue Wohngemeinde:'
+                  : 'Multiple municipalities found – please select your exact municipality:'}
               </label>
               <select
                 value={selectedBfs}
-                onChange={e => setSelectedBfs(e.target.value)}
+                onChange={e => {
+                  const newBfs = e.target.value
+                  setSelectedBfs(newBfs)
+                  const picked = plzResult.municipalities.find(m => m.bfs === newBfs)
+                  if (picked) {
+                    setPlzResult(prev => prev ? { ...prev, bfs: picked.bfs, name: picked.name, canton: picked.canton } : null)
+                  }
+                }}
                 className="w-full text-xs sm:text-sm p-2.5 rounded-xl border border-slate-300 bg-white focus:outline-none focus:border-[#1E7B52]"
               >
                 {plzResult.municipalities.map(m => (
@@ -219,24 +369,28 @@ export default function NewTaxReturnPage() {
         <CardHeader className="pb-3 border-b border-slate-100">
           <CardTitle className="text-base font-bold text-[#14181F] flex items-center gap-2">
             <Users className="h-4 w-4 text-[#1E7B52]" />
-            <span>Wie ist dein Zivilstand und deine Familiensituation?</span>
+            <span>{isGerman ? 'Wie ist dein Zivilstand und deine Familiensituation?' : 'What is your civil and family status?'}</span>
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
-            Bestimmt den massgebenden Grundtarif (Ledigen-, Verheirateten- oder Elterntarif gemäss Art. 36 DBG).
+            {isGerman
+              ? 'Bestimmt den massgebenden Grundtarif (Ledigen-, Verheirateten- oder Elterntarif gemäss Art. 36 DBG).'
+              : 'Determines the baseline tax scale (Single, Married, or Parent tariff under Art. 36 DBG).'}
           </CardDescription>
         </CardHeader>
 
         <CardContent className="pt-4 space-y-5">
           {/* Civil status chips */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">Zivilstand</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
+              {isGerman ? 'Zivilstand' : 'Civil Status'}
+            </label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {[
-                { id: 'single', label: 'Ledig' },
-                { id: 'married', label: 'Verheiratet' },
-                { id: 'partnership', label: 'Eingetr. Partnerschaft' },
-                { id: 'divorced', label: 'Geschieden' },
-                { id: 'widowed', label: 'Verwitwet' },
+                { id: 'single', labelDe: 'Ledig', labelEn: 'Single' },
+                { id: 'married', labelDe: 'Verheiratet', labelEn: 'Married' },
+                { id: 'partnership', labelDe: 'Eingetr. Partnerschaft', labelEn: 'Registered Partnership' },
+                { id: 'divorced', labelDe: 'Geschieden', labelEn: 'Divorced' },
+                { id: 'widowed', labelDe: 'Verwitwet', labelEn: 'Widowed' },
               ].map(opt => (
                 <button
                   key={opt.id}
@@ -249,7 +403,7 @@ export default function NewTaxReturnPage() {
                       : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                   )}
                 >
-                  {opt.label}
+                  {isGerman ? opt.labelDe : opt.labelEn}
                 </button>
               ))}
             </div>
@@ -257,7 +411,9 @@ export default function NewTaxReturnPage() {
 
           {/* Children chips */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">Kinder mit Abzugsberechtigung</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
+              {isGerman ? 'Kinder mit Abzugsberechtigung' : 'Children qualifying for deductions'}
+            </label>
             <div className="grid grid-cols-4 gap-2">
               {[0, 1, 2, 3].map(k => (
                 <button
@@ -271,7 +427,7 @@ export default function NewTaxReturnPage() {
                       : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                   )}
                 >
-                  {k === 0 ? 'Keine' : k === 3 ? '3 oder mehr' : `${k} Kind${k > 1 ? 'er' : ''}`}
+                  {k === 0 ? (isGerman ? 'Keine' : 'None') : k === 3 ? (isGerman ? '3 oder mehr' : '3 or more') : `${k} ${isGerman ? `Kind${k > 1 ? 'er' : ''}` : `Child${k > 1 ? 'ren' : ''}`}`}
                 </button>
               ))}
             </div>
@@ -279,7 +435,9 @@ export default function NewTaxReturnPage() {
 
           {/* Tax Year */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2">Steuerjahr</label>
+            <label className="block text-xs font-semibold text-slate-700 mb-2">
+              {isGerman ? 'Steuerjahr' : 'Tax Year'}
+            </label>
             <div className="grid grid-cols-2 gap-2 max-w-xs">
               {[2025, 2026].map(y => (
                 <button
@@ -293,7 +451,7 @@ export default function NewTaxReturnPage() {
                       : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
                   )}
                 >
-                  Steuerjahr {y}
+                  {isGerman ? `Steuerjahr ${y}` : `Tax Year ${y}`}
                 </button>
               ))}
             </div>
@@ -306,10 +464,12 @@ export default function NewTaxReturnPage() {
         <CardHeader className="pb-3 border-b border-slate-100">
           <CardTitle className="text-base font-bold text-[#14181F] flex items-center gap-2">
             <HelpCircle className="h-4 w-4 text-[#1E7B52]" />
-            <span>Passt SunTax zu deiner Situation?</span>
+            <span>{isGerman ? `Passt ${BRAND.name} zu deiner Situation?` : `Does ${BRAND.name} fit your situation?`}</span>
           </CardTitle>
           <CardDescription className="text-xs text-slate-500">
-            Wir unterstützen Angestellte, Rentner und selbstbewohnte Eigenheime.
+            {isGerman
+              ? 'Wir unterstützen Angestellte, Rentner und selbstbewohnte Eigenheime.'
+              : 'We support employed persons, retirees, and owner-occupied homes.'}
           </CardDescription>
         </CardHeader>
 
@@ -317,46 +477,57 @@ export default function NewTaxReturnPage() {
           {[
             {
               id: 'isEmployedOrPensioner',
-              label: 'Bist du angestellt oder Rentner/in?',
-              desc: 'Lohnempfänger mit Lohnausweis oder Rente (AHV/Pensionskasse)',
+              labelDe: 'Bist du angestellt oder Rentner/in?',
+              labelEn: 'Are you employed or retired?',
+              descDe: 'Lohnempfänger mit Lohnausweis oder Rente (AHV/Pensionskasse)',
+              descEn: 'Salary certificate recipient or pension recipient (OASI/occupational)',
               val: eligibility.isEmployedOrPensioner,
               setVal: (v: boolean) => setEligibility(e => ({ ...e, isEmployedOrPensioner: v })),
               goodVal: true,
             },
             {
               id: 'isSelfEmployed',
-              label: 'Übst du eine selbstständige Haupttätigkeit aus?',
-              desc: 'Einzelfirma, freiberufliche Praxis oder GmbH-Inhaber',
+              labelDe: 'Übst du eine selbstständige Haupttätigkeit aus?',
+              labelEn: 'Are you primarily self-employed?',
+              descDe: 'Einzelfirma, freiberufliche Praxis oder GmbH-Inhaber',
+              descEn: 'Sole proprietorship, independent practice, or LLC owner',
               val: eligibility.isSelfEmployed,
               setVal: (v: boolean) => setEligibility(e => ({ ...e, isSelfEmployed: v })),
               goodVal: false,
             },
             {
               id: 'hasRentedOrForeignProperty',
-              label: 'Besitzt du vermietete Liegenschaften oder Liegenschaften im Ausland / anderen Kanton?',
-              desc: 'Selbstbewohntes Wohneigentum im Wohnkanton ist voll unterstützt.',
+              labelDe: 'Besitzt du vermietete Liegenschaften oder Liegenschaften im Ausland / anderen Kanton?',
+              labelEn: 'Do you own rented properties or real estate abroad / in other cantons?',
+              descDe: 'Selbstbewohntes Wohneigentum im Wohnkanton ist voll unterstützt.',
+              descEn: 'Owner-occupied property in your home canton is fully supported.',
               val: eligibility.hasRentedOrForeignProperty,
               setVal: (v: boolean) => setEligibility(e => ({ ...e, hasRentedOrForeignProperty: v })),
               goodVal: false,
             },
             {
               id: 'isSourceTaxed',
-              label: 'Wirst du an der Quelle besteuert (Quellensteuer)?',
-              desc: 'Ordentliche Besteuerung ohne Quellensteuer-Abrechnung',
+              labelDe: 'Wirst du an der Quelle besteuert (Quellensteuer)?',
+              labelEn: 'Are you taxed at source (withholding tax)?',
+              descDe: 'Ordentliche Besteuerung ohne Quellensteuer-Abrechnung',
+              descEn: 'Standard tax assessment without withholding tax settlement',
               val: eligibility.isSourceTaxed,
               setVal: (v: boolean) => setEligibility(e => ({ ...e, isSourceTaxed: v })),
               goodVal: false,
             },
           ].map(q => {
-            const isOk = q.val === q.goodVal
             return (
               <div
                 key={q.id}
                 className="p-3.5 rounded-xl border border-slate-200 bg-[#FBFAF7] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
               >
                 <div>
-                  <h4 className="font-bold text-slate-800">{q.label}</h4>
-                  <p className="text-slate-500 text-[11px] mt-0.5">{q.desc}</p>
+                  <h4 className="font-bold text-slate-800">
+                    {isGerman ? q.labelDe : q.labelEn}
+                  </h4>
+                  <p className="text-slate-500 text-[11px] mt-0.5">
+                    {isGerman ? q.descDe : q.descEn}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2 flex-none">
                   <button
@@ -369,7 +540,7 @@ export default function NewTaxReturnPage() {
                         : 'bg-white text-slate-600 border-slate-300'
                     )}
                   >
-                    Ja
+                    {isGerman ? 'Ja' : 'Yes'}
                   </button>
                   <button
                     type="button"
@@ -381,7 +552,7 @@ export default function NewTaxReturnPage() {
                         : 'bg-white text-slate-600 border-slate-300'
                     )}
                   >
-                    Nein
+                    {isGerman ? 'Nein' : 'No'}
                   </button>
                 </div>
               </div>
@@ -392,7 +563,10 @@ export default function NewTaxReturnPage() {
             <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5 mt-2">
               <AlertTriangle className="h-4 w-4 text-amber-600 flex-none mt-0.5" />
               <div>
-                <span className="font-bold">Aktuell noch nicht unterstützt:</span> SunTax unterstützt derzeit ausschliesslich Angestellte und Rentner ohne ausserkantonale Liegenschaften oder Quellensteuer. Diese komplexen Szenarien kommen bald!
+                <span className="font-bold">{isGerman ? 'Aktuell noch nicht unterstützt:' : 'Currently not supported:'}</span>{' '}
+                {isGerman
+                  ? `${BRAND.name} unterstützt derzeit ausschliesslich Angestellte und Rentner ohne ausserkantonale Liegenschaften oder Quellensteuer. Diese komplexen Szenarien kommen bald!`
+                  : `${BRAND.name} currently supports only employed persons and retirees without out-of-canton properties or withholding tax. Extended scenarios coming soon!`}
               </div>
             </div>
           )}
@@ -402,9 +576,9 @@ export default function NewTaxReturnPage() {
       {/* ── Action Buttons ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between pt-2">
         <Button asChild variant="outline" size="sm" className="text-xs rounded-xl">
-          <Link href="/dashboard">
+          <Link href="/tax-returns">
             <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-            Abbrechen
+            {isGerman ? 'Abbrechen' : 'Cancel'}
           </Link>
         </Button>
 
@@ -416,11 +590,11 @@ export default function NewTaxReturnPage() {
           {submitting ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Dossier wird erstellt...</span>
+              <span>{isGerman ? 'Dossier wird erstellt...' : 'Creating dossier...'}</span>
             </>
           ) : (
             <>
-              <span>Weiter zu Schritt 2: Dokumente</span>
+              <span>{isGerman ? 'Weiter zu Schritt 2: Dokumente' : 'Continue to Step 2: Documents'}</span>
               <ChevronRight className="h-4 w-4" />
             </>
           )}

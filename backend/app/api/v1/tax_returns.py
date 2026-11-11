@@ -17,7 +17,7 @@ import logging
 from typing import List, Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +30,7 @@ from app.models.tax_return import TaxReturn
 from app.models.tax_profile import TaxProfile
 from app.models.tax_calculation import TaxCalculation
 from app.models.user import User
+from app.models.waitlist import WaitlistEntry
 from app.schemas.tax_profile import TaxProfileResponse, TaxProfileUpdateRequest, TaxQuestion
 from app.schemas.tax_return import (
     CantonResponse,
@@ -38,8 +39,16 @@ from app.schemas.tax_return import (
     TaxReturnListResponse,
     TaxReturnResponse,
     TaxReturnUpdate,
+    WaitlistCreateRequest,
 )
 from app.services.canton_service import CantonService
+from app.services.canton_transmission import (
+    CantonNotAvailableError,
+    get_transmission_adapter,
+)
+from app.services.pdf_export_service import generate_tax_return_pdf
+from app.services.rules_data_service import rules_data_service
+from app.services.xml_export_service import generate_ech_xml
 from app.services.smart_questions_service import (
     generate_smart_questions,
     generate_ai_questions,
@@ -184,6 +193,82 @@ async def lookup_postal_code(plz: str) -> dict:
             detail=f"Postleitzahl '{plz}' nicht gefunden",
         )
     return res
+
+
+@router.get(
+    "/cantons/{canton_code}/availability",
+    summary="Check canton rollout availability ('available' vs 'coming_soon') from data config",
+)
+async def get_canton_availability(
+    canton_code: str,
+    tax_year: int = Query(2025, ge=2024, le=2030),
+) -> dict:
+    """Return rollout availability purely from rules_2025_2026.json (no code switch needed)."""
+    code = canton_code.strip().upper()
+    avail = rules_data_service.get_canton_availability(code, tax_year)
+    c_rules = rules_data_service.get_canton_rules(code, tax_year)
+    return {
+        "canton_code": code,
+        "name": c_rules.get("name", code),
+        "tax_year": tax_year,
+        "availability": avail,
+        "is_available": avail == "available",
+        "message": (
+            f"Kanton {code} ist für {tax_year} freigeschaltet."
+            if avail == "available"
+            else f"Dein Kanton kommt bald ({code} / {tax_year}). Trag dich in die Warteliste ein."
+        ),
+        "submission_note": c_rules.get("submission_note", ""),
+    }
+
+
+@router.post(
+    "/waitlist",
+    status_code=status.HTTP_201_CREATED,
+    summary="Register email on waitlist for a 'coming_soon' canton (Addendum 1 Section 2)",
+)
+async def join_canton_waitlist(
+    payload: WaitlistCreateRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Store email + canton waitlist entry for cantons not yet switched on."""
+    canton_code = payload.canton_code.strip().upper()
+    email_clean = payload.email.strip().lower()
+    existing_res = await db.execute(
+        select(WaitlistEntry).where(
+            WaitlistEntry.email == email_clean,
+            WaitlistEntry.canton_code == canton_code,
+            WaitlistEntry.tax_year == payload.tax_year,
+        )
+    )
+    existing = existing_res.scalar_one_or_none()
+    if existing:
+        return {
+            "status": "already_registered",
+            "id": existing.id,
+            "email": email_clean,
+            "canton_code": canton_code,
+            "tax_year": payload.tax_year,
+            "message": f"Du bist bereits auf der Warteliste für {canton_code} ({payload.tax_year}).",
+        }
+
+    entry = WaitlistEntry(
+        email=email_clean,
+        canton_code=canton_code,
+        tax_year=payload.tax_year,
+        postal_code=payload.postal_code,
+    )
+    db.add(entry)
+    await db.commit()
+    await db.refresh(entry)
+    return {
+        "status": "subscribed",
+        "id": entry.id,
+        "email": email_clean,
+        "canton_code": canton_code,
+        "tax_year": payload.tax_year,
+        "message": f"Vielen Dank! Wir benachrichtigen dich per E-Mail, sobald {canton_code} freigeschaltet ist.",
+    }
 
 
 # ── Tax return CRUD ───────────────────────────────────────────────────────────
@@ -814,6 +899,10 @@ async def suggest_tax_return_defaults(
     "/tax-returns/{tax_return_id}/payment/checkout",
     summary="Initiate payment for CHF 39 filing fee via TWINT or Card",
 )
+@router.post(
+    "/tax-returns/{tax_return_id}/payment/initiate",
+    summary="Initiate payment for CHF 39 filing fee (ad-blocker resilient alias)",
+)
 async def create_payment_checkout(
     tax_return_id: str,
     payload: dict,
@@ -826,6 +915,11 @@ async def create_payment_checkout(
     SunTax never stores sensitive credit card data.
     """
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    if not rules_data_service.is_canton_available(tax_return.canton_code, tax_return.tax_year):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Dein Kanton kommt bald ({tax_return.canton_code} / {tax_return.tax_year}). Keine Zahlung möglich.",
+        )
     method = (payload.get("method") or "twint").lower()
     if method not in ("twint", "credit_card", "card", "postfinance"):
         method = "twint"
@@ -871,6 +965,105 @@ async def create_payment_checkout(
 
 
 @router.post(
+    "/tax-returns/{tax_return_id}/payment/sandbox-simulate",
+    summary="Simulate external payment provider confirmation for sandbox/dev testing",
+)
+async def simulate_sandbox_payment_endpoint(
+    tax_return_id: str,
+    payload: dict = Body(default={}),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Simulates provider confirmation for the CHF 39 fee strictly in sandbox/dev environments.
+    Disabled in production with live Payrexx credentials.
+    """
+    # 1. HARD SECURITY GATE: Never allow payment simulation in production under any circumstance
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Payment simulation is strictly forbidden in production environments.",
+        )
+
+    # 2. Block if live Payrexx credentials are configured
+    if payrexx_service.is_configured:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Simulation is disabled when live Payrexx credentials are configured.",
+        )
+
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    if not rules_data_service.is_canton_available(tax_return.canton_code, tax_return.tax_year):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Dein Kanton kommt bald ({tax_return.canton_code} / {tax_return.tax_year}). Keine Zahlung möglich.",
+        )
+
+    method = (payload.get("method") or tax_return.payment_method or "twint").lower()
+    gw_id = tax_return.payment_gateway_id
+    if not gw_id or gw_id not in payrexx_service._sandbox_gateways:
+        gw = await payrexx_service.create_gateway(
+            tax_return_id=str(tax_return.id),
+            amount_chf=39.00,
+            payment_methods=[method] if method != "card" else ["mastercard", "visa"],
+            user_email=current_user.email,
+            user_name=current_user.full_name,
+        )
+        gw_id = gw["gateway_id"]
+        tax_return.payment_gateway_id = gw_id
+        tax_return.payment_method = method
+        await db.commit()
+
+    # Transition sandbox gateway to confirmed via provider simulation
+    payrexx_service.simulate_provider_payment(
+        gateway_id=gw_id,
+        payment_method=method,
+        status="confirmed",
+    )
+
+    # Validate through official verification pipeline
+    verification = await payrexx_service.verify_transaction(
+        tax_return_id=str(tax_return.id),
+        gateway_id=gw_id,
+    )
+    if not verification.get("verified"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=verification.get("error") or "Simulation verification failed",
+        )
+
+    now = datetime.now(timezone.utc)
+    tax_return.payment_status = "paid"
+    tax_return.payment_method = method
+    tax_return.payment_amount = 39.00
+    tax_return.payment_transaction_id = verification.get("transaction_id") or f"tx_sandbox_{uuid.uuid4().hex[:10]}"
+    tax_return.paid_at = now
+    tax_return.updated_at = now
+
+    db.add(
+        AuditLog(
+            user_id=str(current_user.id),
+            action="payment_received",
+            resource_type="tax_return",
+            resource_id=str(tax_return.id),
+            extra_data=f'{{"amount_chf": 39.00, "method": "{method}", "is_sandbox": true, "transaction_id": "{tax_return.payment_transaction_id}"}}',
+        )
+    )
+    await db.commit()
+
+    return {
+        "success": True,
+        "is_paid": True,
+        "payment_status": "paid",
+        "method": method,
+        "amount_chf": 39.00,
+        "transaction_id": tax_return.payment_transaction_id,
+        "gateway_id": gw_id,
+        "message": "Sandbox payment successfully confirmed and verified.",
+    }
+
+
+@router.post(
     "/tax-returns/{tax_return_id}/payment/confirm",
     summary="Confirm completed payment for CHF 39 filing fee",
 )
@@ -885,6 +1078,19 @@ async def confirm_payment(
     Requires genuine verification from Payrexx payment provider.
     """
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+
+    # Idempotent return if already paid
+    if tax_return.payment_status == "paid":
+        return {
+            "status": "paid",
+            "amount_chf": tax_return.payment_amount or 39.0,
+            "method": tax_return.payment_method or payload.get("method", "twint"),
+            "transaction_id": tax_return.payment_transaction_id,
+            "paid_at": tax_return.paid_at.isoformat() if tax_return.paid_at else None,
+            "is_sandbox": False,
+            "message": "Zahlung von CHF 39.00 wurde bereits erfolgreich verbucht.",
+        }
+
     method = payload.get("method", "twint")
     transaction_id = payload.get("transaction_id")
     gateway_id = payload.get("gateway_id") or tax_return.payment_gateway_id
@@ -900,6 +1106,13 @@ async def confirm_payment(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=verification.get("error") or "Zahlung konnte beim Zahlungsanbieter nicht verifiziert werden.",
+        )
+
+    # Strict production gate: sandbox payments cannot unlock production returns
+    if str(getattr(settings, "ENVIRONMENT", "")).lower() in ("production", "prod") and verification.get("is_sandbox"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Sandbox payments cannot be used to unlock tax returns in production.",
         )
 
     now = datetime.now(timezone.utc)
@@ -957,7 +1170,7 @@ async def payrexx_webhook(
         payload=payload,
         raw_body=raw_body,
         signature=sig_header,
-        enforce_signature=payrexx_service.is_configured,
+        enforce_signature=payrexx_service.is_configured or str(getattr(settings, "ENVIRONMENT", "")).lower() in ("production", "prod"),
     )
 
     if not result.get("valid"):
@@ -1078,6 +1291,14 @@ async def invite_partner2(
     }
 
 
+def _is_datetime_expired(dt: Optional[datetime]) -> bool:
+    if not dt:
+        return False
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt < datetime.now(timezone.utc)
+
+
 @router.get(
     "/tax-returns/{tax_return_id}/partner2/status",
     summary="Get Partner 2 confirmation status",
@@ -1096,7 +1317,7 @@ async def get_partner2_status(
         "confirmed_name": tax_return.partner2_confirmed_name,
         "partner2_email": tax_return.partner2_email,
         "token_expires_at": tax_return.partner2_token_expires_at.isoformat() if tax_return.partner2_token_expires_at else None,
-        "is_token_expired": bool(tax_return.partner2_token_expires_at and tax_return.partner2_token_expires_at < datetime.now(timezone.utc)),
+        "is_token_expired": _is_datetime_expired(tax_return.partner2_token_expires_at),
     }
 
 
@@ -1120,8 +1341,7 @@ async def inspect_partner_return(
             detail="Ungültiger oder nicht gefundener Bestätigungslink.",
         )
 
-    now = datetime.now(timezone.utc)
-    if tr.partner2_token_expires_at and tr.partner2_token_expires_at < now:
+    if _is_datetime_expired(tr.partner2_token_expires_at):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="Dieser Bestätigungslink ist abgelaufen. Bitte bitten Sie Ihren Partner um einen neuen Link.",
@@ -1168,11 +1388,16 @@ async def confirm_partner_return(
             detail="Ungültiger Bestätigungslink.",
         )
 
-    now = datetime.now(timezone.utc)
-    if tr.partner2_token_expires_at and tr.partner2_token_expires_at < now:
+    if _is_datetime_expired(tr.partner2_token_expires_at):
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="Dieser Bestätigungslink ist abgelaufen.",
+        )
+
+    if tr.partner2_confirmed_at:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Diese Steuererklärung wurde bereits von Partner 2 bestätigt (Replay-Schutz).",
         )
 
     confirmed = payload.get("confirmed", False)
@@ -1183,6 +1408,7 @@ async def confirm_partner_return(
             detail="Bitte bestätigen Sie die Richtigkeit der Angaben und geben Sie Ihren vollständigen Namen ein.",
         )
 
+    now = datetime.now(timezone.utc)
     tr.partner2_confirmed_at = now
     tr.partner2_confirmed_name = full_name
     tr.updated_at = now
@@ -1202,6 +1428,116 @@ async def confirm_partner_return(
         "confirmed_at": now.isoformat(),
         "confirmed_name": full_name,
         "message": f"Vielen Dank, {full_name}. Ihre Bestätigung als Partner 2 wurde rechtsgültig erfasst (Art. 113 DBG).",
+    }
+
+
+@router.get(
+    "/tax-returns/{tax_return_id}/receipt-check",
+    summary="Evaluate required vs keep-only receipts & annexes from receipts_rules.json (Addendum 1 Section 4)",
+)
+async def check_tax_return_receipts(
+    tax_return_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Return data-driven receipt requirements, keep-only items, annexes, and missing personal data."""
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    p_res = await db.execute(select(TaxProfile).where(TaxProfile.tax_return_id == str(tax_return.id)))
+    profile = p_res.scalar_one_or_none()
+    d_res = await db.execute(select(Document).where(Document.tax_return_id == str(tax_return.id)))
+    documents = list(d_res.scalars().all())
+    return rules_data_service.evaluate_receipts(tax_return, profile, documents)
+
+
+@router.post(
+    "/tax-returns/{tax_return_id}/submit-canton",
+    summary="Transmit or finalize eCH-0119 dossier through modular per-canton adapter (Addendum 1 Section 2)",
+)
+async def submit_to_canton_adapter(
+    tax_return_id: str,
+    payload: dict = Body(default={}),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Dispatch validated eCH-0119 XML + PDF package to the modular canton transmission adapter.
+    Enforces data-driven canton availability ('available' vs 'coming_soon') and payment status.
+    """
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    if not rules_data_service.is_canton_available(tax_return.canton_code, tax_return.tax_year):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Dein Kanton kommt bald ({tax_return.canton_code} / {tax_return.tax_year}).",
+        )
+    if tax_return.payment_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bitte schliesse zuerst die Zahlung ab, bevor du einreichst.",
+        )
+
+    p_res = await db.execute(select(TaxProfile).where(TaxProfile.tax_return_id == str(tax_return.id)))
+    profile = p_res.scalar_one_or_none()
+    c_res = await db.execute(
+        select(TaxCalculation)
+        .where(TaxCalculation.tax_return_id == str(tax_return.id))
+        .order_by(TaxCalculation.calculated_at.desc())
+        .limit(1)
+    )
+    calc = c_res.scalar_one_or_none()
+    if not profile or not calc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Profil oder Steuerberechnung fehlt. Bitte zuerst berechnen.",
+        )
+
+    d_res = await db.execute(select(Document).where(Document.tax_return_id == str(tax_return.id)))
+    documents = list(d_res.scalars().all())
+    tax_return.user = current_user
+
+    xml_str = generate_ech_xml(tax_return, profile, calc, attachments=documents)
+    pdf_bytes = generate_tax_return_pdf(tax_return, profile, calc)
+    attachments_meta = [
+        {"id": str(d.id), "filename": d.original_filename, "document_type": d.document_type}
+        for d in documents
+    ]
+
+    adapter = get_transmission_adapter(tax_return.canton_code, tax_return.tax_year)
+    try:
+        tx_res = await adapter.prepare_or_transmit(
+            tax_return=tax_return,
+            xml_str=xml_str,
+            pdf_bytes=pdf_bytes,
+            attachments=attachments_meta,
+            access_code=(payload or {}).get("access_code"),
+        )
+    except CantonNotAvailableError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    if tx_res.accepted:
+        tax_return.status = "submitted"
+        tax_return.updated_at = datetime.now(timezone.utc)
+        audit = AuditLog(
+            user_id=str(current_user.id),
+            action="canton_transmission_prepared",
+            resource_type="tax_return",
+            resource_id=str(tax_return.id),
+            extra_data=(
+                f'{{"canton": "{tx_res.canton_code}", "channel": "{tx_res.channel}", '
+                f'"transmission_id": "{tx_res.transmission_id or ""}"}}'
+            ),
+        )
+        db.add(audit)
+        await db.commit()
+
+    return {
+        "accepted": tx_res.accepted,
+        "canton_code": tx_res.canton_code,
+        "tax_year": tx_res.tax_year,
+        "channel": tx_res.channel,
+        "status": tx_res.status,
+        "transmission_id": tx_res.transmission_id,
+        "message": tx_res.message,
+        "metadata": tx_res.metadata,
     }
 
 

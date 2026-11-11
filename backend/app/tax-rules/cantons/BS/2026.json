@@ -6,26 +6,96 @@
   "source": "https://www.steuerverwaltung.bs.ch/",
   "notes": "IMPORTANT: 2026 values carried forward from 2025. Update when official Basel-Stadt 2026 rates are published.",
   "municipality_multipliers": {
-    "2701": {"name": "Basel",         "multiplier": 100},
-    "2702": {"name": "Bettingen",     "multiplier": 100},
-    "2703": {"name": "Riehen",        "multiplier": 100}
+    "2701": {
+      "name": "Basel",
+      "multiplier": 100
+    },
+    "2702": {
+      "name": "Bettingen",
+      "multiplier": 100
+    },
+    "2703": {
+      "name": "Riehen",
+      "multiplier": 100
+    }
   },
   "income_tax_brackets_canton": [
-    {"from": 0,      "to": 13600,  "rate": 0.0000, "base_tax": 0.00},
-    {"from": 13600,  "to": 24200,  "rate": 0.0490, "base_tax": 0.00},
-    {"from": 24200,  "to": 38000,  "rate": 0.0710, "base_tax": 519.40},
-    {"from": 38000,  "to": 56200,  "rate": 0.0900, "base_tax": 1499.20},
-    {"from": 56200,  "to": 79900,  "rate": 0.1060, "base_tax": 3137.20},
-    {"from": 79900,  "to": 111300, "rate": 0.1200, "base_tax": 5649.40},
-    {"from": 111300, "to": 147100, "rate": 0.1310, "base_tax": 9417.40},
-    {"from": 147100, "to": 214400, "rate": 0.1460, "base_tax": 14105.20},
-    {"from": 214400, "to": null,   "rate": 0.1570, "base_tax": 23929.40}
+    {
+      "from": 0,
+      "to": 13600,
+      "rate": 0.0,
+      "base_tax": 0.0
+    },
+    {
+      "from": 13600,
+      "to": 24200,
+      "rate": 0.049,
+      "base_tax": 0.0
+    },
+    {
+      "from": 24200,
+      "to": 38000,
+      "rate": 0.071,
+      "base_tax": 519.4
+    },
+    {
+      "from": 38000,
+      "to": 56200,
+      "rate": 0.09,
+      "base_tax": 1499.2
+    },
+    {
+      "from": 56200,
+      "to": 79900,
+      "rate": 0.106,
+      "base_tax": 3137.2
+    },
+    {
+      "from": 79900,
+      "to": 111300,
+      "rate": 0.12,
+      "base_tax": 5649.4
+    },
+    {
+      "from": 111300,
+      "to": 147100,
+      "rate": 0.131,
+      "base_tax": 9417.4
+    },
+    {
+      "from": 147100,
+      "to": 214400,
+      "rate": 0.146,
+      "base_tax": 14105.2
+    },
+    {
+      "from": 214400,
+      "to": null,
+      "rate": 0.157,
+      "base_tax": 23929.4
+    }
   ],
   "wealth_tax_brackets": [
-    {"from": 0,       "to": 80000,  "rate": 0.00000},
-    {"from": 80000,   "to": 250000, "rate": 0.00060},
-    {"from": 250000,  "to": 1000000,"rate": 0.00075},
-    {"from": 1000000, "to": null,   "rate": 0.00090}
+    {
+      "from": 0,
+      "to": 80000,
+      "rate": 0.0
+    },
+    {
+      "from": 80000,
+      "to": 250000,
+      "rate": 0.0006
+    },
+    {
+      "from": 250000,
+      "to": 1000000,
+      "rate": 0.00075
+    },
+    {
+      "from": 1000000,
+      "to": null,
+      "rate": 0.0009
+    }
   ],
   "wealth_tax_social_deductions": {
     "per_taxpayer": 80000,
@@ -53,10 +123,11 @@
     "childcare_reference": "StG BS § 33",
     "child_deduction_per_child": 10000,
     "child_deduction_reference": "StG BS § 38",
-    "donation_max_pct_of_income": 0.20,
+    "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100,
     "donation_reference": "StG BS § 33",
     "interest_deduction_max": null,
     "interest_deduction_reference": "StG BS § 33"
-  }
+  },
+  "tariff_status": "estimate_only"
 }

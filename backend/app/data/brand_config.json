@@ -1,0 +1,16 @@
+{
+  "brand_name": "SunTax",
+  "brand_short_left": "Sun",
+  "brand_short_right": "Tax",
+  "brand_domain": "suntax.ch",
+  "support_email": "info@suntax.ch",
+  "noreply_email": "noreply@suntax.ch",
+  "logo_path": "/brand-logo.svg",
+  "logo_badge_bg": "#15181D",
+  "primary_color": "#1E7B52",
+  "primary_hover_color": "#16603F",
+  "source_description": "SunTax 1.0",
+  "transaction_prefix": "SUNTAX",
+  "company_legal_name": "SunTax AG (Working Name)",
+  "hosting_country": "CH"
+}

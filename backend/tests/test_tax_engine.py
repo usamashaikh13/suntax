@@ -38,17 +38,15 @@ class TestFederalTaxSingle:
 
     def test_below_threshold(self, zh_rules_2025):
         engine = TaxCalculationEngine(zh_rules_2025)
-        # Below 17,800 CHF = 0 tax
+        # Official ESTV 2025 DBG Art. 36: 0 tax up to 15,200 CHF
         tax = engine._compute_federal_income_tax(Decimal("15000"), marital_status="single")
         assert tax == Decimal("0")
 
     def test_first_bracket(self, zh_rules_2025):
         engine = TaxCalculationEngine(zh_rules_2025)
-        # In first bracket 17,800–31,600 at 0.77%
+        # In first bracket 15,200–33,200 at 0.77%: (25,000 - 15,200) * 0.0077 = 75.46 -> 75.45 (5 Rappen floor)
         tax = engine._compute_federal_income_tax(Decimal("25000"), marital_status="single")
-        assert tax > Decimal("0")
-        # 25000 - 17800 = 7200 * 0.0077 = 55.44
-        assert tax == pytest.approx(float(Decimal("55.44")), rel=0.01)
+        assert tax == Decimal("75.45")
 
     def test_married_different_from_single(self, zh_rules_2025):
         engine = TaxCalculationEngine(zh_rules_2025)
@@ -74,11 +72,11 @@ class TestCantonalTaxZH:
         assert municipal == pytest.approx(float(expected), rel=0.001)
 
     def test_low_tax_municipality(self, zh_rules_2025):
-        """Kilchberg (71) < Zürich (119) for same income."""
+        """Kilchberg (BFS 135, 72%) < Zürich (BFS 261, 119%) for same income."""
         engine = TaxCalculationEngine(zh_rules_2025)
         cantonal = engine._compute_cantonal_income_tax(Decimal("100000"))
         zürich_muni = engine._compute_municipal_tax(cantonal, municipality_code="261")    # 119
-        kilchberg_muni = engine._compute_municipal_tax(cantonal, municipality_code="168") # 71
+        kilchberg_muni = engine._compute_municipal_tax(cantonal, municipality_code="135") # 72
         assert kilchberg_muni < zürich_muni
 
 
@@ -106,9 +104,9 @@ class TestDeductionLimits:
 
     def test_commuting_capped_at_canton_limit(self, zh_rules_2025):
         engine = TaxCalculationEngine(zh_rules_2025)
-        # ZH canton limit is 5000
+        # Official StG ZH § 26 Abs. 1 lit. a commuting cap is 5'200
         capped = engine._apply_commuting_deduction(actual=Decimal("8000"))
-        assert capped == Decimal("5000")
+        assert capped == Decimal("5200")
 
     def test_donation_percentage_cap(self, zh_rules_2025):
         engine = TaxCalculationEngine(zh_rules_2025)

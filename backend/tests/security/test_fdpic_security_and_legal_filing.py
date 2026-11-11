@@ -109,7 +109,7 @@ class TestLegalFilingMechanism:
             tax_year=2025,
         )
         dummy_profile = SimpleNamespace(
-            personal_data={"first_name": "Max", "last_name": "Muster", "ahv_number": "756.1234.5678.90"},
+            personal_data={"first_name": "Max", "last_name": "Muster", "ahv_number": "756.9217.0769.85"},
             income_data={"employment_gross": 66897, "employment_net": 62055},
             wealth_data={"bank_accounts": [{"balance": 1811.28}]},
             deductions_data={"pillar_3a": 7000.0, "donations": 20.70},
@@ -124,6 +124,24 @@ class TestLegalFilingMechanism:
             wealth_tax=0.0,
             total_tax=4779.50,
             rule_version="2025.1",
+            calculation_details={
+                "results": {
+                    "taxable_income": 53200,
+                    "taxable_wealth": 1800,
+                    "federal_income_tax": 180.50,
+                    "cantonal_income_tax": 2100.00,
+                    "municipal_income_tax": 2499.00,
+                    "total_tax": 4779.50,
+                },
+                "canton_deductions_list": [
+                    {"code": "pillar3a", "amount": 7000},
+                    {"code": "donations", "amount": 21},
+                ],
+                "federal_deductions_list": [
+                    {"code": "pillar3a", "amount": 7000},
+                    {"code": "donations", "amount": 21},
+                ],
+            },
         )
 
         xml_output = generate_ech_xml(dummy_return, dummy_profile, dummy_calc)
@@ -141,7 +159,7 @@ class TestLegalFilingMechanism:
             tax_year=2025,
         )
         dummy_profile = SimpleNamespace(
-            personal_data={"first_name": "Max", "last_name": "Muster", "ahv_number": "756.1234.5678.90"},
+            personal_data={"first_name": "Max", "last_name": "Muster", "ahv_number": "756.9217.0769.85"},
             income_data={"employment_gross": 66897, "employment_net": 62055},
             wealth_data={"bank_accounts": [{"balance": 1811.28}]},
             deductions_data={"pillar_3a": 7000.0, "donations": 20.70},

@@ -48,6 +48,8 @@ interface Props {
   onOpenChatWithPrompt?: (prompt: string) => void
 }
 
+import { BRAND } from '@/lib/brand'
+
 export function AiSubmissionGuide({ taxReturnId, onSelectTab, onOpenChatWithPrompt }: Props) {
   const [guide, setGuide] = useState<AiTaxGuideResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -78,7 +80,7 @@ export function AiSubmissionGuide({ taxReturnId, onSelectTab, onOpenChatWithProm
             <RefreshCw className="h-5 w-5" />
           </div>
           <p className="text-sm font-medium text-slate-700">
-            SunTax analysiert dein Steuerprofil und deine Einreichungsbereitschaft...
+            {BRAND.name} analysiert dein Steuerprofil und deine Einreichungsbereitschaft...
           </p>
         </CardContent>
       </Card>

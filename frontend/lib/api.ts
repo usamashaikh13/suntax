@@ -400,9 +400,26 @@ export const taxReturnsApi = {
 
   /**
    * Creates a payment checkout session for the CHF 39 filing fee (TWINT or Card).
+   * Includes automatic fallback to /payment/initiate if /payment/checkout is blocked by browser ad-blockers.
    */
   async createPaymentCheckout(taxReturnId: string, method: string = 'twint'): Promise<any> {
-    const response = await apiClient.post(`/tax-returns/${taxReturnId}/payment/checkout`, { method });
+    try {
+      const response = await apiClient.post(`/tax-returns/${taxReturnId}/payment/checkout`, { method });
+      return response.data;
+    } catch (err: any) {
+      if (!err.response || err.message?.includes('Network Error')) {
+        const fallback = await apiClient.post(`/tax-returns/${taxReturnId}/payment/initiate`, { method });
+        return fallback.data;
+      }
+      throw err;
+    }
+  },
+
+  /**
+   * Simulates provider confirmation strictly in sandbox/dev environments.
+   */
+  async simulateSandboxPayment(taxReturnId: string, method: string = 'twint'): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${taxReturnId}/payment/sandbox-simulate`, { method });
     return response.data;
   },
 
@@ -479,6 +496,24 @@ export const taxReturnsApi = {
     const response = await apiClient.post(`/tax-returns/partner-confirm/${token}`, data);
     return response.data;
   },
+
+  /**
+   * Evaluate required vs keep_only receipts and missing personal details (Addendum 1 Section 4).
+   */
+  async getReceiptCheck(id: string): Promise<any> {
+    const response = await apiClient.get(`/tax-returns/${id}/receipt-check`);
+    return response.data;
+  },
+
+  /**
+   * Transmit / finalize eCH-0119 dossier via modular per-canton adapter (Addendum 1 Section 2).
+   */
+  async submitCanton(id: string, accessCode?: string): Promise<any> {
+    const response = await apiClient.post(`/tax-returns/${id}/submit-canton`, {
+      access_code: accessCode,
+    });
+    return response.data;
+  },
 };
 
 // ─── Cantons API ──────────────────────────────────────────────────────────────
@@ -497,12 +532,44 @@ export const cantonsApi = {
    */
   async lookupPlz(plz: string): Promise<{
     plz: string;
+    canton?: string;
     default_canton: string;
     default_bfs: string;
     default_name: string;
-    municipalities: Array<{ bfs: string; name: string; canton: string }>;
+    availability?: Record<string, string>;
+    municipalities: Array<{ bfs: string; name: string; canton: string; availability?: Record<string, string> }>;
   }> {
     const response = await apiClient.get(`/cantons/plz/${plz}`);
+    return response.data;
+  },
+
+  /**
+   * Gets availability status ('available' vs 'coming_soon') from data config.
+   */
+  async getAvailability(cantonCode: string, taxYear: number = 2025): Promise<{
+    canton_code: string;
+    name: string;
+    tax_year: number;
+    availability: 'available' | 'coming_soon' | string;
+    is_available: boolean;
+    message: string;
+  }> {
+    const response = await apiClient.get(`/cantons/${cantonCode}/availability`, {
+      params: { tax_year: taxYear },
+    });
+    return response.data;
+  },
+
+  /**
+   * Subscribes user email to waitlist for a coming_soon canton.
+   */
+  async joinWaitlist(data: {
+    email: string;
+    canton_code: string;
+    tax_year?: number;
+    postal_code?: string;
+  }): Promise<{ status: string; message: string; canton_code: string }> {
+    const response = await apiClient.post('/waitlist', data);
     return response.data;
   },
 
@@ -759,8 +826,9 @@ export const taxEngineApi = {
   /**
    * Exports the tax return as a PDF.
    */
-  async exportPdf(taxReturnId: string): Promise<Blob> {
+  async exportPdf(taxReturnId: string, lang: 'de' | 'en' = 'de'): Promise<Blob> {
     const response = await apiClient.post(`/tax-returns/${taxReturnId}/export/pdf`, undefined, {
+      params: { lang },
       responseType: 'blob',
     });
     return response.data;
@@ -771,6 +839,17 @@ export const taxEngineApi = {
    */
   async exportXml(taxReturnId: string): Promise<Blob> {
     const response = await apiClient.post(`/tax-returns/${taxReturnId}/export/xml`, undefined, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  /**
+   * Exports the tax return as an official cantonal e-tax dossier ZIP package.
+   */
+  async exportDossier(taxReturnId: string, lang: 'de' | 'en' = 'de'): Promise<Blob> {
+    const response = await apiClient.get(`/tax-returns/${taxReturnId}/export/dossier`, {
+      params: { lang },
       responseType: 'blob',
     });
     return response.data;
@@ -865,6 +944,41 @@ export const aiAssistantApi = {
 // Compatibility facade used by the application pages and feature components.
 // Keep the domain clients above as the single implementation; this object
 // provides the stable `api.<domain>.<method>` contract used by the UI.
+export const configApi = {
+  async getBrand(): Promise<Record<string, any>> {
+    const response = await apiClient.get('/config/brand');
+    return response.data;
+  },
+
+  async getDeTexts(): Promise<Record<string, any>> {
+    const response = await apiClient.get('/i18n/de');
+    return response.data;
+  },
+};
+
+export const rulesApi = {
+  async getCantonsOverview(taxYear: number = 2025): Promise<any> {
+    const response = await apiClient.get('/rules/cantons-overview', {
+      params: { tax_year: taxYear },
+    });
+    return response.data;
+  },
+
+  async getQuestions(taxYear: number = 2025, canton: string = 'ZH'): Promise<any> {
+    const response = await apiClient.get('/rules/questions', {
+      params: { tax_year: taxYear, canton },
+    });
+    return response.data;
+  },
+
+  async getReceipts(taxYear: number = 2025, canton: string = 'ZH'): Promise<any> {
+    const response = await apiClient.get('/rules/receipts', {
+      params: { tax_year: taxYear, canton },
+    });
+    return response.data;
+  },
+};
+
 export const api = {
   auth: authApi,
   taxReturns: taxReturnsApi,
@@ -873,6 +987,8 @@ export const api = {
   taxProfile: taxProfileApi,
   taxEngine: taxEngineApi,
   aiAssistant: aiAssistantApi,
+  config: configApi,
+  rules: rulesApi,
 };
 
 export default apiClient;

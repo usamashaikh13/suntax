@@ -14,6 +14,7 @@ from app.core.security import get_current_user, get_current_admin_user
 from app.models.user import User
 from app.services.deduction_rules_service import deduction_rules_service
 from app.services.question_info_service import question_info_service
+from app.services.rules_data_service import rules_data_service
 
 logger = logging.getLogger(__name__)
 
@@ -96,3 +97,27 @@ async def import_deduction_rules_csv(
         "message": f"Successfully imported {count} deduction rules into the database.",
         "count": count,
     }
+
+
+@router.get(
+    "/rules/questions",
+    summary="Get structured 14-card Step-3 question catalogue (Addendum 1 § 5)",
+)
+async def get_question_catalogue(
+    canton: str = Query("ZH"),
+    tax_year: int = Query(2025),
+) -> Dict[str, Any]:
+    """Return data-driven 14-card German question catalogue with conditions and missing hints."""
+    return rules_data_service.get_question_catalogue(tax_year=tax_year, canton_code=canton)
+
+
+@router.get(
+    "/rules/receipts",
+    summary="Get receipt attachment rules per canton and year (Addendum 1 § 4)",
+)
+async def get_receipt_rules(
+    canton: str = Query("ZH"),
+    tax_year: int = Query(2025),
+) -> Dict[str, Any]:
+    """Return required vs keep_only receipt rules, app annexes, and personal data rules."""
+    return rules_data_service.get_receipt_rules(canton_code=canton, tax_year=tax_year)

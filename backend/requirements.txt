@@ -12,6 +12,7 @@ passlib[bcrypt]==1.7.4
 # capability detection even for short passwords). Keep the supported release.
 bcrypt==4.2.1
 python-multipart==0.0.12
+xmlschema==4.2.0
 celery[redis]==5.4.0
 redis==5.2.0
 boto3==1.35.0

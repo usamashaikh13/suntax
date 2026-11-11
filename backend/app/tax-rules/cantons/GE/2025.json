@@ -1,12 +1,12 @@
 {
   "canton": "GE",
-  "canton_name": "Gen\u00e8ve",
+  "canton_name": "Genève",
   "tax_year": 2025,
   "version": "1.0.0",
   "source": "https://www.estv.admin.ch/estv/de/home/die-estv/steuern-kantone/ge.html",
   "municipality_multipliers": {
     "6621": {
-      "name": "Gen\u00e8ve",
+      "name": "Genève",
       "multiplier": 45
     },
     "6643": {
@@ -100,5 +100,6 @@
     "child_deduction_per_child": 9000,
     "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100
-  }
+  },
+  "tariff_status": "estimate_only"
 }

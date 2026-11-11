@@ -22,12 +22,22 @@ def test_missing_data_never_becomes_deductions_or_account():
     data = generate_tax_return_pdf(tr, profile, calc)
     with fitz.open(stream=data, filetype='pdf') as pdf:
         text = '\n'.join(page.get_text() for page in pdf)
-    assert 'Not provided' in text
+    assert 'Nicht angegeben' in text
+    assert 'STEUERERKLÄRUNG ZUSAMMENFASSUNG (ENTWURF)' in text
+    assert '07 Einreichungshinweise' in text
     assert "2'000.00" not in text and "2'600.00" not in text
     assert 'Lohnkonto' not in text and 'Kantonale Steuerverwaltung' not in text
     assert 'CHF 120.00' in text and 'CHF 45.00' in text
     assert 'CHF 20.00' in text and 'CHF 0.00' in text
     assert 'Saved calculation line 34' in text
+
+    en_data = generate_tax_return_pdf(tr, profile, calc, lang='en')
+    with fitz.open(stream=en_data, filetype='pdf') as pdf:
+        en_text = '\n'.join(page.get_text() for page in pdf)
+    assert 'Not provided' in en_text
+    assert 'TAX RETURN SUMMARY (DRAFT)' in en_text
+    assert '07 Filing Information: Self-Declaration (Art. 110 DBG)' in en_text
+    assert 'Nicht angegeben' not in en_text
 
 
 def test_nested_results_and_model_fallback():
@@ -63,14 +73,20 @@ def test_pdf_export_includes_securities_and_cantonal_portal_guide():
             'total_tax': 11055,
         }
     )
-    pdf_bytes = generate_tax_return_pdf(tr, profile, calc)
+    pdf_bytes = generate_tax_return_pdf(tr, profile, calc, lang='de')
     with fitz.open(stream=pdf_bytes, filetype='pdf') as pdf:
         text = '\n'.join(page.get_text() for page in pdf)
-    
+
     assert 'Swiss Market Index ETF' in text or 'CH0012345678' in text
     assert "75'000.00" in text
     assert 'eTax.zh' in text
-    assert 'OFFICIAL TAX SUMMARY' in text
+    assert 'STEUERERKLÄRUNG ZUSAMMENFASSUNG (ENTWURF)' in text
+
+    en_bytes = generate_tax_return_pdf(tr, profile, calc, lang='en')
+    with fitz.open(stream=en_bytes, filetype='pdf') as pdf:
+        en_text = '\n'.join(page.get_text() for page in pdf)
+    assert 'TAX RETURN SUMMARY (DRAFT)' in en_text
+    assert 'Rechtliche Grundlage' not in en_text
 
 
 def test_xml_export_includes_securities():
@@ -78,7 +94,12 @@ def test_xml_export_includes_securities():
     from app.services.xml_export_service import generate_ech_xml
     tr = NS(id='test-xml-return', canton_code='BE', tax_year=2025, municipality_name='Biel/Bienne')
     profile = NS(
-        personal_data={'first_name': 'Anna', 'last_name': 'Schmidt', 'civil_status': 'Single'},
+        personal_data={
+            'first_name': 'Anna',
+            'last_name': 'Schmidt',
+            'civil_status': 'Single',
+            'ahv_number': '756.9217.0769.85',
+        },
         income_data={'employment_income': 80000, 'dividend_income': 2400},
         deductions_data={},
         wealth_data={
@@ -97,6 +118,8 @@ def test_xml_export_includes_securities():
             'cantonal_income_tax': 3500,
             'municipal_income_tax': 5775,
             'total_tax': 10175,
+            'canton_deductions_list': [],
+            'federal_deductions_list': [],
         }
     )
     xml_str = generate_ech_xml(tr, profile, calc)

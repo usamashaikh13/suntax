@@ -15,8 +15,7 @@ async def test_cannot_access_other_users_tax_return(auth_client: AsyncClient, au
         "municipality_name": "Zug",
         "tax_year": 2025,
     })
-    if resp.status_code not in (200, 201):
-        pytest.skip("Tax return creation not available")
+    assert resp.status_code in (200, 201), f"Unexpected create return status: {resp.status_code} {resp.text}"
 
     tr_id = resp.json()["id"]
     resp2 = await auth_client2.get(f"/api/v1/tax-returns/{tr_id}")
@@ -31,8 +30,7 @@ async def test_cannot_delete_other_users_tax_return(auth_client: AsyncClient, au
         "municipality_name": "Bern",
         "tax_year": 2025,
     })
-    if resp.status_code not in (200, 201):
-        pytest.skip("Tax return creation not available")
+    assert resp.status_code in (200, 201), f"Unexpected create return status: {resp.status_code} {resp.text}"
 
     tr_id = resp.json()["id"]
     del_resp = await auth_client2.delete(f"/api/v1/tax-returns/{tr_id}")
@@ -41,19 +39,27 @@ async def test_cannot_delete_other_users_tax_return(auth_client: AsyncClient, au
 
 @pytest.mark.asyncio
 async def test_cannot_access_other_users_document(auth_client: AsyncClient, auth_client2):
-    """User 2 cannot download User 1's document."""
-    pdf_bytes = b"%PDF-1.4 fake test pdf content"
-    files = {"file": ("test.pdf", io.BytesIO(pdf_bytes), "application/pdf")}
+    """User 2 cannot read or download User 1's document."""
+    pdf_bytes = (
+        b"%PDF-1.4\n1 0 obj\n<< /Title (Isolation Test PDF) >>\nendobj\n"
+        b"trailer\n<< /Root 1 0 R >>\n%%EOF\n"
+    )
+    files = [("files", ("isolation_test.pdf", io.BytesIO(pdf_bytes), "application/pdf"))]
 
     upload_resp = await auth_client.post("/api/v1/documents/upload", files=files)
-    if upload_resp.status_code not in (200, 201):
-        pytest.skip("Document upload not available in test environment")
+    assert upload_resp.status_code in (200, 201, 202), (
+        f"Expected successful upload, got {upload_resp.status_code}: {upload_resp.text}"
+    )
 
-    doc_id = upload_resp.json()["id"]
+    payload = upload_resp.json()
+    doc_id = payload[0]["id"] if isinstance(payload, list) else payload["id"]
 
-    # User 2 cannot access User 1's document
+    # User 2 cannot access User 1's document metadata, download link, or content
     resp2 = await auth_client2.get(f"/api/v1/documents/{doc_id}")
     assert resp2.status_code in (403, 404)
+
+    dl_resp2 = await auth_client2.get(f"/api/v1/documents/{doc_id}/download")
+    assert dl_resp2.status_code in (403, 404)
 
 
 @pytest.mark.asyncio

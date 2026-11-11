@@ -7,11 +7,43 @@ Uses pydantic-settings for validation and type coercion.
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
-from typing import List, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from pydantic import AnyHttpUrl, EmailStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _load_brand_defaults() -> Dict[str, Any]:
+    """Load centralized brand configuration from app/data/brand_config.json."""
+    cfg_path = Path(__file__).resolve().parents[1] / "data" / "brand_config.json"
+    if cfg_path.is_file():
+        try:
+            with open(cfg_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "brand_name": "SunTax",
+        "brand_short_left": "Sun",
+        "brand_short_right": "Tax",
+        "brand_domain": "suntax.ch",
+        "support_email": "info@suntax.ch",
+        "noreply_email": "noreply@suntax.ch",
+        "logo_path": "/brand-logo.svg",
+        "logo_badge_bg": "#15181D",
+        "primary_color": "#1E7B52",
+        "primary_hover_color": "#16603F",
+        "source_description": "SunTax 1.0",
+        "transaction_prefix": "SUNTAX",
+        "company_legal_name": "SunTax AG (Working Name)",
+        "hosting_country": "CH",
+    }
+
+
+_BRAND_DEFAULTS = _load_brand_defaults()
 
 
 class Settings(BaseSettings):
@@ -24,10 +56,57 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    # ── Centralized Brand Configuration (Addendum 1 Section 1) ───────────────
+    BRAND_NAME: str = str(_BRAND_DEFAULTS.get("brand_name", "SunTax"))
+    BRAND_SHORT_LEFT: str = str(_BRAND_DEFAULTS.get("brand_short_left", "Sun"))
+    BRAND_SHORT_RIGHT: str = str(_BRAND_DEFAULTS.get("brand_short_right", "Tax"))
+    BRAND_DOMAIN: str = str(_BRAND_DEFAULTS.get("brand_domain", "suntax.ch"))
+    SUPPORT_EMAIL: str = str(_BRAND_DEFAULTS.get("support_email", "info@suntax.ch"))
+    NOREPLY_EMAIL: str = str(_BRAND_DEFAULTS.get("noreply_email", "noreply@suntax.ch"))
+    BRAND_LOGO_PATH: str = str(_BRAND_DEFAULTS.get("logo_path", "/brand-logo.svg"))
+    BRAND_PRIMARY_COLOR: str = str(_BRAND_DEFAULTS.get("primary_color", "#1E7B52"))
+    SOURCE_DESCRIPTION: str = str(_BRAND_DEFAULTS.get("source_description", "SunTax 1.0"))
+    TRANSACTION_PREFIX: str = str(_BRAND_DEFAULTS.get("transaction_prefix", "SUNTAX"))
+
     # ── Application ──────────────────────────────────────────────────────────
-    APP_NAME: str = "SunTax"
+    APP_NAME: str = str(_BRAND_DEFAULTS.get("brand_name", "SunTax"))
     ENVIRONMENT: str = "development"  # development | staging | production
     DEBUG: bool = False
+
+    def get_brand_config(self) -> Dict[str, Any]:
+        """Return active brand settings dynamically (reflects any env or runtime override)."""
+        effective_name = self.BRAND_NAME or self.APP_NAME
+        effective_source = self.SOURCE_DESCRIPTION
+        if effective_name != "SunTax" and effective_source == "SunTax 1.0":
+            effective_source = f"{effective_name} 1.0"
+        default_name = _BRAND_DEFAULTS.get("brand_name", "SunTax")
+        left = (
+            self.BRAND_SHORT_LEFT
+            if self.BRAND_SHORT_LEFT != _BRAND_DEFAULTS.get("brand_short_left", "Sun") or effective_name == default_name
+            else effective_name
+        )
+        right = (
+            self.BRAND_SHORT_RIGHT
+            if self.BRAND_SHORT_RIGHT != _BRAND_DEFAULTS.get("brand_short_right", "Tax") or effective_name == default_name
+            else ""
+        )
+        tx_prefix = (
+            self.TRANSACTION_PREFIX
+            if self.TRANSACTION_PREFIX != _BRAND_DEFAULTS.get("transaction_prefix", "SUNTAX") or effective_name == default_name
+            else effective_name.upper().replace(" ", "")[:12]
+        )
+        return {
+            "brand_name": effective_name,
+            "brand_short_left": left,
+            "brand_short_right": right,
+            "brand_domain": self.BRAND_DOMAIN,
+            "support_email": self.SUPPORT_EMAIL,
+            "noreply_email": self.NOREPLY_EMAIL,
+            "logo_path": self.BRAND_LOGO_PATH,
+            "primary_color": self.BRAND_PRIMARY_COLOR,
+            "source_description": effective_source,
+            "transaction_prefix": tx_prefix,
+        }
 
     # ── Database ──────────────────────────────────────────────────────────────
     DATABASE_URL: str = (
@@ -117,7 +196,10 @@ class Settings(BaseSettings):
         return v
 
     # ── Email (Resend & Twilio SendGrid) ──────────────────────────────────────
-    EMAIL_FROM: str = "SunTax <noreply@suntax.ch>"
+    EMAIL_FROM: str = (
+        f"{_BRAND_DEFAULTS.get('brand_name', 'SunTax')} "
+        f"<{_BRAND_DEFAULTS.get('noreply_email', 'noreply@suntax.ch')}>"
+    )
     RESEND_API_KEY: str = "re_your_resend_api_key"
     TWILIO_SENDGRID_API_KEY: Optional[str] = None
 
@@ -131,6 +213,19 @@ class Settings(BaseSettings):
     PAYREXX_API_SECRET: Optional[str] = None     # Payrexx API secret key
     PAYREXX_API_URL: str = "https://api.payrexx.com/v1.0"
     PAYREXX_WEBHOOK_SECRET: Optional[str] = None # Secret used to verify webhook signatures
+
+    # ── Security & 2FA Test Policy ───────────────────────────────────────────
+    # Master bypass codes (123456, 000000) are strictly forbidden in production.
+    # In non-production, they are ONLY permitted if ALLOW_TEST_2FA_BYPASS is explicitly True.
+    ALLOW_TEST_2FA_BYPASS: bool = False
+
+    @field_validator("ALLOW_TEST_2FA_BYPASS", mode="after")
+    @classmethod
+    def enforce_no_2fa_bypass_in_production(cls, v: bool, info) -> bool:
+        env = (info.data.get("ENVIRONMENT") or "").lower()
+        if env in ("production", "prod"):
+            return False
+        return v
 
     # ── Rate limiting ─────────────────────────────────────────────────────────
     RATE_LIMIT_LOGIN: str = "10/minute"

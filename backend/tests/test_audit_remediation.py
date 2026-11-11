@@ -24,15 +24,28 @@ from app.models.user import User
 
 
 @pytest.mark.asyncio
-async def test_m1_01_refresh_token_revocation_and_rotation(client: AsyncClient, test_user: User):
+async def test_m1_01_refresh_token_revocation_and_rotation(
+    client: AsyncClient, db_session: AsyncSession, test_user: User
+):
     """M1-01: Verify active token store, atomic rotation, and replay prevention."""
-    # 1. Login
+    import pyotp
+
+    # 1. Login + complete mandatory 2FA challenge
     login_resp = await client.post(
         "/api/v1/auth/login",
         json={"email": test_user.email, "password": "Test1234!"},
     )
     assert login_resp.status_code == 200
     tokens = login_resp.json()
+    if tokens.get("two_factor_required"):
+        await db_session.refresh(test_user)
+        totp_code = pyotp.TOTP(test_user.totp_secret).now()
+        tfa_resp = await client.post(
+            "/api/v1/auth/login/2fa",
+            json={"temp_token": tokens["temp_token"], "code": totp_code},
+        )
+        assert tfa_resp.status_code == 200
+        tokens = tfa_resp.json()
     refresh_token_1 = tokens["refresh_token"]
 
     # 2. Refresh once -> returns new refresh token, revokes first

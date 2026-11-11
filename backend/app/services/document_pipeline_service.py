@@ -530,6 +530,20 @@ class DocumentPipelineService:
                 wealth["pillar3a_capital"] = float(bal)
                 applied_fields.append("pillar3a_capital")
 
+            ahv_val = get_val("ahv_number")
+            if ahv_val and is_approved("ahv_number") and not personal.get("ahv_number"):
+                personal["ahv_number"] = str(ahv_val).strip()
+                applied_fields.append("ahv_number")
+
+            holder = get_val("account_holder")
+            if holder and is_approved("account_holder") and not personal.get("name"):
+                personal["name"] = str(holder).strip()
+                parts = personal["name"].split(" ", 1)
+                personal["first_name"] = parts[0]
+                if len(parts) > 1:
+                    personal["last_name"] = parts[1]
+                applied_fields.append("account_holder")
+
         # 4. Mortgage
         elif doc_type == "mortgage":
             mortgages = list(liabilities.get("mortgages") or [])

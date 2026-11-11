@@ -1,0 +1,313 @@
+{
+  "schema_version": "1.0.0",
+  "description": "Canton- and year-specific receipt attachment rules, app-generated annexes, and required personal data per SunTax Developer Guide Addendum 1 Section 4.",
+  "default_template": "ZH",
+  "rules": {
+    "ZH": {
+      "2025": {
+        "always_required_receipts": [
+          {
+            "key": "lohn",
+            "doc_types": ["salary_certificate", "lohnausweis"],
+            "condition": "income.net_salary > 0 || income.gross_salary > 0 || income.employment_income > 0",
+            "label": "Lohnausweis Person 1",
+            "requirement": "required",
+            "hint": "Vom Arbeitgeber ausgestellt"
+          },
+          {
+            "key": "lohn2",
+            "doc_types": ["salary_certificate_partner2", "salary_certificate"],
+            "condition": "married && income.employment_income_spouse > 0",
+            "label": "Lohnausweis Person 2",
+            "requirement": "required",
+            "hint": "Falls Person 2 erwerbstätig"
+          },
+          {
+            "key": "securities",
+            "doc_types": ["bank_statement", "securities_statement", "tax_statement"],
+            "condition": "wealth.total_securities_and_bank > 0 || income.securities_income > 0",
+            "label": "E-Steuerauszug oder Bank- und Depotauszüge per 31.12.",
+            "requirement": "required",
+            "hint": "Im E-Banking unter Steuerdokumente"
+          }
+        ],
+        "field_rules": {
+          "neben": {
+            "requirement": "required",
+            "label": "Lohnausweis Nebenerwerb",
+            "form_field": "1.2",
+            "doc_types": ["salary_certificate", "side_income_receipt"]
+          },
+          "ahv": {
+            "requirement": "required",
+            "label": "Rentenbescheinigung AHV/IV",
+            "form_field": "3.1",
+            "doc_types": ["pension_certificate", "ahv_certificate"]
+          },
+          "pens": {
+            "requirement": "required",
+            "label": "Rentenbescheinigung Pensionskasse / Leibrente",
+            "form_field": "3.2",
+            "doc_types": ["pension_certificate"]
+          },
+          "alv": {
+            "requirement": "required",
+            "label": "Bescheinigung der Arbeitslosenkasse",
+            "form_field": "3.3",
+            "doc_types": ["alv_certificate"]
+          },
+          "zulagen": {
+            "requirement": "required",
+            "label": "Bescheinigung Taggelder / Zulagen",
+            "form_field": "3.4",
+            "doc_types": ["allowance_certificate"]
+          },
+          "other": {
+            "requirement": "required",
+            "label": "Beleg zu den weiteren Einkünften",
+            "form_field": "5.4",
+            "doc_types": ["other_income_receipt"]
+          },
+          "korp": {
+            "requirement": "required",
+            "label": "Ertragsaufstellung Anteile",
+            "form_field": "5.3",
+            "doc_types": ["securities_statement"]
+          },
+          "kapAbf": {
+            "requirement": "required",
+            "label": "Bescheinigung Kapitalabfindung",
+            "form_field": "5.5",
+            "doc_types": ["capital_payment_certificate"]
+          },
+          "unterIn": {
+            "requirement": "keep_only",
+            "label": "Zahlungsbelege Unterhalt erhalten",
+            "form_field": "5.1",
+            "doc_types": ["alimony_receipt"]
+          },
+          "kidUnterIn": {
+            "requirement": "keep_only",
+            "label": "Zahlungsbelege Kinderalimente erhalten",
+            "form_field": "5.2",
+            "doc_types": ["alimony_receipt"]
+          },
+          "home": {
+            "requirement": "required",
+            "label": "Hypothekar-Zinsausweis und Belege Unterhalt",
+            "form_field": "6",
+            "doc_types": ["mortgage_statement", "property_maintenance"]
+          },
+          "weekly": {
+            "requirement": "required",
+            "label": "Mietvertrag am Arbeitsort",
+            "form_field": "11.4",
+            "doc_types": ["rental_contract"]
+          },
+          "support": {
+            "requirement": "required",
+            "label": "Zahlungsbelege Unterstützung",
+            "form_field": "24.2",
+            "doc_types": ["support_receipt"]
+          },
+          "kidsOut": {
+            "requirement": "required",
+            "label": "Ausbildungsbestätigung und Kostenbelege",
+            "form_field": "24.1",
+            "doc_types": ["education_certificate"]
+          },
+          "alimony": {
+            "requirement": "required",
+            "label": "Zahlungsbelege Unterhalt bezahlt",
+            "form_field": "13.1",
+            "doc_types": ["alimony_receipt"]
+          },
+          "kidAlimony": {
+            "requirement": "required",
+            "label": "Zahlungsbelege Kinderunterhalt bezahlt",
+            "form_field": "13.2",
+            "doc_types": ["alimony_receipt"]
+          },
+          "p3a": {
+            "requirement": "required",
+            "label": "Bescheinigung Säule 3a",
+            "form_field": "14.1",
+            "doc_types": ["pillar3a", "pillar3a_certificate"]
+          },
+          "p3a2": {
+            "requirement": "required",
+            "label": "Bescheinigung Säule 3a Person 2",
+            "form_field": "14.2",
+            "doc_types": ["pillar3a", "pillar3a_certificate"]
+          },
+          "p3a_catchup": {
+            "requirement": "required",
+            "label": "Bescheinigung Nachträglicher Einkauf Säule 3a",
+            "form_field": "14.1",
+            "doc_types": ["pillar3a", "pillar3a_catchup_certificate"]
+          },
+          "prem": {
+            "requirement": "keep_only",
+            "label": "Prämienübersicht Krankenkasse",
+            "form_field": "15",
+            "doc_types": ["health_insurance", "insurance_certificate"]
+          },
+          "pkBuy": {
+            "requirement": "required",
+            "label": "Bescheinigung Einkauf Pensionskasse",
+            "form_field": "16.1",
+            "doc_types": ["pension_buyin_certificate"]
+          },
+          "wb": {
+            "requirement": "required",
+            "label": "Rechnungen Weiterbildung",
+            "form_field": "16.2",
+            "doc_types": ["education_receipt", "training_invoice"]
+          },
+          "bkEff": {
+            "requirement": "required",
+            "label": "Belege effektive Berufskosten",
+            "form_field": "11.3",
+            "doc_types": ["work_expense_receipt", "commuting"]
+          },
+          "depot": {
+            "requirement": "keep_only",
+            "label": "Bankbeleg Depotgebühren",
+            "form_field": "16.3",
+            "doc_types": ["bank_statement", "depot_fee_receipt"]
+          },
+          "party": {
+            "requirement": "required",
+            "label": "Quittung Parteispende",
+            "form_field": "16.5",
+            "doc_types": ["donation_receipt"]
+          },
+          "sick": {
+            "requirement": "required",
+            "label": "Arztrechnungen und Abrechnung der Krankenkasse",
+            "form_field": "22.1",
+            "doc_types": ["medical_receipt"]
+          },
+          "handicap": {
+            "requirement": "required",
+            "label": "Belege Behinderungskosten",
+            "form_field": "16.4",
+            "doc_types": ["medical_receipt"]
+          },
+          "donate": {
+            "requirement": "required",
+            "label": "Spendenbescheinigungen",
+            "form_field": "22.2",
+            "doc_types": ["donation_receipt", "donation"]
+          },
+          "rentLeist": {
+            "requirement": "required",
+            "label": "Beleg Leibrente",
+            "form_field": "13.3",
+            "doc_types": ["annuity_receipt"]
+          },
+          "care": {
+            "requirement": "required",
+            "label": "Rechnungen Kinderbetreuung",
+            "form_field": "16.6",
+            "doc_types": ["childcare_receipt", "kita_invoice"]
+          },
+          "life": {
+            "requirement": "required",
+            "label": "Steuerbescheinigung der Lebensversicherung",
+            "form_field": "30.3",
+            "doc_types": ["insurance_certificate"]
+          },
+          "korpW": {
+            "requirement": "required",
+            "label": "Bescheinigung Genossenschaftsanteile",
+            "form_field": "30.5",
+            "doc_types": ["securities_statement"]
+          },
+          "otherW": {
+            "requirement": "keep_only",
+            "label": "Beleg zum übrigen Vermögenswert",
+            "form_field": "30.6",
+            "doc_types": ["wealth_receipt"]
+          },
+          "debt": {
+            "requirement": "required",
+            "label": "Saldo- und Zinsausweis",
+            "form_field": "34",
+            "doc_types": ["debt_statement", "mortgage_statement"]
+          },
+          "capital": {
+            "requirement": "required",
+            "label": "Bescheinigung Kapitalbezug",
+            "form_field": "40",
+            "doc_types": ["capital_payment_certificate"]
+          },
+          "giftIn": {
+            "requirement": "keep_only",
+            "label": "Schenkungsvertrag oder Erbteilung",
+            "form_field": "50.1",
+            "doc_types": ["gift_contract"]
+          },
+          "giftOut": {
+            "requirement": "keep_only",
+            "label": "Schenkungsvertrag",
+            "form_field": "50.2",
+            "doc_types": ["gift_contract"]
+          }
+        },
+        "app_generated_annexes": [
+          {
+            "key": "job_expenses_annex",
+            "title": "Formular Berufsauslagen",
+            "condition": "always_if_employed"
+          },
+          {
+            "key": "securities_annex",
+            "title": "Wertschriften- und Guthabenverzeichnis mit Verrechnungsantrag",
+            "condition": "always_or_securities"
+          },
+          {
+            "key": "medical_list_annex",
+            "title": "Aufstellung Krankheits- und Unfallkosten",
+            "condition": "deductions.medical_expenses > 0"
+          },
+          {
+            "key": "work_costs_list_annex",
+            "title": "Aufstellung übrige Berufskosten",
+            "condition": "deductions.professional_expenses > 0"
+          },
+          {
+            "key": "training_list_annex",
+            "title": "Aufstellung Weiterbildungskosten",
+            "condition": "deductions.education_expenses > 0"
+          },
+          {
+            "key": "donations_list_annex",
+            "title": "Aufstellung Spenden",
+            "condition": "deductions.donations > 0"
+          },
+          {
+            "key": "real_estate_annex",
+            "title": "Liegenschaftenverzeichnis",
+            "condition": "wealth.has_home"
+          },
+          {
+            "key": "debt_annex",
+            "title": "Schuldenverzeichnis",
+            "condition": "liabilities.total > 0"
+          }
+        ],
+        "required_personal_data": [
+          {"key": "ahvnr", "label": "AHV-Nummer (756.xxxx.xxxx.xx)", "condition": "always"},
+          {"key": "birth", "label": "Geburtsdatum", "condition": "always"},
+          {"key": "addr", "label": "Adresse am 31.12.", "condition": "always"},
+          {"key": "name2", "label": "Name Person 2", "condition": "married"},
+          {"key": "ahvnr2", "label": "AHV-Nummer Person 2", "condition": "married"},
+          {"key": "birth2", "label": "Geburtsdatum Person 2", "condition": "married"},
+          {"key": "kidName", "label": "Name jedes Kindes", "condition": "children_count > 0"},
+          {"key": "kidBirth", "label": "Geburtsdatum jedes Kindes", "condition": "children_count > 0"}
+        ]
+      }
+    }
+  }
+}

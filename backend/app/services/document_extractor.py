@@ -1245,6 +1245,9 @@ class DocumentExtractor:
         from google import genai
         from google.genai import types
 
+        if not getattr(settings, "ENABLE_EXTERNAL_AI_EXTRACTION", False):
+            raise RuntimeError("External AI extraction is disabled by privacy settings.")
+
         logger.info("Calling Gemini API (%s) for document extraction", settings.GEMINI_MODEL)
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
 

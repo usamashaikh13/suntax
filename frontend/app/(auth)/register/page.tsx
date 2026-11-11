@@ -1,38 +1,40 @@
-'use client'
+'use client';
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { Eye, EyeOff, Loader2, CheckCircle2, ShieldCheck, ArrowRight } from 'lucide-react'
-import { z } from 'zod'
-import { useToast } from '@/components/ui/toast'
-import { api } from '@/lib/api'
+import { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
+import { z } from 'zod';
+import { useToast } from '@/components/ui/toast';
+import { api } from '@/lib/api';
+import { useTranslation } from '@/lib/i18n/LanguageContext';
 
-// Milestone 2 Part B1: Strict password rules & un-ticked AGB/Datenschutz
 const registerSchema = z.object({
   full_name: z.string().min(2, 'Bitte gib deinen Vor- und Nachnamen ein'),
   email: z.string().email('Bitte gib eine gültige E-Mail-Adresse ein'),
-  password: z.string()
+  password: z
+    .string()
     .min(10, 'Mindestens 10 Zeichen erforderlich')
     .regex(/[0-9]/, 'Mindestens eine Zahl erforderlich'),
-  terms_accepted: z.boolean().refine(v => v === true, 'Bitte akzeptiere die AGB und Datenschutzerklärung'),
-})
+  terms_accepted: z.boolean().refine((v) => v === true, 'Bitte akzeptiere die AGB und Datenschutzerklärung'),
+});
 
-type RegisterForm = z.infer<typeof registerSchema>
+type RegisterForm = z.infer<typeof registerSchema>;
 
 function PasswordChecklist({ password }: { password: string }) {
+  const { t } = useTranslation();
   const checks = [
-    { label: 'Mindestens 10 Zeichen', ok: password.length >= 10 },
-    { label: 'Mindestens eine Zahl (0-9)', ok: /[0-9]/.test(password) },
-  ]
+    { label: t('auth.passwordRuleLength'), ok: password.length >= 10 },
+    { label: t('auth.passwordRuleNumber'), ok: /[0-9]/.test(password) },
+  ];
 
-  if (!password) return null
+  if (!password) return null;
 
   return (
     <div className="mt-2 space-y-1">
-      {checks.map(c => (
+      {checks.map((c) => (
         <div
           key={c.label}
           className={`text-xs flex items-center gap-1.5 font-medium ${
@@ -44,14 +46,15 @@ function PasswordChecklist({ password }: { password: string }) {
         </div>
       ))}
     </div>
-  )
+  );
 }
 
 export default function RegisterPage() {
-  const router = useRouter()
-  const { toast } = useToast()
-  const [showPassword, setShowPassword] = useState(false)
-  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
+  const router = useRouter();
+  const { toast } = useToast();
+  const { t, isGerman, dict } = useTranslation();
+  const [showPassword, setShowPassword] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
 
   const {
     register,
@@ -63,10 +66,10 @@ export default function RegisterPage() {
     defaultValues: {
       terms_accepted: false,
     },
-  })
+  });
 
-  const passwordValue = watch('password', '')
-  const termsAccepted = watch('terms_accepted', false)
+  const passwordValue = watch('password', '');
+  const termsAccepted = watch('terms_accepted', false);
 
   const onSubmit = async (data: RegisterForm) => {
     try {
@@ -75,20 +78,20 @@ export default function RegisterPage() {
         password: data.password,
         full_name: data.full_name,
         terms_accepted: data.terms_accepted,
-      })
-      setRegisteredEmail(data.email)
+      });
+      setRegisteredEmail(data.email);
       toast({
-        title: 'Registrierung erfolgreich',
-        description: 'Wir haben dir einen Bestätigungslink per E-Mail geschickt.',
-      })
+        title: t('common.success'),
+        description: isGerman ? 'Bestätigungslink versendet.' : 'Confirmation link sent.',
+      });
     } catch (error: any) {
       toast({
-        title: 'Registrierung fehlgeschlagen',
-        description: error?.response?.data?.detail || 'Bitte versuche es erneut oder melde dich an.',
+        title: t('common.error'),
+        description: error?.response?.data?.detail || (isGerman ? 'Bitte versuche es erneut oder melde dich an.' : 'Please try again or log in.'),
         variant: 'destructive',
-      })
+      });
     }
-  }
+  };
 
   return (
     <div>
@@ -99,18 +102,27 @@ export default function RegisterPage() {
               <CheckCircle2 className="h-7 w-7" />
             </div>
             <h2 className="text-2xl font-bold text-[#0A0A0A] tracking-tight">
-              E-Mail bestätigen
+              {dict.auth.verifyEmailTitle}
             </h2>
             <p className="text-sm text-[#666666] leading-relaxed max-w-sm mx-auto">
-              Wir haben einen Bestätigungslink an <strong>{registeredEmail}</strong> gesendet.
-              Bitte klicke auf den Link in der E-Mail, um dein Konto zu aktivieren.
+              {isGerman ? (
+                <>
+                  Wir haben einen Bestätigungslink an <strong>{registeredEmail}</strong> gesendet.
+                  Bitte klicke auf den Link in der E-Mail, um dein Konto zu aktivieren.
+                </>
+              ) : (
+                <>
+                  We sent a confirmation link to <strong>{registeredEmail}</strong>.
+                  Please click the link in your email to activate your account.
+                </>
+              )}
             </p>
             <div className="pt-2">
               <Link
                 href="/login"
                 className="inline-flex items-center justify-center min-h-[46px] px-6 rounded-xl bg-[#1E7B52] hover:bg-[#165C3D] text-white font-semibold text-sm transition-colors shadow-sm"
               >
-                Weiter zur Anmeldung
+                {dict.auth.continueToLogin}
               </Link>
             </div>
           </div>
@@ -124,7 +136,7 @@ export default function RegisterPage() {
                 aria-selected={true}
                 className="px-4 py-1.5 rounded-lg text-sm font-semibold text-[#0A0A0A] bg-white shadow-xs"
               >
-                Registrieren
+                {t('auth.tabRegister')}
               </button>
               <Link
                 href="/login"
@@ -132,26 +144,27 @@ export default function RegisterPage() {
                 aria-selected={false}
                 className="px-4 py-1.5 rounded-lg text-sm font-medium text-[#666666] hover:text-[#0A0A0A] transition-colors"
               >
-                Anmelden
+                {t('auth.tabLogin')}
               </Link>
             </div>
 
             <h2 className="mt-7 text-[28px] font-bold text-[#0A0A0A] tracking-tight leading-tight">
-              Konto erstellen
+              {t('auth.createAccount')}
             </h2>
             <p className="mt-1.5 text-[#666666] text-[15px]">
-              Starte deine Steuererklärung – schnell, sicher und präzise.
+              {t('auth.createAccountSub')}
             </p>
 
             <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
-                  Vor- und Nachname
+                <label htmlFor="reg-name" className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
+                  {t('auth.fullNameLabel')}
                 </label>
                 <input
+                  id="reg-name"
                   type="text"
                   autoComplete="name"
-                  placeholder="z. B. Lea Meier"
+                  placeholder={t('auth.fullNamePlaceholder')}
                   {...register('full_name')}
                   className={`w-full h-12 px-4 rounded-xl border bg-white text-[#0A0A0A] text-sm placeholder:text-[#999999] focus:outline-none focus:ring-2 focus:ring-[#1E7B52] focus:border-transparent transition-all ${
                     errors.full_name ? 'border-red-400 focus:ring-red-400' : 'border-[#ECE8DF]'
@@ -163,13 +176,14 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
-                  E-Mail
+                <label htmlFor="reg-email" className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
+                  {t('auth.emailLabel')}
                 </label>
                 <input
+                  id="reg-email"
                   type="email"
                   autoComplete="email"
-                  placeholder="name@beispiel.ch"
+                  placeholder={t('auth.emailPlaceholder')}
                   {...register('email')}
                   className={`w-full h-12 px-4 rounded-xl border bg-white text-[#0A0A0A] text-sm placeholder:text-[#999999] focus:outline-none focus:ring-2 focus:ring-[#1E7B52] focus:border-transparent transition-all ${
                     errors.email ? 'border-red-400 focus:ring-red-400' : 'border-[#ECE8DF]'
@@ -181,14 +195,15 @@ export default function RegisterPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
-                  Passwort
+                <label htmlFor="reg-password" className="block text-xs font-semibold text-[#0A0A0A] mb-1.5">
+                  {t('auth.passwordLabel')}
                 </label>
                 <div className="relative">
                   <input
+                    id="reg-password"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="new-password"
-                    placeholder="Mindestens 10 Zeichen, davon eine Zahl"
+                    placeholder={t('auth.passwordPlaceholder')}
                     {...register('password')}
                     className={`w-full h-12 pl-4 pr-11 rounded-xl border bg-white text-[#0A0A0A] text-sm placeholder:text-[#999999] focus:outline-none focus:ring-2 focus:ring-[#1E7B52] focus:border-transparent transition-all ${
                       errors.password ? 'border-red-400 focus:ring-red-400' : 'border-[#ECE8DF]'
@@ -198,7 +213,7 @@ export default function RegisterPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#777777] hover:text-[#0A0A0A] transition-colors p-1"
-                    aria-label={showPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                    aria-label={showPassword ? (isGerman ? 'Passwort verbergen' : 'Hide password') : (isGerman ? 'Passwort anzeigen' : 'Show password')}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -212,20 +227,20 @@ export default function RegisterPage() {
               <div className="pt-1">
                 <label className="flex gap-2.5 items-start text-xs text-[#444444] cursor-pointer">
                   <input
+                    id="terms_accepted"
                     type="checkbox"
                     {...register('terms_accepted')}
                     className="w-4 h-4 mt-0.5 rounded border-[#ECE8DF] text-[#1E7B52] focus:ring-[#1E7B52] accent-[#1E7B52] shrink-0"
                   />
                   <span className="leading-normal">
-                    Ich akzeptiere die{' '}
+                    {t('auth.termsAgreement')}{' '}
                     <Link href="/terms" className="text-[#1E7B52] font-semibold hover:underline">
-                      AGB
+                      {t('auth.termsLink')}
                     </Link>{' '}
-                    und habe die{' '}
+                    /{' '}
                     <Link href="/privacy" className="text-[#1E7B52] font-semibold hover:underline">
-                      Datenschutzerklärung
-                    </Link>{' '}
-                    gelesen.
+                      {t('auth.privacyLink')}
+                    </Link>
                   </span>
                 </label>
                 {errors.terms_accepted && (
@@ -241,22 +256,22 @@ export default function RegisterPage() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Konto wird erstellt...
+                    {t('common.loading')}
                   </>
                 ) : (
-                  'Konto erstellen'
+                  t('auth.registerButton')
                 )}
               </button>
 
               {!termsAccepted && (
                 <p className="text-center text-xs text-amber-800 font-medium pt-1">
-                  Setz zuerst oben das Häkchen bei den AGB.
+                  {isGerman ? 'Setz zuerst oben das Häkchen bei den AGB.' : 'Please accept the terms and conditions above first.'}
                 </p>
               )}
             </form>
 
             <p className="mt-4 text-[13px] text-[#888888] text-center">
-              Zum Schutz deiner Daten bestätigst du jede Anmeldung mit einem Code.
+              {t('auth.twoFactorNotice')}
             </p>
           </div>
         )}
@@ -264,10 +279,10 @@ export default function RegisterPage() {
 
       {/* Trust Badges Bar */}
       <p className="mt-6 flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-sm text-[#777777]">
-        <span>🔒 Daten in der Schweiz</span>
-        <span>CHF 39 – erst beim Einreichen</span>
-        <span>Alle 26 Kantone</span>
+        <span>🔒 {t('common.dataResidencyShort')}</span>
+        <span>CHF 39 – {t('landing.pricingSubtitle')}</span>
+        <span>{t('common.cantonsCount')}</span>
       </p>
     </div>
-  )
+  );
 }

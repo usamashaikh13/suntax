@@ -6,7 +6,7 @@
   "source": "https://www.estv.admin.ch/estv/de/home/die-estv/steuern-kantone/ju.html",
   "municipality_multipliers": {
     "6711": {
-      "name": "Del\u00e9mont",
+      "name": "Delémont",
       "multiplier": 195
     },
     "6801": {
@@ -100,5 +100,6 @@
     "child_deduction_per_child": 9000,
     "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100
-  }
+  },
+  "tariff_status": "estimate_only"
 }

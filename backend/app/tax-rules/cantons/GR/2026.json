@@ -1,6 +1,6 @@
 {
   "canton": "GR",
-  "canton_name": "Graub\u00fcnden",
+  "canton_name": "Graubünden",
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.estv.admin.ch/estv/de/home/die-estv/steuern-kantone/gr.html",
@@ -100,5 +100,6 @@
     "child_deduction_per_child": 9000,
     "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100
-  }
+  },
+  "tariff_status": "estimate_only"
 }

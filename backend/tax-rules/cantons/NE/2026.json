@@ -1,12 +1,12 @@
 {
   "canton": "NE",
-  "canton_name": "Neuch\u00e2tel",
+  "canton_name": "Neuchâtel",
   "tax_year": 2026,
   "version": "1.0.0",
   "source": "https://www.estv.admin.ch/estv/de/home/die-estv/steuern-kantone/ne.html",
   "municipality_multipliers": {
     "6458": {
-      "name": "Neuch\u00e2tel",
+      "name": "Neuchâtel",
       "multiplier": 70
     },
     "6421": {
@@ -100,5 +100,6 @@
     "child_deduction_per_child": 9000,
     "donation_max_pct_of_income": 0.2,
     "donation_min_chf": 100
-  }
+  },
+  "tariff_status": "estimate_only"
 }

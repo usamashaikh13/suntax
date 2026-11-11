@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 
 # Master KEK source - separated from standard application secrets
 _DEFAULT_KMS_ENV_VAR = "SUNTAX_KMS_MASTER_KEY"
-_FALLBACK_KEY_FILE = "./dev_storage/.kms_master.key"
+_BACKEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_FALLBACK_KEY_FILE = os.path.join(_BACKEND_DIR, "dev_storage", ".kms_master.key")
+if not os.path.exists(_FALLBACK_KEY_FILE):
+    _ROOT_KEY_FILE = os.path.abspath(os.path.join(_BACKEND_DIR, "..", "dev_storage", ".kms_master.key"))
+    if os.path.exists(_ROOT_KEY_FILE):
+        _FALLBACK_KEY_FILE = _ROOT_KEY_FILE
 
 
 class KMSService:

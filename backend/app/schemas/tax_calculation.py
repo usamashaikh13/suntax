@@ -83,12 +83,20 @@ class TaxDeductionsApplied(BaseModel):
     meals: Decimal = Field(Decimal("0"), ge=0, description="Meal expense deduction")
     professional_expenses: Decimal = Field(Decimal("0"), ge=0, description="General professional/work expense deduction")
     pillar3a: Decimal = Field(Decimal("0"), ge=0, description="Pillar 3a contribution deduction")
+    pillar3a_catchup: Decimal = Field(Decimal("0"), ge=0, description="Pillar 3a retroactive catch-up (from 2026)")
+    education: Decimal = Field(Decimal("0"), ge=0, description="Continuing education / retraining deduction")
     health_insurance: Decimal = Field(Decimal("0"), ge=0, description="Health insurance premium deduction")
     medical_expenses: Decimal = Field(Decimal("0"), ge=0, description="Out-of-pocket medical expenses above threshold")
     donations: Decimal = Field(Decimal("0"), ge=0, description="Charitable donation deduction")
     childcare: Optional[Decimal] = Field(None, ge=0, description="Childcare cost deduction (None if no children)")
     child_deduction: Optional[Decimal] = Field(None, ge=0, description="Per-child tax deduction (None if no children)")
     interest_expenses: Decimal = Field(Decimal("0"), ge=0, description="Deductible interest on debts")
+    side_job_expenses: Decimal = Field(Decimal("0"), ge=0, description="Flat-rate or actual side-job expenses")
+    two_earner: Decimal = Field(Decimal("0"), ge=0, description="Two-earner deduction (Zweiverdienerabzug)")
+    married_deduction: Decimal = Field(Decimal("0"), ge=0, description="Married deduction (Federal DBG Art. 33 Abs. 2)")
+    pension_buyin: Decimal = Field(Decimal("0"), ge=0, description="Pillar 2 / occupational pension buy-in")
+    party_donations: Decimal = Field(Decimal("0"), ge=0, description="Political party donations deduction")
+    support_deduction: Decimal = Field(Decimal("0"), ge=0, description="Support deduction (Unterstützungsabzug)")
     other: Decimal = Field(Decimal("0"), ge=0, description="Catch-all for any other applicable deductions")
 
     @property
@@ -99,12 +107,20 @@ class TaxDeductionsApplied(BaseModel):
             self.meals,
             self.professional_expenses,
             self.pillar3a,
+            self.pillar3a_catchup,
+            self.education,
             self.health_insurance,
             self.medical_expenses,
             self.donations,
             self.childcare or Decimal("0"),
             self.child_deduction or Decimal("0"),
             self.interest_expenses,
+            self.side_job_expenses,
+            self.two_earner,
+            self.married_deduction,
+            self.pension_buyin,
+            self.party_donations,
+            self.support_deduction,
             self.other,
         ]
         return sum(parts, Decimal("0"))
@@ -184,6 +200,28 @@ class TaxCalculationResult(BaseModel):
     # Detailed breakdowns
     deductions_applied: TaxDeductionsApplied = Field(..., description="Itemised deduction amounts actually applied")
     breakdown: list[TaxLineItem] = Field(default_factory=list, description="Full line-by-line calculation trace")
+
+    # Addendum 1 § 7: Counterfactual tax savings analysis («So viel sparst du»)
+    savings_analysis: Optional[dict[str, Any]] = Field(
+        None,
+        description="Per-deduction and overall counterfactual tax savings (CHF, rounded to 10)",
+    )
+    canton_has_exact_multipliers: bool = Field(
+        True,
+        description="False when cantonal/municipal multipliers use fallback generic tariffs",
+    )
+    tariff_status: str = Field(
+        "official_verified",
+        description="'official_verified' for verified official tariffs (e.g. ZH 2025/2026) or 'estimate_only'",
+    )
+    is_estimate_only: bool = Field(
+        False,
+        description="True when cantonal/municipal rates are non-binding estimates awaiting official cantonal data",
+    )
+    estimate_warning: Optional[str] = Field(
+        None,
+        description="Human-readable warning shown when calculation uses unverified cantonal estimates",
+    )
 
     @model_validator(mode="after")
     def validate_total_tax(self) -> "TaxCalculationResult":

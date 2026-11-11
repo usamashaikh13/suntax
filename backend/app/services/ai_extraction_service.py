@@ -22,6 +22,8 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 def get_client() -> Optional[genai.Client]:
+    if not getattr(settings, "ENABLE_EXTERNAL_AI_EXTRACTION", False):
+        return None
     if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY in ("your-gemini-api-key", "placeholder"):
         return None
     try:
