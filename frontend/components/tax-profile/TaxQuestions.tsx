@@ -190,7 +190,10 @@ export function TaxQuestions({
     return 3200
   }
 
-  const cardById = (id: string) => catalogueCards.find((c: any) => c.id === id)
+  const cardById = (id: string) =>
+    catalogueCards.find(
+      (c: any) => c.id === id || c.legacy_id === id || (Array.isArray(c.aliases) && c.aliases.includes(id))
+    )
   const cardTitle = (id: string, numPrefix: string, fallbackEn: string, fallbackDe?: string) => {
     const c = cardById(id)
     if (!isGerman) return `${numPrefix} ${fallbackEn}`
@@ -224,7 +227,9 @@ export function TaxQuestions({
   // Validate required active Step-3 questions directly against questions.json missing_hints
   const missingInfo = useMemo(() => {
     const missingHint = (id: string, fallbackDe: string, fallbackEn: string) => {
-      const card = catalogueCards.find((c: any) => c.id === id)
+      const card = catalogueCards.find(
+        (c: any) => c.id === id || c.legacy_id === id || (Array.isArray(c.aliases) && c.aliases.includes(id))
+      )
       return isGerman ? (card?.missing_hint || fallbackDe) : fallbackEn
     }
     if (commuteMode === 'car' && !carReason && (!oevCost || oevCost <= 0)) {

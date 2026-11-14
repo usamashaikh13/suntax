@@ -48,6 +48,7 @@ from app.services.canton_transmission import (
 )
 from app.services.pdf_export_service import generate_tax_return_pdf
 from app.services.rules_data_service import rules_data_service
+from app.services.tax_tips_service import tax_tips_service
 from app.services.xml_export_service import generate_ech_xml
 from app.services.smart_questions_service import (
     generate_smart_questions,
@@ -1447,6 +1448,29 @@ async def check_tax_return_receipts(
     d_res = await db.execute(select(Document).where(Document.tax_return_id == str(tax_return.id)))
     documents = list(d_res.scalars().all())
     return rules_data_service.evaluate_receipts(tax_return, profile, documents)
+
+
+@router.get(
+    "/tax-returns/{tax_return_id}/tax-tips",
+    summary="Get legal tax tips for tax return (Addendum 1 tax_tips_de.json)",
+)
+async def get_tax_tips_for_return(
+    tax_return_id: str,
+    lang: str = Query("de"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
+    p_res = await db.execute(select(TaxProfile).where(TaxProfile.tax_return_id == str(tax_return.id)))
+    profile = p_res.scalar_one_or_none()
+    c_res = await db.execute(select(TaxCalculation).where(TaxCalculation.tax_return_id == str(tax_return.id)))
+    calculation = c_res.scalar_one_or_none()
+    return tax_tips_service.get_tips_for_tax_return(
+        tax_return=tax_return,
+        profile=profile,
+        calculation=calculation,
+        lang=lang,
+    )
 
 
 @router.post(

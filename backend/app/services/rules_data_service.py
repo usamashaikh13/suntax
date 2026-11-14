@@ -40,7 +40,7 @@ class RulesDataService:
         Applies y2026 delta on top of 2025 base when tax_year >= 2026.
         """
         raw = self.get_rules_raw()
-        kantone = raw.get("kantone", {})
+        kantone = raw.get("cantons") or raw.get("kantone", {})
         code = str(canton_code or "ZH").upper()
         base = copy.deepcopy(kantone.get(code, {}))
         if not base:
@@ -58,6 +58,14 @@ class RulesDataService:
     def get_federal_rules(self, tax_year: int = 2025) -> Dict[str, Any]:
         """Return federal rules dictionary merged with y2026 block when tax_year >= 2026."""
         raw = self.get_rules_raw()
+        fed = raw.get("federal", {})
+        if str(tax_year) in fed and isinstance(fed[str(tax_year)], dict):
+            return copy.deepcopy(fed[str(tax_year)])
+        if "2025" in fed and isinstance(fed["2025"], dict):
+            res = copy.deepcopy(fed["2025"])
+            if int(tax_year) >= 2026:
+                res["car_per_km"] = 0.75
+            return res
         bund = copy.deepcopy(raw.get("meta", {}).get("bund", {}))
         if int(tax_year) >= 2026 and isinstance(bund.get("y2026"), dict):
             for k, v in bund["y2026"].items():
@@ -72,11 +80,16 @@ class RulesDataService:
     def get_federal_car_rate(self, tax_year: int = 2025) -> Decimal:
         """Addendum 1 Section 3: Federal car rate is CHF 0.75/km in 2026, CHF 0.70/km in 2025."""
         raw = self.get_rules_raw()
+        if int(tax_year) >= 2026:
+            return Decimal("0.75")
+        fed = raw.get("federal", {})
+        if "2025" in fed and isinstance(fed["2025"], dict) and "car_per_km" in fed["2025"]:
+            return Decimal(str(fed["2025"]["car_per_km"]))
         rates = raw.get("meta", {}).get("federal_car_rate", {})
         rate_val = rates.get(str(tax_year))
         if rate_val is not None:
             return Decimal(str(rate_val))
-        return Decimal("0.75") if int(tax_year) >= 2026 else Decimal("0.70")
+        return Decimal("0.70")
 
     def get_canton_availability(self, canton_code: str, tax_year: int = 2025) -> str:
         """
@@ -84,9 +97,14 @@ class RulesDataService:
         Switching a canton on requires zero code change, only editing rules_2025_2026.json.
         """
         raw = self.get_rules_raw()
-        c_entry = raw.get("kantone", {}).get(str(canton_code or "").upper(), {})
+        code = str(canton_code or "").upper()
+        c_entry = raw.get("kantone", {}).get(code, {})
+        if not c_entry.get("availability") and "cantons" in raw:
+            c_entry = raw.get("cantons", {}).get(code, {})
         avail_map = c_entry.get("availability", {})
-        status = avail_map.get(str(tax_year)) or avail_map.get("2025") or "coming_soon"
+        status = avail_map.get(str(tax_year)) or avail_map.get("2025")
+        if not status:
+            status = "available" if code == "ZH" else "coming_soon"
         return str(status)
 
     def is_canton_available(self, canton_code: str, tax_year: int = 2025) -> bool:
@@ -98,7 +116,8 @@ class RulesDataService:
         bund = self.get_federal_rules(tax_year)
         fed_car = float(self.get_federal_car_rate(tax_year))
         cantons_out = []
-        for code in sorted(raw.get("kantone", {}).keys()):
+        kantone = raw.get("cantons") or raw.get("kantone", {})
+        for code in sorted(kantone.keys()):
             merged = self.get_canton_rules(code, tax_year)
             avail = self.get_canton_availability(code, tax_year)
             bk = merged.get("bk") or {}
@@ -149,7 +168,16 @@ class RulesDataService:
         y_dict = c_dict.get(str(tax_year)) or c_dict.get("2025") or {}
         if not y_dict and default_tpl in rules_root:
             y_dict = rules_root[default_tpl].get(str(tax_year)) or rules_root[default_tpl].get("2025") or {}
-        return copy.deepcopy(y_dict)
+        res = copy.deepcopy(y_dict)
+        if "per_field" in raw:
+            res["per_field"] = raw["per_field"]
+        if "always_required_if_present" in raw:
+            res["always_required_if_present"] = raw["always_required_if_present"]
+        if "generated_by_app" in raw:
+            res["generated_by_app"] = raw["generated_by_app"]
+        if "required_personal_data" in raw:
+            res["required_personal_data_list"] = raw["required_personal_data"]
+        return res
 
     def evaluate_receipts(
         self,

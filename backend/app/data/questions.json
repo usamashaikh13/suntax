@@ -1,39 +1,121 @@
 {
-  "schema_version": "1.0.0",
-  "description": "The 14 Step-3 question cards with German wording, conditions, options, follow-up fields, and missing hints per SunTax Developer Guide Addendum 1 Section 5.",
+  "_note": "Question cards of step 3 (Fragen), in this order. Only questions whose 'when' condition is true are shown. 'Nächste Frage' stays disabled until the card is answered; a hint above the button says what is missing.",
   "cards": [
     {
-      "id": "q01_commute",
+      "id": "commute",
       "order": 1,
       "title": "Wie kommst du zur Arbeit?",
-      "subtitle": "Wähle, was du meistens nutzt.",
+      "subtitle": "Arbeitsort laut Lohnausweis: <Ort> · <km> km einfach",
       "subtitle_with_workplace": "Arbeitsort laut Lohnausweis: {workplace}",
       "condition": "always",
       "deduction_key": "commuting",
       "field_key": "commute_mode",
       "options": [
-        {"value": "pt", "proto_key": "oev", "label": "ÖV", "note": "", "icon": "train"},
-        {"value": "bike", "proto_key": "velo", "label": "Velo", "note": "", "icon": "bike"},
-        {"value": "car", "proto_key": "auto", "label": "Auto", "note": "", "icon": "car"},
-        {"value": "foot", "proto_key": "fuss", "label": "Zu Fuss", "note": "", "icon": "footprints"}
+        {
+          "value": "pt",
+          "proto_key": "oev",
+          "label": "ÖV",
+          "note": "",
+          "icon": "train"
+        },
+        {
+          "value": "bike",
+          "proto_key": "velo",
+          "label": "Velo",
+          "note": "",
+          "icon": "bike"
+        },
+        {
+          "value": "car",
+          "proto_key": "auto",
+          "label": "Auto",
+          "note": "",
+          "icon": "car"
+        },
+        {
+          "value": "foot",
+          "proto_key": "fuss",
+          "label": "Zu Fuss",
+          "note": "",
+          "icon": "footprints"
+        }
       ],
       "chip_title": "Warum brauchst du das Auto? (Pflicht für den Abzug)",
       "chips": [
-        {"value": "noov", "label": "Kein ÖV vorhanden", "condition": "commute_mode == 'car'"},
-        {"value": "time", "label": "Über 1 Std. Zeitersparnis", "condition": "commute_mode == 'car'"},
-        {"value": "shift", "label": "Schicht- oder Nachtarbeit", "condition": "commute_mode == 'car'"},
-        {"value": "health", "label": "Gesundheit (Arztzeugnis)", "condition": "commute_mode == 'car'"}
+        {
+          "value": "noov",
+          "label": "Kein ÖV vorhanden",
+          "condition": "commute_mode == 'car'"
+        },
+        {
+          "value": "time",
+          "label": "Über 1 Std. Zeitersparnis",
+          "condition": "commute_mode == 'car'"
+        },
+        {
+          "value": "shift",
+          "label": "Schicht- oder Nachtarbeit",
+          "condition": "commute_mode == 'car'"
+        },
+        {
+          "value": "health",
+          "label": "Gesundheit (Arztzeugnis)",
+          "condition": "commute_mode == 'car'"
+        }
       ],
       "followup_fields": [
-        {"key": "oev_annual_cost", "label": "Kosten deines Abos pro Jahr", "type": "number", "placeholder": "z. B. 2100", "condition": "commute_mode == 'pt' && !has_doc('abo')"},
-        {"key": "workplace_address", "label": "Arbeitsort (Adresse)", "type": "text", "placeholder": "Strasse, PLZ Ort", "condition": "commute_mode == 'car'"},
-        {"key": "commute_km_per_day", "label": "Arbeitsweg einfach in km", "type": "number", "placeholder": "km", "condition": "commute_mode == 'car'"},
-        {"key": "oev_annual_cost_fallback", "label": "Was würde ein ÖV-Abo kosten?", "type": "number", "placeholder": "z. B. 2100", "condition": "commute_mode == 'car' && !car_reason"}
+        {
+          "key": "oev_annual_cost",
+          "label": "Kosten deines Abos pro Jahr",
+          "type": "number",
+          "placeholder": "z. B. 2100",
+          "condition": "commute_mode == 'pt' && !has_doc('abo')"
+        },
+        {
+          "key": "workplace_address",
+          "label": "Arbeitsort (Adresse)",
+          "type": "text",
+          "placeholder": "Strasse, PLZ Ort",
+          "condition": "commute_mode == 'car'"
+        },
+        {
+          "key": "commute_km_per_day",
+          "label": "Arbeitsweg einfach in km",
+          "type": "number",
+          "placeholder": "km",
+          "condition": "commute_mode == 'car'"
+        },
+        {
+          "key": "oev_annual_cost_fallback",
+          "label": "Was würde ein ÖV-Abo kosten?",
+          "type": "number",
+          "placeholder": "z. B. 2100",
+          "condition": "commute_mode == 'car' && !car_reason"
+        }
       ],
-      "missing_hint": "Bitte wähle eine Antwort aus (oder gib die nötigen Arbeitsweg-Angaben ein)."
+      "missing_hint": "Bitte wähle eine Antwort aus (oder gib die nötigen Arbeitsweg-Angaben ein).",
+      "legacy_id": "q01_commute",
+      "aliases": [
+        "commute",
+        "q01_commute"
+      ],
+      "question": "Wie kommst du zur Arbeit?",
+      "hint": "Arbeitsort laut Lohnausweis: <Ort> · <km> km einfach",
+      "when": "always",
+      "client_answers": [
+        "ÖV",
+        "Velo",
+        "Auto",
+        "Zu Fuss"
+      ],
+      "follow_up": {
+        "ÖV": "field 'Kosten deines Abos pro Jahr' (skip if ÖV receipt uploaded)",
+        "Auto": "fields workplace address (if unknown) + km one way; required reason chips: 'Kein ÖV vorhanden', 'Über 1 Std. Zeitersparnis', 'Schicht- oder Nachtarbeit', 'Gesundheit (Arztzeugnis)'; without a reason: field 'Was würde ein ÖV-Abo kosten?' and only public-transport cost counts"
+      },
+      "result_note": "Abzug Arbeitsweg: Kanton CHF X, Bund CHF Y (max. canton / 3’300)"
     },
     {
-      "id": "q02_homeoffice",
+      "id": "home_office",
       "order": 2,
       "title": "Wie viele Tage pro Woche arbeitest du im Homeoffice?",
       "subtitle": "An diesen Tagen fallen Arbeitsweg und Mittagessen weg.",
@@ -41,18 +123,60 @@
       "deduction_key": "commuting",
       "field_key": "home_office_days_per_week",
       "options": [
-        {"value": 0, "label": "Keinen", "note": ""},
-        {"value": 1, "label": "1", "note": "1 Tag"},
-        {"value": 2, "label": "2", "note": "2 Tage"},
-        {"value": 3, "label": "3", "note": "3 Tage"},
-        {"value": 4, "label": "4", "note": "4 Tage"},
-        {"value": 5, "label": "5", "note": "5 Tage"}
+        {
+          "value": 0,
+          "label": "Keinen",
+          "note": ""
+        },
+        {
+          "value": 1,
+          "label": "1",
+          "note": "1 Tag"
+        },
+        {
+          "value": 2,
+          "label": "2",
+          "note": "2 Tage"
+        },
+        {
+          "value": 3,
+          "label": "3",
+          "note": "3 Tage"
+        },
+        {
+          "value": 4,
+          "label": "4",
+          "note": "4 Tage"
+        },
+        {
+          "value": 5,
+          "label": "5",
+          "note": "5 Tage"
+        }
       ],
       "followup_fields": [],
-      "missing_hint": "Bitte wähle die Anzahl Homeoffice-Tage pro Woche aus."
+      "missing_hint": "Bitte wähle die Anzahl Homeoffice-Tage pro Woche aus.",
+      "legacy_id": "q02_homeoffice",
+      "aliases": [
+        "home_office",
+        "q02_homeoffice"
+      ],
+      "question": "Wie viele Tage pro Woche arbeitest du im Homeoffice?",
+      "hint": "An diesen Tagen fallen Arbeitsweg und Mittagessen weg.",
+      "when": "always",
+      "client_answers": [
+        "Keinen",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+      ],
+      "follow_up": null,
+      "result_note": "Gerechnet werden <workdays> Arbeitstage. (240 × (5 − days) / 5)"
     },
     {
-      "id": "q03_meals",
+      "id": "meals",
       "order": 3,
       "title": "Wo isst du am Mittag?",
       "subtitle": "An Arbeitstagen.",
@@ -60,49 +184,86 @@
       "deduction_key": "meals",
       "field_key": "meal_type",
       "options": [
-        {"value": "out", "label": "Auswärts", "note": "selbst bezahlt"},
-        {"value": "cheap", "label": "Kantine / Lunch-Checks", "note": "vom Arbeitgeber verbilligt"},
-        {"value": "shift", "label": "Schicht- / Nachtarbeit", "note": "mind. 8 Std."},
-        {"value": "none", "label": "Zu Hause", "note": "kein Abzug"}
+        {
+          "value": "out",
+          "label": "Auswärts",
+          "note": "selbst bezahlt"
+        },
+        {
+          "value": "cheap",
+          "label": "Kantine / Lunch-Checks",
+          "note": "vom Arbeitgeber verbilligt"
+        },
+        {
+          "value": "shift",
+          "label": "Schicht- / Nachtarbeit",
+          "note": "mind. 8 Std."
+        },
+        {
+          "value": "none",
+          "label": "Zu Hause",
+          "note": "kein Abzug"
+        }
       ],
       "followup_fields": [],
-      "missing_hint": "Bitte wähle eine Antwort für die Mittagsverpflegung aus."
+      "missing_hint": "Bitte wähle eine Antwort für die Mittagsverpflegung aus.",
+      "legacy_id": "q03_meals",
+      "aliases": [
+        "meals",
+        "q03_meals"
+      ],
+      "question": "Wo isst du am Mittag?",
+      "hint": "An Arbeitstagen.",
+      "when": "always",
+      "client_answers": [
+        "Auswärts (selbst bezahlt)",
+        "Kantine / Lunch-Checks (vom Arbeitgeber verbilligt)",
+        "Schicht- / Nachtarbeit (mind. 8 Std.)",
+        "Zu Hause (kein Abzug)"
+      ],
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q04_unsure_docs",
+      "id": "unclear_receipt",
       "order": 4,
-      "title": "Unklare Belege prüfen (z. B. Weiterbildung)",
-      "subtitle": "Gib kurz an, ob dieser Beleg beruflich veranlasst ist.",
+      "title": "<question generated per unclear document, e.g. 'Ist der Lehrgang für deinen Beruf?'>",
+      "subtitle": "<document title> · <amount>",
       "condition": "has_unsure_docs",
       "deduction_key": "education",
       "field_key": "unsure_docs_resolved",
       "options": [
-        {"value": "yes", "label": "Ja", "note": "für meinen Beruf"},
-        {"value": "no", "label": "Nein", "note": "privat / Hobby"}
+        {
+          "value": "yes",
+          "label": "Ja",
+          "note": "für meinen Beruf"
+        },
+        {
+          "value": "no",
+          "label": "Nein",
+          "note": "privat / Hobby"
+        }
       ],
       "followup_fields": [],
-      "missing_hint": "Bitte kläre die unklaren Belege mit Ja oder Nein."
+      "missing_hint": "Bitte kläre die unklaren Belege mit Ja oder Nein.",
+      "legacy_id": "q04_unsure_docs",
+      "aliases": [
+        "unclear_receipt",
+        "q04_unsure_docs"
+      ],
+      "question": "<question generated per unclear document, e.g. 'Ist der Lehrgang für deinen Beruf?'>",
+      "hint": "<document title> · <amount>",
+      "when": "one card per uploaded document the AI could not classify",
+      "client_answers": [
+        "Ja (für meinen Beruf)",
+        "Nein (privat / Hobby)"
+      ],
+      "follow_up": null,
+      "result_note": "Ja: deducted as training (max. canton cap). Nein: not deductible, receipt not attached."
     },
     {
-      "id": "q05_partner2_works",
+      "id": "commute_partner2",
       "order": 5,
-      "title": "Hat deine Partnerin oder dein Partner gearbeitet?",
-      "subtitle": "Wir haben keinen zweiten Lohnausweis gefunden.",
-      "condition": "married && !has_doc('la2')",
-      "deduction_key": null,
-      "field_key": "spouse_works",
-      "options": [
-        {"value": "yes", "label": "Ja", "note": "Lohnausweis folgt"},
-        {"value": "no", "label": "Nein", "note": "kein Erwerbseinkommen"}
-      ],
-      "followup_fields": [
-        {"key": "employment_income_spouse", "label": "Nettolohn Person 2 (Lohnausweis Ziffer 11)", "type": "number", "placeholder": "CHF", "condition": "spouse_works == 'yes'"}
-      ],
-      "missing_hint": "Bitte gib an, ob Person 2 gearbeitet hat (und falls ja, den Nettolohn)."
-    },
-    {
-      "id": "q06_partner2_commute",
-      "order": 6,
       "title": "Was kostet der Arbeitsweg von Person 2 pro Jahr?",
       "subtitle": "Abo-Kosten pro Jahr, oder beim Velo CHF 700. Verpflegung und übrige Berufskosten rechnen wir automatisch.",
       "condition": "married && spouse_works == 'yes'",
@@ -110,13 +271,75 @@
       "field_key": "commute_spouse",
       "options": [],
       "followup_fields": [
-        {"key": "commute_spouse", "label": "Arbeitsweg Person 2 pro Jahr (CHF)", "type": "number", "placeholder": "0", "optional": true}
+        {
+          "key": "commute_spouse",
+          "label": "Arbeitsweg Person 2 pro Jahr (CHF)",
+          "type": "number",
+          "placeholder": "0",
+          "optional": true
+        }
       ],
       "note_empty": "Kein Arbeitsweg? Einfach leer lassen und weiter.",
-      "missing_hint": ""
+      "missing_hint": "Arbeitsweg Person 2 (darf leer bleiben).",
+      "legacy_id": "q06_partner2_commute",
+      "aliases": [
+        "commute_partner2",
+        "q06_partner2_commute"
+      ],
+      "question": "Was kostet der Arbeitsweg von Person 2 pro Jahr?",
+      "hint": "Abo-Kosten pro Jahr, oder beim Velo CHF 700. Verpflegung und übrige Berufskosten rechnen wir automatisch.",
+      "when": "married AND partner 2 has a salary",
+      "client_answers": "amount field, may stay empty",
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q07_custody",
+      "id": "partner2_works",
+      "order": 6,
+      "title": "Hat deine Partnerin oder dein Partner gearbeitet?",
+      "subtitle": "Wir haben keinen zweiten Lohnausweis gefunden.",
+      "condition": "married && !has_doc('la2')",
+      "deduction_key": null,
+      "field_key": "spouse_works",
+      "options": [
+        {
+          "value": "yes",
+          "label": "Ja",
+          "note": "Lohnausweis folgt"
+        },
+        {
+          "value": "no",
+          "label": "Nein",
+          "note": "kein Erwerbseinkommen"
+        }
+      ],
+      "followup_fields": [
+        {
+          "key": "employment_income_spouse",
+          "label": "Nettolohn Person 2 (Lohnausweis Ziffer 11)",
+          "type": "number",
+          "placeholder": "CHF",
+          "condition": "spouse_works == 'yes'"
+        }
+      ],
+      "missing_hint": "Bitte gib an, ob Person 2 gearbeitet hat (und falls ja, den Nettolohn).",
+      "legacy_id": "q05_partner2_works",
+      "aliases": [
+        "partner2_works",
+        "q05_partner2_works"
+      ],
+      "question": "Hat deine Partnerin oder dein Partner gearbeitet?",
+      "hint": "Wir haben keinen zweiten Lohnausweis gefunden.",
+      "when": "married AND no 2nd salary certificate uploaded",
+      "client_answers": [
+        "Ja (Lohnausweis folgt) -> field net salary partner 2",
+        "Nein (kein Erwerbseinkommen)"
+      ],
+      "follow_up": null,
+      "result_note": null
+    },
+    {
+      "id": "custody",
       "order": 7,
       "title": "Wer hat das Sorgerecht für deine Kinder?",
       "subtitle": "Das bestimmt, wer welchen Kinderabzug bekommt.",
@@ -124,14 +347,36 @@
       "deduction_key": null,
       "field_key": "custody_type",
       "options": [
-        {"value": "sole", "label": "Ich allein", "note": ""},
-        {"value": "joint", "label": "Gemeinsam", "note": "mit dem anderen Elternteil"}
+        {
+          "value": "sole",
+          "label": "Ich allein",
+          "note": ""
+        },
+        {
+          "value": "joint",
+          "label": "Gemeinsam",
+          "note": "mit dem anderen Elternteil"
+        }
       ],
       "followup_fields": [],
-      "missing_hint": "Bitte wähle die Sorgerechtsregelung aus."
+      "missing_hint": "Bitte wähle die Sorgerechtsregelung aus.",
+      "legacy_id": "q07_custody",
+      "aliases": [
+        "custody",
+        "q07_custody"
+      ],
+      "question": "Wer hat das Sorgerecht für deine Kinder?",
+      "hint": "Das bestimmt, wer welchen Kinderabzug bekommt.",
+      "when": "children AND not married",
+      "client_answers": [
+        "Ich allein",
+        "Gemeinsam (mit dem anderen Elternteil)"
+      ],
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q08_child_alimony_in",
+      "id": "alimony_received",
       "order": 8,
       "title": "Bekommst du Unterhalt (Alimente) für die Kinder?",
       "subtitle": "Vom anderen Elternteil. Erhaltene Kinderalimente sind steuerbares Einkommen.",
@@ -139,17 +384,51 @@
       "deduction_key": null,
       "field_key": "alimony_received_flag",
       "options": [
-        {"value": "yes", "label": "Ja", "note": "Betrag eingeben"},
-        {"value": "no", "label": "Nein", "note": ""}
+        {
+          "value": "yes",
+          "label": "Ja",
+          "note": "Betrag eingeben"
+        },
+        {
+          "value": "no",
+          "label": "Nein",
+          "note": ""
+        }
       ],
       "followup_fields": [
-        {"key": "alimony_received", "label": "Erhalten im Jahr (CHF)", "type": "number", "placeholder": "CHF", "condition": "alimony_received_flag == 'yes'"},
-        {"key": "alimony_received_from", "label": "Von wem (Name, Adresse)", "type": "text", "placeholder": "Name, Adresse", "condition": "alimony_received_flag == 'yes'"}
+        {
+          "key": "alimony_received",
+          "label": "Erhalten im Jahr (CHF)",
+          "type": "number",
+          "placeholder": "CHF",
+          "condition": "alimony_received_flag == 'yes'"
+        },
+        {
+          "key": "alimony_received_from",
+          "label": "Von wem (Name, Adresse)",
+          "type": "text",
+          "placeholder": "Name, Adresse",
+          "condition": "alimony_received_flag == 'yes'"
+        }
       ],
-      "missing_hint": "Bitte beantworte die Frage zu Kinderalimenten (und gib bei «Ja» den Betrag ein)."
+      "missing_hint": "Bitte beantworte die Frage zu Kinderalimenten (und gib bei «Ja» den Betrag ein).",
+      "legacy_id": "q08_child_alimony_in",
+      "aliases": [
+        "alimony_received",
+        "q08_child_alimony_in"
+      ],
+      "question": "Bekommst du Unterhalt (Alimente) für die Kinder?",
+      "hint": "Vom anderen Elternteil. Erhaltene Kinderalimente sind steuerbares Einkommen.",
+      "when": "children AND not married",
+      "client_answers": [
+        "Ja -> fields amount + from whom",
+        "Nein"
+      ],
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q09_child_residence",
+      "id": "children_live",
       "order": 9,
       "title": "Wo wohnen die Kinder?",
       "subtitle": "Wochenend- und Ferienbesuche zählen nicht als abwechselnd.",
@@ -157,14 +436,36 @@
       "deduction_key": null,
       "field_key": "child_residence",
       "options": [
-        {"value": "me", "label": "Hauptsächlich bei mir", "note": ""},
-        {"value": "alt", "label": "Abwechselnd", "note": "etwa gleich viel bei beiden"}
+        {
+          "value": "me",
+          "label": "Hauptsächlich bei mir",
+          "note": ""
+        },
+        {
+          "value": "alt",
+          "label": "Abwechselnd",
+          "note": "etwa gleich viel bei beiden"
+        }
       ],
       "followup_fields": [],
-      "missing_hint": "Bitte gib an, wo die Kinder wohnen."
+      "missing_hint": "Bitte gib an, wo die Kinder wohnen.",
+      "legacy_id": "q09_child_residence",
+      "aliases": [
+        "children_live",
+        "q09_child_residence"
+      ],
+      "question": "Wo wohnen die Kinder?",
+      "hint": "Wochenend- und Ferienbesuche zählen nicht als abwechselnd.",
+      "when": "joint custody AND no alimony received",
+      "client_answers": [
+        "Hauptsächlich bei mir",
+        "Abwechselnd (etwa gleich viel bei beiden)"
+      ],
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q10_higher_earner",
+      "id": "higher_income",
       "order": 10,
       "title": "Wer von euch beiden verdient mehr?",
       "subtitle": "Den günstigeren Elterntarif beim Bund bekommt nur ein Elternteil – bei abwechselnder Betreuung der mit dem höheren Einkommen.",
@@ -172,14 +473,36 @@
       "deduction_key": null,
       "field_key": "higher_earner",
       "options": [
-        {"value": "me", "label": "Ich", "note": ""},
-        {"value": "other", "label": "Der andere Elternteil", "note": ""}
+        {
+          "value": "me",
+          "label": "Ich",
+          "note": ""
+        },
+        {
+          "value": "other",
+          "label": "Der andere Elternteil",
+          "note": ""
+        }
       ],
       "followup_fields": [],
-      "missing_hint": "Bitte wähle aus, wer von beiden mehr verdient."
+      "missing_hint": "Bitte wähle aus, wer von beiden mehr verdient.",
+      "legacy_id": "q10_higher_earner",
+      "aliases": [
+        "higher_income",
+        "q10_higher_earner"
+      ],
+      "question": "Wer von euch beiden verdient mehr?",
+      "hint": "Den günstigeren Elterntarif beim Bund bekommt nur ein Elternteil – bei abwechselnder Betreuung der mit dem höheren Einkommen.",
+      "when": "joint custody AND no alimony AND children live alternately",
+      "client_answers": [
+        "Ich",
+        "Der andere Elternteil"
+      ],
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q11_childcare",
+      "id": "childcare",
       "order": 11,
       "title": "Wer betreut deine Kinder unter 14, während du arbeitest?",
       "subtitle": "Kosten für Kita, Hort oder Tagesfamilie sind abziehbar.",
@@ -187,16 +510,44 @@
       "deduction_key": "childcare",
       "field_key": "childcare_type",
       "options": [
-        {"value": "external", "label": "Kita, Hort, Tagesfamilie", "note": "Kosten abziehen"},
-        {"value": "self", "label": "Wir selbst / Familie", "note": "Eigenbetreuungsabzug (falls vom Kanton gewährt)"}
+        {
+          "value": "external",
+          "label": "Kita, Hort, Tagesfamilie",
+          "note": "Kosten abziehen"
+        },
+        {
+          "value": "self",
+          "label": "Wir selbst / Familie",
+          "note": "Eigenbetreuungsabzug (falls vom Kanton gewährt)"
+        }
       ],
       "followup_fields": [
-        {"key": "childcare_costs", "label": "Kosten total pro Jahr (CHF)", "type": "number", "placeholder": "CHF", "condition": "childcare_type == 'external'"}
+        {
+          "key": "childcare_costs",
+          "label": "Kosten total pro Jahr (CHF)",
+          "type": "number",
+          "placeholder": "CHF",
+          "condition": "childcare_type == 'external'"
+        }
       ],
-      "missing_hint": "Bitte wähle die Kinderbetreuung aus (und gib bei externer Betreuung die Kosten ein)."
+      "missing_hint": "Bitte wähle die Kinderbetreuung aus (und gib bei externer Betreuung die Kosten ein).",
+      "legacy_id": "q11_childcare",
+      "aliases": [
+        "childcare",
+        "q11_childcare"
+      ],
+      "question": "Wer betreut deine Kinder unter 14, während du arbeitest?",
+      "hint": "Kosten für Kita, Hort oder Tagesfamilie sind abziehbar.",
+      "when": "children AND no childcare invoice uploaded",
+      "client_answers": [
+        "Kita, Hort, Tagesfamilie -> field total cost per year",
+        "Wir selbst / Familie (Eigenbetreuungsabzug where the canton has one, e.g. ZG)"
+      ],
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q12_pillar3a",
+      "id": "pillar3a",
       "order": 12,
       "title": "Hast du in die Säule 3a einbezahlt?",
       "subtitle": "Wir haben keine Bescheinigung gefunden.",
@@ -204,17 +555,51 @@
       "deduction_key": "pillar3a",
       "field_key": "pillar3a_asked",
       "options": [
-        {"value": "yes", "label": "Ja", "note": "Betrag eingeben"},
-        {"value": "no", "label": "Nein", "note": ""}
+        {
+          "value": "yes",
+          "label": "Ja",
+          "note": "Betrag eingeben"
+        },
+        {
+          "value": "no",
+          "label": "Nein",
+          "note": ""
+        }
       ],
       "followup_fields": [
-        {"key": "pillar3a_contributions", "label": "Einbezahlt im Jahr (CHF)", "type": "number", "placeholder": "max. 7258", "condition": "pillar3a_asked == 'yes'"},
-        {"key": "pillar3a_catchup", "label": "Nachträglicher Einkauf in Säule 3a (Lücken ab 2025, ab Steuerjahr 2026)", "type": "number", "placeholder": "max. 7258", "condition": "pillar3a_asked == 'yes' && tax_year >= 2026"}
+        {
+          "key": "pillar3a_contributions",
+          "label": "Einbezahlt im Jahr (CHF)",
+          "type": "number",
+          "placeholder": "max. 7258",
+          "condition": "pillar3a_asked == 'yes'"
+        },
+        {
+          "key": "pillar3a_catchup",
+          "label": "Nachträglicher Einkauf in Säule 3a (Lücken ab 2025, ab Steuerjahr 2026)",
+          "type": "number",
+          "placeholder": "max. 7258",
+          "condition": "pillar3a_asked == 'yes' && tax_year >= 2026"
+        }
       ],
-      "missing_hint": "Bitte wähle Ja oder Nein (und gib bei Ja den Einzahlungsbetrag ein)."
+      "missing_hint": "Bitte wähle Ja oder Nein (und gib bei Ja den Einzahlungsbetrag ein).",
+      "legacy_id": "q12_pillar3a",
+      "aliases": [
+        "pillar3a",
+        "q12_pillar3a"
+      ],
+      "question": "Hast du in die Säule 3a einbezahlt?",
+      "hint": "Wir haben keine Bescheinigung gefunden.",
+      "when": "no pillar 3a certificate uploaded",
+      "client_answers": [
+        "Ja -> field amount",
+        "Nein"
+      ],
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q13_health_insurance",
+      "id": "health_premiums",
       "order": 13,
       "title": "Wie viel Krankenkassen-Prämien hast du bezahlt?",
       "subtitle": "Steht auf der Jahresübersicht deiner Krankenkasse. Bei Prämienverbilligung den Betrag nach Abzug.",
@@ -223,29 +608,84 @@
       "field_key": "health_insurance_premiums",
       "options": [],
       "followup_fields": [
-        {"key": "health_insurance_premiums", "label": "Bezahlte Prämien total (CHF)", "type": "number", "placeholder": "z. B. 4200"}
+        {
+          "key": "health_insurance_premiums",
+          "label": "Bezahlte Prämien total (CHF)",
+          "type": "number",
+          "placeholder": "z. B. 4200"
+        }
       ],
-      "missing_hint": "Bitte gib deine bezahlten Krankenkassen-Prämien ein (mindestens 0)."
+      "missing_hint": "Bitte gib deine bezahlten Krankenkassen-Prämien ein (mindestens 0).",
+      "legacy_id": "q13_health_insurance",
+      "aliases": [
+        "health_premiums",
+        "q13_health_insurance"
+      ],
+      "question": "Wie viel Krankenkassen-Prämien hast du bezahlt?",
+      "hint": "Steht auf der Jahresübersicht deiner Krankenkasse. Bei Prämienverbilligung den Betrag nach Abzug.",
+      "when": "no premium statement uploaded",
+      "client_answers": "amount field (required)",
+      "follow_up": null,
+      "result_note": null
     },
     {
-      "id": "q14_confession",
+      "id": "church",
       "order": 14,
       "title": "Bist du Mitglied einer Landeskirche?",
-      "subtitle": "Nur für die Kirchensteuer. Ohne Mitgliedschaft fällt sie weg.",
+      "subtitle": "Nur für die Kirchensteuer. Ohne Mitgliedschaft fällt sie weg. (married: + field for partner 2)",
       "subtitle_married": "Nur für die Kirchensteuer. Ohne Mitgliedschaft fällt sie weg. Für Person 2 fragen wir gleich darunter.",
       "condition": "always",
       "deduction_key": null,
       "field_key": "confession",
       "options": [
-        {"value": "ref", "label": "Reformiert", "note": ""},
-        {"value": "kath", "label": "Röm.-katholisch", "note": ""},
-        {"value": "chk", "label": "Christkatholisch", "note": ""},
-        {"value": "none", "label": "Keine / andere", "note": ""}
+        {
+          "value": "ref",
+          "label": "Reformiert",
+          "note": ""
+        },
+        {
+          "value": "kath",
+          "label": "Röm.-katholisch",
+          "note": ""
+        },
+        {
+          "value": "chk",
+          "label": "Christkatholisch",
+          "note": ""
+        },
+        {
+          "value": "none",
+          "label": "Keine / andere",
+          "note": ""
+        }
       ],
       "followup_fields": [
-        {"key": "confession_spouse", "label": "Konfession Person 2", "type": "text", "placeholder": "z. B. keine, reformiert", "condition": "married"}
+        {
+          "key": "confession_spouse",
+          "label": "Konfession Person 2",
+          "type": "text",
+          "placeholder": "z. B. keine, reformiert",
+          "condition": "married"
+        }
       ],
-      "missing_hint": "Bitte wähle deine Konfession aus."
+      "missing_hint": "Bitte wähle deine Konfession aus.",
+      "legacy_id": "q14_confession",
+      "aliases": [
+        "church",
+        "q14_confession"
+      ],
+      "question": "Bist du Mitglied einer Landeskirche?",
+      "hint": "Nur für die Kirchensteuer. Ohne Mitgliedschaft fällt sie weg. (married: + field for partner 2)",
+      "when": "always",
+      "client_answers": [
+        "Reformiert",
+        "Röm.-katholisch",
+        "Christkatholisch",
+        "Keine / andere"
+      ],
+      "follow_up": null,
+      "result_note": null
     }
-  ]
+  ],
+  "schema_version": "1.0.0"
 }

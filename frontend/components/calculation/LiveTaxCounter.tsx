@@ -1,10 +1,12 @@
 'use client'
 
-import React from 'react'
-import { Sparkles, ShieldCheck, HelpCircle } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { Sparkles, ShieldCheck, HelpCircle, AlertCircle } from 'lucide-react'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { api } from '@/lib/api'
 
 interface Props {
+  taxReturnId?: string
   cantonDeductionsTotal?: number | null
   federalDeductionsTotal?: number | null
   grossIncome?: number | null
@@ -25,6 +27,7 @@ interface Props {
 }
 
 export function LiveTaxCounter({
+  taxReturnId,
   cantonDeductionsTotal = 0,
   federalDeductionsTotal = 0,
   grossIncome = 0,
@@ -38,6 +41,23 @@ export function LiveTaxCounter({
   savingsAnalysis = null,
 }: Props) {
   const { isGerman } = useTranslation()
+  const [dynamicTips, setDynamicTips] = useState<any[]>([])
+  const [warnings, setWarnings] = useState<any[]>([])
+
+  useEffect(() => {
+    if (!taxReturnId) return
+    api.taxReturns
+      .getTaxTips(taxReturnId, isGerman ? 'de' : 'en')
+      .then((data: any) => {
+        if (Array.isArray(data?.tips)) {
+          setDynamicTips(data.tips)
+        }
+        if (Array.isArray(data?.warnings)) {
+          setWarnings(data.warnings)
+        }
+      })
+      .catch(() => {})
+  }, [taxReturnId, isGerman])
 
   const dedC = Number(cantonDeductionsTotal || 0)
   const dedF = Number(federalDeductionsTotal || dedC)
@@ -177,33 +197,82 @@ export function LiveTaxCounter({
         )}
       </div>
 
-      {/* ── Tipps für dich Card (Reference) ────────────────────────────────── */}
+      {/* ── Tipps für dich Card (Addendum 1 tax_tips_de.json) ──────────────── */}
       <div className="bg-white rounded-2xl p-5 border border-[#ECE8DF] shadow-xs">
-        <h4 className="font-bold text-xs text-slate-800 mb-2.5">
-          {isGerman ? '💡 Tipps für dich' : '💡 Tips for you'}
-        </h4>
-        <div className="space-y-2 text-xs">
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <b className="block text-[11px] font-bold text-slate-900 mb-0.5">
-              {isGerman ? 'Säule 3a Maximalabzug' : 'Pillar 3a Maximum'}
-            </b>
-            <span className="text-slate-600 text-[11px] leading-tight block">
-              {isGerman
-                ? 'Einzahlungen bis CHF 7’258 (2025/2026) können vollumfänglich von Einkommen abgezogen werden.'
-                : 'Contributions up to CHF 7,258 (2025/2026) can be fully deducted from taxable income.'}
-            </span>
-          </div>
+        <div className="flex items-center justify-between mb-2.5">
+          <h4 className="font-bold text-xs text-slate-800">
+            {isGerman ? '💡 Tipps für dich' : '💡 Tips for you'}
+          </h4>
+          <span className="text-[10px] text-slate-400 font-medium">
+            {isGerman ? 'Rechtliche Steuer-Tipps' : 'Legal Tax Tips'}
+          </span>
+        </div>
 
-          <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-            <b className="block text-[11px] font-bold text-slate-900 mb-0.5">
-              {isGerman ? 'Alles im Blick' : 'Full overview'}
-            </b>
-            <span className="text-slate-600 text-[11px] leading-tight block">
-              {isGerman
-                ? 'Wir prüfen bei jedem Schritt automatisch, ob dir ein kantonaler Abzug entgeht.'
-                : 'We automatically verify at every step whether any deduction is applicable to you.'}
-            </span>
-          </div>
+        <div className="space-y-2 text-xs">
+          {dynamicTips.length > 0 ? (
+            dynamicTips.slice(0, 3).map((tip: any) => (
+              <div
+                key={tip.id}
+                data-testid={`tax-tip-${tip.id}`}
+                className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80 transition-all hover:border-emerald-200"
+              >
+                <div className="flex items-center justify-between gap-1 mb-1">
+                  <b className="text-[11px] font-bold text-slate-900">{tip.title}</b>
+                  {tip.saving_display && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-[#1E7B52] border border-emerald-200 whitespace-nowrap">
+                      {tip.saving_display}
+                    </span>
+                  )}
+                </div>
+                <span className="text-slate-600 text-[11px] leading-tight block">
+                  {tip.text}
+                </span>
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <b className="block text-[11px] font-bold text-slate-900 mb-0.5">
+                  {isGerman ? 'Säule 3a Maximalabzug' : 'Pillar 3a Maximum'}
+                </b>
+                <span className="text-slate-600 text-[11px] leading-tight block">
+                  {isGerman
+                    ? 'Einzahlungen bis CHF 7’258 (2025/2026) können vollumfänglich von Einkommen abgezogen werden.'
+                    : 'Contributions up to CHF 7,258 (2025/2026) can be fully deducted from taxable income.'}
+                </span>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <b className="block text-[11px] font-bold text-slate-900 mb-0.5">
+                  {isGerman ? 'Alles im Blick' : 'Full overview'}
+                </b>
+                <span className="text-slate-600 text-[11px] leading-tight block">
+                  {isGerman
+                    ? 'Wir prüfen bei jedem Schritt automatisch, ob dir ein kantonaler Abzug entgeht.'
+                    : 'We automatically verify at every step whether any deduction is applicable to you.'}
+                </span>
+              </div>
+            </>
+          )}
+
+          {warnings.length > 0 && (
+            <div className="mt-3 pt-2.5 border-t border-slate-100">
+              <div className="flex items-center gap-1 text-[10px] text-amber-700 font-bold mb-1">
+                <AlertCircle className="w-3 h-3 text-amber-600" />
+                <span>{isGerman ? 'Wichtige Hinweise' : 'Important Notices'}</span>
+              </div>
+              <ul className="space-y-1 text-[10px] text-slate-500 leading-snug">
+                {warnings.map((w: any) => (
+                  <li key={w.id} className="flex items-start gap-1">
+                    <span className="text-amber-500 font-bold">•</span>
+                    <span>
+                      <strong className="text-slate-700">{w.title}:</strong> {w.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -861,6 +861,7 @@ export default function TaxReturnDetailPage() {
         {/* ── RIGHT COLUMN: Live Summary Aside & Tips (Flex 1 1 300px) ──────── */}
         <aside className="w-full lg:w-80 flex-shrink-0 lg:sticky lg:top-20 space-y-4">
           <LiveTaxCounter
+            taxReturnId={id}
             cantonDeductionsTotal={
               calculation?.results?.canton_deductions_total ??
               calculation?.canton_deductions_total ??

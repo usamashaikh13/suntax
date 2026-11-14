@@ -506,6 +506,14 @@ export const taxReturnsApi = {
   },
 
   /**
+   * Get legal tax tips for tax return (Addendum 1 tax_tips_de.json).
+   */
+  async getTaxTips(id: string, lang: string = 'de'): Promise<any> {
+    const response = await apiClient.get(`/tax-returns/${id}/tax-tips?lang=${encodeURIComponent(lang)}`);
+    return response.data;
+  },
+
+  /**
    * Transmit / finalize eCH-0119 dossier via modular per-canton adapter (Addendum 1 Section 2).
    */
   async submitCanton(id: string, accessCode?: string): Promise<any> {

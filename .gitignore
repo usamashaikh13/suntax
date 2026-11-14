@@ -40,6 +40,16 @@ yarn-error.log*
 tmp/
 output/
 developer_packet/
+developer_package_unpacked/
+ergaenzung_1_unpacked/
+reference_redesign_unpacked/
+*.legacy*
+backend/seed_demo_user.py
+backend/sync_client_user.py
+frontend/e2e/capture_side_by_side.js
+frontend/e2e/debug_login.js
+frontend/e2e/test_export_flow.js
+frontend/e2e/test_requests.js
 
 # Environment files (never commit secrets)
 .env

@@ -1,0 +1,251 @@
+{
+ "_note": "Legal tax-saving tips for the app sidebar 'Tipps für dich' and for a December reminder e-mail. German texts are final wording for users (simple language, 50+ readable). Values in {} come from rules_2025_2026.json, never hard-code amounts. Only LEGAL tips: every tip is a deduction or option the law allows. Never suggest hiding income or inventing costs.",
+ "display_rules": [
+  "Show max. 3 tips at once in the sidebar, sorted by priority (1 = most important), then by estimated saving.",
+  "Only show a tip if its show_when is true and the user has not already used it.",
+  "If a saving is shown, write 'ca.' or 'bis zu', never a guaranteed amount. Use the existing tax estimate (marginal rate) to calculate it.",
+  "phase 'filing' = during the tax return. phase 'planning' = after submission on the dashboard and in a reminder e-mail in early December (3a, donations, PK buy-in).",
+  "Tips with verify_before_release = true stay hidden until we confirm the legal details (I will send an update)."
+ ],
+ "tips": [
+  {
+   "id": "pillar3a",
+   "phase": "filing + december",
+   "show_when": "no pillar 3a certificate uploaded OR amount < max",
+   "title": "Säule 3a",
+   "text": "Was du bis 31. Dezember einzahlst, kannst du abziehen: mit Pensionskasse bis CHF {max}. Zahl am besten bis ca. 20. Dezember ein, damit das Geld rechtzeitig ankommt.",
+   "app_logic": "Show the remaining room: max minus amount already paid. Without pension fund: 20 % of net self-employed/employment income, max {max_no_pf}.",
+   "priority": 1,
+   "rule_keys": [
+    "federal.pillar3a_with_pf",
+    "federal.pillar3a_without_pf_pct",
+    "federal.pillar3a_without_pf_max"
+   ]
+  },
+  {
+   "id": "pillar3a_late_payment",
+   "phase": "planning",
+   "show_when": "user missed pillar 3a payments in a year from 2025 onwards",
+   "title": "Verpasste 3a-Jahre nachzahlen",
+   "text": "Hast du in einem Jahr ab 2025 nicht den vollen Betrag in die Säule 3a einbezahlt? Neu kannst du das später nachzahlen und abziehen.",
+   "app_logic": "Only show after the legal conditions are confirmed (OPP 3 change; conditions such as full regular contribution in the year of the late payment). Do not compute a saving until verified.",
+   "priority": 3,
+   "verify_before_release": true
+  },
+  {
+   "id": "pillar3a_split",
+   "phase": "planning",
+   "show_when": "pillar 3a balance > 0",
+   "title": "Mehrere 3a-Konten",
+   "text": "Eröffne mehrere 3a-Konten (z. B. 3 bis 5). Bei der Pensionierung kannst du sie in verschiedenen Jahren beziehen. So zahlst du beim Bezug weniger Steuern.",
+   "app_logic": "Planning tip only. No amount shown.",
+   "priority": 4
+  },
+  {
+   "id": "pk_buyin",
+   "phase": "filing + planning",
+   "show_when": "employed with pension fund AND no buy-in entered",
+   "title": "Einkauf in die Pensionskasse",
+   "text": "Freiwillige Einkäufe in die Pensionskasse kannst du voll abziehen. Wie viel möglich ist, steht auf deinem Vorsorgeausweis. Wichtig: Nach einem Einkauf darfst du 3 Jahre lang kein Kapital aus der Pensionskasse beziehen.",
+   "app_logic": "Ask the user to upload the Vorsorgeausweis to read the possible buy-in amount. Tip: spreading a large buy-in over several years usually saves more (progression).",
+   "priority": 2
+  },
+  {
+   "id": "job_costs_effective",
+   "phase": "filing",
+   "show_when": "employed",
+   "title": "Berufskosten: Pauschale oder echte Kosten",
+   "text": "Wir rechnen beides: die Pauschale und deine echten Kosten (mit Belegen). Wir nehmen automatisch das, was für dich besser ist.",
+   "app_logic": "Compute flat rate (canton bk.p / min / max) and effective costs from receipts; use the higher one; tell the user which one was used.",
+   "priority": 2,
+   "rule_keys": [
+    "cantons.<KT>.bk",
+    "federal.other_job_costs_pct"
+   ]
+  },
+  {
+   "id": "commute_car_reason",
+   "phase": "filing",
+   "show_when": "commute == Auto AND no reason chip selected",
+   "title": "Auto ohne Begründung",
+   "text": "Ohne Grund (z. B. kein ÖV, über 1 Stunde Zeitersparnis, Schichtarbeit) zählen meist nur die ÖV-Kosten.",
+   "app_logic": "Existing tip in prototype, keep.",
+   "priority": 1,
+   "rule_keys": [
+    "cantons.<KT>.comm",
+    "federal.commute_max"
+   ]
+  },
+  {
+   "id": "training",
+   "phase": "filing",
+   "show_when": "no training costs entered",
+   "title": "Weiterbildung",
+   "text": "Kurse und Weiterbildungen für deinen Beruf kannst du abziehen, auch Sprachkurse für die Arbeit. Was der Arbeitgeber bezahlt hat, zählt nicht.",
+   "app_logic": "Cap per canton (wb) and federal (training_max).",
+   "priority": 3,
+   "rule_keys": [
+    "cantons.<KT>.wb",
+    "federal.training_max"
+   ]
+  },
+  {
+   "id": "medical",
+   "phase": "filing",
+   "show_when": "medical costs entered OR user has dental/glasses receipts",
+   "title": "Krankheitskosten",
+   "text": "Arzt, Zahnarzt, Brille, Franchise und Selbstbehalt zählen. Abziehbar ist nur, was über 5 % deines Einkommens liegt. Tipp: Grössere Behandlungen (z. B. Zahnarzt) wenn möglich im gleichen Jahr machen, dann kommst du eher über die Grenze.",
+   "app_logic": "Show how far the user is from the threshold: 5 % of net income minus costs entered.",
+   "priority": 3,
+   "rule_keys": [
+    "cantons.<KT>.sick",
+    "federal.medical_threshold_pct"
+   ]
+  },
+  {
+   "id": "donations",
+   "phase": "filing + december",
+   "show_when": "no donations entered",
+   "title": "Spenden",
+   "text": "Spenden an gemeinnützige Organisationen in der Schweiz kannst du abziehen, ab CHF 100 im Jahr. Bewahre die Spendenbestätigung auf.",
+   "app_logic": "Max 20 % of net income (don). Only tax-exempt Swiss organisations.",
+   "priority": 4,
+   "rule_keys": [
+    "cantons.<KT>.don",
+    "federal.donations_min",
+    "federal.donations_max_pct"
+   ]
+  },
+  {
+   "id": "party",
+   "phase": "filing",
+   "show_when": "no party donations entered",
+   "title": "Parteispenden",
+   "text": "Beiträge und Spenden an politische Parteien sind bis zu einem Höchstbetrag abziehbar.",
+   "app_logic": "Cap per canton (party) and federal (party_max).",
+   "priority": 5,
+   "rule_keys": [
+    "cantons.<KT>.party",
+    "federal.party_max"
+   ]
+  },
+  {
+   "id": "childcare",
+   "phase": "filing",
+   "show_when": "children under 14 AND no childcare costs entered",
+   "title": "Kinderbetreuung",
+   "text": "Kita, Hort, Tagesfamilie oder Mittagstisch für Kinder unter 14 kannst du abziehen, wenn du in dieser Zeit arbeitest oder in Ausbildung bist.",
+   "app_logic": "Cap per canton (care) and federal (childcare_max).",
+   "priority": 2,
+   "rule_keys": [
+    "cantons.<KT>.care",
+    "federal.childcare_max"
+   ]
+  },
+  {
+   "id": "alimony_paid",
+   "phase": "filing",
+   "show_when": "user pays alimony",
+   "title": "Bezahlte Alimente",
+   "text": "Unterhalt, den du für Kinder unter 18 oder an den Ex-Partner bezahlst, kannst du abziehen. Halte die Zahlungsbelege bereit.",
+   "app_logic": "Received alimony is taxable for the receiver (existing question).",
+   "priority": 2
+  },
+  {
+   "id": "support",
+   "phase": "filing",
+   "show_when": "user supports a relative in need",
+   "title": "Unterstützung von Angehörigen",
+   "text": "Unterstützt du Eltern oder Geschwister, die das Geld wirklich brauchen? Dafür gibt es einen Abzug. Du brauchst Zahlungsbelege.",
+   "app_logic": "Not for spouse or own minor children. Cap: canton supp / federal support_deduction.",
+   "priority": 4,
+   "rule_keys": [
+    "cantons.<KT>.supp",
+    "federal.support_deduction"
+   ]
+  },
+  {
+   "id": "withholding_tax",
+   "phase": "filing",
+   "show_when": "bank interest or dividends found",
+   "title": "Verrechnungssteuer zurück",
+   "text": "Gib alle Konten und Wertschriften an. Dann bekommst du die 35 % Verrechnungssteuer zurück. Viele vergessen das.",
+   "app_logic": "Existing tip in prototype, keep. Show the CHF amount.",
+   "priority": 1
+  },
+  {
+   "id": "property_maintenance",
+   "phase": "filing",
+   "show_when": "owner-occupied property",
+   "title": "Unterhalt Eigenheim",
+   "text": "Jedes Jahr neu wählen: Pauschale oder echte Unterhaltskosten. Wir rechnen beides und nehmen das Bessere. Energiesparende Massnahmen (z. B. Wärmepumpe, Dämmung) sind ebenfalls abziehbar.",
+   "app_logic": "Flat rate: 10 % of imputed rent if building <= 10 years old, 20 % if older (ZH and federal). Other cantons: check Wegleitung.",
+   "priority": 2,
+   "verify_before_release": true
+  },
+  {
+   "id": "property_planning",
+   "phase": "planning",
+   "show_when": "owner-occupied property",
+   "title": "Grössere Renovation planen",
+   "text": "Bei einer grossen Renovation kann es sich lohnen, die Arbeiten auf zwei Jahre zu verteilen. So sparst du wegen der Progression oft Steuern.",
+   "app_logic": "Planning tip only. No amount shown.",
+   "priority": 5
+  },
+  {
+   "id": "debt_interest",
+   "phase": "filing",
+   "show_when": "mortgage or loan interest entered",
+   "title": "Schuldzinsen",
+   "text": "Hypothekar- und andere Schuldzinsen kannst du abziehen.",
+   "app_logic": "Federal cap: investment income + CHF 50’000 (debt_interest_extra).",
+   "priority": 3,
+   "rule_keys": [
+    "federal.debt_interest_extra"
+   ]
+  },
+  {
+   "id": "two_earner",
+   "phase": "filing",
+   "show_when": "married AND both earn",
+   "title": "Zweiverdienerabzug",
+   "text": "Weil ihr beide arbeitet, ziehen wir ihn automatisch ab.",
+   "app_logic": "Existing tip in prototype, keep.",
+   "priority": 5,
+   "rule_keys": [
+    "cantons.<KT>.zweit",
+    "federal.two_earner_min",
+    "federal.two_earner_max"
+   ]
+  },
+  {
+   "id": "premium_reduction",
+   "phase": "filing",
+   "show_when": "health premiums entered",
+   "title": "Prämienverbilligung",
+   "text": "Bei tieferem Einkommen bezahlt der Kanton einen Teil der Krankenkasse. Prüfe, ob du Anspruch hast. Das ist kein Steuerabzug, kann aber viel Geld sparen.",
+   "app_logic": "Info only. Link to the canton office (ZH: SVA Zürich). No amount shown.",
+   "priority": 5
+  }
+ ],
+ "warnings": [
+  {
+   "id": "home_office_room",
+   "title": "Homeoffice-Zimmer",
+   "text": "Ein Arbeitszimmer zu Hause ist nur abziehbar, wenn dein Arbeitgeber dir keinen Arbeitsplatz gibt.",
+   "app_logic": "Never deduct automatically; ask and require confirmation."
+  },
+  {
+   "id": "no_receipt",
+   "title": "Ohne Beleg kein Abzug",
+   "text": "Bewahre alle Belege auf. Das Steueramt kann sie verlangen.",
+   "app_logic": "Deductions above flat rates need a receipt in the receipts list (see receipts_rules.json)."
+  },
+  {
+   "id": "private_costs",
+   "title": "Private Kosten",
+   "text": "Kleider, Handy-Abo privat, Hobby-Kurse und Geschenke sind nicht abziehbar.",
+   "app_logic": "Classify such receipts as 'not deductible'; do not attach them."
+  }
+ ]
+}
