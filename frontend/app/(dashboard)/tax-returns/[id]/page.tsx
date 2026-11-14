@@ -166,14 +166,22 @@ export default function TaxReturnDetailPage() {
   const [savingStart, setSavingStart] = useState(false)
 
   // Load tax return & profile
-  const loadData = async () => {
+  const loadData = async (isBackgroundPoll = false) => {
     try {
-      const [tr, docs] = await Promise.all([
+      const [trResult, docsResult] = await Promise.allSettled([
         api.taxReturns.get(id),
         api.documents.list(id),
       ])
-      setTaxReturn(tr)
-      setDocuments(docs)
+
+      if (trResult.status === 'fulfilled') {
+        setTaxReturn(trResult.value)
+      } else if (!isBackgroundPoll) {
+        throw trResult.reason
+      }
+
+      if (docsResult.status === 'fulfilled') {
+        setDocuments(docsResult.value)
+      }
 
       try {
         const prof = await api.taxProfile.get(id)
@@ -193,17 +201,21 @@ export default function TaxReturnDetailPage() {
         setCalculation(calc)
       } catch {}
     } catch {
-      toast({
-        title: isGerman ? 'Steuererklärung konnte nicht geladen werden' : 'Could not load tax return',
-        variant: 'destructive',
-      })
+      if (!isBackgroundPoll) {
+        toast({
+          title: isGerman ? 'Steuererklärung konnte nicht geladen werden' : 'Could not load tax return',
+          variant: 'destructive',
+        })
+      }
     } finally {
-      setLoading(false)
+      if (!isBackgroundPoll) {
+        setLoading(false)
+      }
     }
   }
 
   useEffect(() => {
-    loadData()
+    loadData(false)
   }, [id])
 
   // Restore step from URL query or localStorage on initial load
@@ -245,7 +257,7 @@ export default function TaxReturnDetailPage() {
     if (!hasActiveProcessing) return
 
     const timer = setInterval(() => {
-      loadData()
+      loadData(true)
     }, 2500)
 
     return () => clearInterval(timer)

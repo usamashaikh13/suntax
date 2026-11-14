@@ -169,14 +169,17 @@ class OcrService:
     def _detect_and_fix_orientation(self, img: Image.Image, timeout: Optional[float] = None) -> Image.Image:
         """
         Detect and correct 90, 180, or 270 degree rotation using Tesseract OSD.
-        Tesseract OSD reports 'rotate' in clockwise degrees needed to make the image upright.
-        Pillow rotates counter-clockwise for positive angles, so -rot_deg rotates clockwise.
+        Uses a downscaled thumbnail (max 1000px) for ultra-fast angle detection,
+        then applies the rotation to the full-size image.
         """
         try:
             import pytesseract
             config = self._get_tesseract_config()
+            osd_img = img.copy()
+            if max(osd_img.size) > 1000:
+                osd_img.thumbnail((1000, 1000), resample=Image.Resampling.BILINEAR)
             osd = pytesseract.image_to_osd(
-                img,
+                osd_img,
                 config=config,
                 output_type=pytesseract.Output.DICT,
                 timeout=timeout,
@@ -254,17 +257,24 @@ class OcrService:
                 f"Image size ({w}x{h} = {w*h} pixels) exceeds the maximum allowed limit of {settings.OCR_MAX_IMAGE_PIXELS} pixels."
             )
 
-        # 3. Convert to RGB if palette/RGBA
+        # 3. Downscale oversized camera images to optimal OCR resolution (max 2048px)
+        max_dim = 2048
+        if max(w, h) > max_dim:
+            scale = max_dim / float(max(w, h))
+            new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
+            img = img.resize((new_w, new_h), resample=Image.Resampling.LANCZOS)
+
+        # 4. Convert to RGB if palette/RGBA
         if img.mode not in ("L", "RGB"):
             img = img.convert("RGB")
 
-        # 4. Correct 90/180/270 degree rotation if text is inverted or sideways
+        # 5. Correct 90/180/270 degree rotation if text is inverted or sideways
         img = self._detect_and_fix_orientation(img, timeout=timeout)
 
-        # 5. Correct fine tilt/skew
+        # 6. Correct fine tilt/skew
         img = self._deskew_image(img)
 
-        # 6. Enhance contrast for OCR readability
+        # 7. Enhance contrast for OCR readability
         gray = img.convert("L")
         gray = ImageOps.autocontrast(gray, cutoff=2)
         enhancer = ImageEnhance.Contrast(gray)

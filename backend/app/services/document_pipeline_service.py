@@ -46,6 +46,14 @@ storage = StorageService()
 class DocumentPipelineService:
     """Enterprise document processing pipeline ensuring deterministic OCR, safety, and human review."""
 
+    _ocr_semaphore: Optional[asyncio.Semaphore] = None
+
+    @classmethod
+    def _get_semaphore(cls) -> asyncio.Semaphore:
+        if cls._ocr_semaphore is None:
+            cls._ocr_semaphore = asyncio.Semaphore(1)
+        return cls._ocr_semaphore
+
     async def process_document_by_id(self, document_id: str, raise_on_failure: bool = False) -> None:
         """Entrypoint for background tasks and Celery workers creating their own session."""
         async with AsyncSessionLocal() as session:
@@ -107,17 +115,18 @@ class DocumentPipelineService:
             await db.commit()
             raise dl_exc
 
-        # Execute OCR with timeout in a worker thread
+        # Execute OCR with timeout in a worker thread (serialized to protect CPU on cloud containers)
         try:
-            ocr_result = await asyncio.wait_for(
-                asyncio.to_thread(
-                    ocr_service.process_file,
-                    file_bytes=file_bytes,
-                    mime_type=doc.mime_type,
-                    filename=doc.original_filename,
-                ),
-                timeout=float(settings.OCR_TIMEOUT_SECONDS),
-            )
+            async with self._get_semaphore():
+                ocr_result = await asyncio.wait_for(
+                    asyncio.to_thread(
+                        ocr_service.process_file,
+                        file_bytes=file_bytes,
+                        mime_type=doc.mime_type,
+                        filename=doc.original_filename,
+                    ),
+                    timeout=float(settings.OCR_TIMEOUT_SECONDS),
+                )
         except asyncio.TimeoutError:
             logger.error("OCR processing timed out after %ds for document %s", settings.OCR_TIMEOUT_SECONDS, doc.id)
             return await self._mark_failed(
