@@ -16,6 +16,8 @@ def upgrade() -> None:
     id_type = UUID(as_uuid=True) if is_pg else sa.String(36)
     id_default = sa.text("gen_random_uuid()") if is_pg else None
     json_type = JSONB if is_pg else sa.JSON
+    json_obj_default = sa.text("'{}'::jsonb") if is_pg else "{}"
+    json_list_default = sa.text("'[]'::jsonb") if is_pg else "[]"
 
     # ------------------------------------------------------------------
     # users
@@ -62,15 +64,15 @@ def upgrade() -> None:
         "tax_profiles",
         sa.Column("id", id_type, primary_key=True, server_default=id_default),
         sa.Column("tax_return_id", id_type, sa.ForeignKey("tax_returns.id", ondelete="CASCADE"), nullable=False, unique=True),
-        sa.Column("personal_data", json_type, nullable=False, server_default="'{}'"),
-        sa.Column("income", json_type, nullable=False, server_default="'{}'"),
-        sa.Column("wealth", json_type, nullable=False, server_default="'{}'"),
-        sa.Column("deductions", json_type, nullable=False, server_default="'{}'"),
-        sa.Column("liabilities", json_type, nullable=False, server_default="'{}'"),
-        sa.Column("securities", json_type, nullable=False, server_default="'[]'"),
-        sa.Column("real_estate", json_type, nullable=False, server_default="'[]'"),
-        sa.Column("flags", json_type, nullable=False, server_default="'[]'"),
-        sa.Column("questions", json_type, nullable=False, server_default="'[]'"),
+        sa.Column("personal_data", json_type, nullable=False, server_default=json_obj_default),
+        sa.Column("income", json_type, nullable=False, server_default=json_obj_default),
+        sa.Column("wealth", json_type, nullable=False, server_default=json_obj_default),
+        sa.Column("deductions", json_type, nullable=False, server_default=json_obj_default),
+        sa.Column("liabilities", json_type, nullable=False, server_default=json_obj_default),
+        sa.Column("securities", json_type, nullable=False, server_default=json_list_default),
+        sa.Column("real_estate", json_type, nullable=False, server_default=json_list_default),
+        sa.Column("flags", json_type, nullable=False, server_default=json_list_default),
+        sa.Column("questions", json_type, nullable=False, server_default=json_list_default),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.TIMESTAMP(timezone=True), server_default=sa.func.now()),
     )
@@ -89,7 +91,7 @@ def upgrade() -> None:
         sa.Column("file_size_bytes", sa.Integer(), nullable=False),
         sa.Column("document_type", sa.Text(), nullable=True),
         sa.Column("classification_confidence", sa.Float(), nullable=True),
-        sa.Column("processing_status", sa.Text(), nullable=False, server_default="'pending'"),
+        sa.Column("processing_status", sa.Text(), nullable=False, server_default="pending"),
         sa.Column("ocr_text", sa.Text(), nullable=True),
         sa.Column("extracted_data", json_type, nullable=True),
         sa.Column("extraction_confidence", json_type, nullable=True),

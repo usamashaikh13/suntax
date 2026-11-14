@@ -12,6 +12,8 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
+    is_pg = bind.dialect.name == "postgresql"
+    fk_id_type = sa.dialects.postgresql.UUID(as_uuid=True) if is_pg else sa.String(36)
     insp = sa.inspect(bind)
     user_cols = {c["name"] for c in insp.get_columns("users")}
     if "tokens_valid_after" not in user_cols:
@@ -24,7 +26,7 @@ def upgrade() -> None:
             sa.Column("id", sa.String(36), primary_key=True),
             sa.Column("token_hash", sa.String(64), nullable=False, unique=True),
             sa.Column("token_type", sa.String(32), nullable=False),
-            sa.Column("user_id", sa.String(36), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True),
+            sa.Column("user_id", fk_id_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=True),
             sa.Column("payload", sa.Text, nullable=True),
             sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
@@ -47,8 +49,8 @@ def upgrade() -> None:
         op.create_table(
             "ai_chat_messages",
             sa.Column("id", sa.String(36), primary_key=True),
-            sa.Column("user_id", sa.String(36), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-            sa.Column("tax_return_id", sa.String(36), sa.ForeignKey("tax_returns.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("user_id", fk_id_type, sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("tax_return_id", fk_id_type, sa.ForeignKey("tax_returns.id", ondelete="CASCADE"), nullable=False),
             sa.Column("role", sa.String(16), nullable=False),
             sa.Column("content", sa.Text, nullable=False),
             sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
