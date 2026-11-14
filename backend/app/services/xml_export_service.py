@@ -285,13 +285,15 @@ def _parse_religion_code(konf: Any) -> str:
     122 = Christkatholisch
     200 = Keine / Andere
     """
-    s = str(konf or "").lower()
-    if "ref" in s or "evang" in s:
-        return "111"
-    if "röm" in s or "roem" in s or "kath" in s:
-        return "121"
+    s = str(konf or "").strip().lower()
+    if s in ("111", "121", "122", "200"):
+        return s
     if "christ" in s:
         return "122"
+    if "röm" in s or "roem" in s or "kath" in s:
+        return "121"
+    if "ref" in s or "evang" in s:
+        return "111"
     return "200"
 
 
@@ -423,8 +425,10 @@ class Ech0119ExportService:
         inc = getattr(profile, "income_data", {}) or getattr(profile, "income", {}) or {}
         wealth = getattr(profile, "wealth_data", {}) or getattr(profile, "wealth", {}) or {}
         ded = getattr(profile, "deductions_data", {}) or getattr(profile, "deductions", {}) or {}
+        liab = getattr(profile, "liabilities_data", {}) or getattr(profile, "liabilities", {}) or {}
 
         # Calculation results
+        inputs = getattr(calculation, "inputs", {}) or {}
         results = getattr(calculation, "results", {}) or {}
         details = getattr(calculation, "calculation_details", {}) or {}
         if isinstance(details, str):
@@ -897,9 +901,29 @@ class Ech0119ExportService:
         d_tot = _sub(rev_calc, "totalAmountDeduction")
         _pair(d_tot, tot_ded_c, tot_ded_f)
 
-        calc_taxable = _num(getattr(calculation, "taxable_income", None) or details.get("taxable_income") or results.get("taxable_income"))
-        net_c = calc_taxable if calc_taxable > 0 else max(0, tot_rev_c - tot_ded_c)
-        net_f = calc_taxable if calc_taxable > 0 else max(0, tot_rev_f - tot_ded_f)
+        calc_taxable_c = _num(
+            getattr(calculation, "taxable_income", None)
+            or details.get("cantonal_taxable_income")
+            or details.get("taxable_income")
+            or results.get("cantonal_taxable_income")
+            or results.get("taxable_income")
+        )
+        calc_taxable_f = _num(
+            getattr(calculation, "federal_taxable_income", None)
+            or details.get("federal_taxable_income")
+            or results.get("federal_taxable_income")
+        )
+        # Net income (Reineinkommen) is gross revenue minus allowable deductions
+        net_c = calc_taxable_c if calc_taxable_c > 0 else max(0, tot_rev_c - tot_ded_c)
+        if calc_taxable_f > 0:
+            net_f = calc_taxable_f
+        elif tot_ded_f != tot_ded_c or tot_rev_f != tot_rev_c:
+            net_f = max(0, tot_rev_f - tot_ded_f)
+        else:
+            net_f = net_c
+        net_c = max(0, net_c)
+        net_f = max(0, net_f)
+
         net_el = _sub(rev_calc, "netIncome")
         _pair(net_el, net_c, net_f)
 
@@ -919,20 +943,31 @@ class Ech0119ExportService:
             float(s.get("total_value_chf") or s.get("value") or 0) for s in securities_positions_list if isinstance(s, dict)
         )
         gross_wealth_val = _num(calc_wealth_sum or wealth.get("total_wealth") or wealth.get("bank_balance") or 0)
-        taxable_wealth_val = _num(
-            getattr(calculation, "taxable_wealth", None)
-            or details.get("taxable_wealth")
-            or results.get("taxable_wealth")
+
+        # Liabilities / Debts
+        liab_data = liab if isinstance(liab, dict) else (getattr(liab, "__dict__", {}) or {})
+        debts_val = _num(
+            (liab_data.get("total_debt") if isinstance(liab_data, dict) else None)
+            or (liab_data.get("total") if isinstance(liab_data, dict) else None)
+            or (liab_data.get("debt") if isinstance(liab_data, dict) else None)
+            or (wealth.get("debts") if isinstance(wealth, dict) else None)
+            or (wealth.get("total_debts") if isinstance(wealth, dict) else None)
             or 0
         )
+        reinvermoegen = max(0, gross_wealth_val - debts_val)
+
         movable = _sub(asset, "movablePropertySecuritiesAndAssets")
         _sub(movable, "fiscalValue", gross_wealth_val)
 
         tot_assets = _sub(asset, "totalAmountAssets")
         _sub(tot_assets, "fiscalValue", gross_wealth_val)
 
+        if debts_val > 0:
+            tot_liab = _sub(asset, "totalAmountLiabilities")
+            _sub(tot_liab, "fiscalValue", debts_val)
+
         tot_fisc_assets = _sub(asset, "totalAmountFiscalAssets")
-        _sub(tot_fisc_assets, "fiscalValue", taxable_wealth_val)
+        _sub(tot_fisc_assets, "fiscalValue", reinvermoegen)
 
         # ── ANNEX: LIST OF SECURITIES & WITHHOLDING TAX REFUND (eCH-0196) ─────
         if bank_accounts_list or securities_positions_list or sec_income > 0:
@@ -1018,7 +1053,18 @@ class Ech0119ExportService:
             final_ins = _sub(ins_annex, "finalDeduction")
             _pair(final_ins, ins_c, ins_f)
 
-            _sub(ins_annex, "privateHealthInsurance", ins_c)
+            # Never represent a capped deduction as actual premium if unknown (Client Compliance Rule)
+            raw_paid = (
+                ded.get("health_insurance_actual")
+                or ded.get("health_insurance_premium_paid")
+                or ded.get("health_insurance_paid")
+                or (inputs.get("health_insurance_premium_paid") if isinstance(inputs, dict) else None)
+                or (inputs.get("health_insurance_actual") if isinstance(inputs, dict) else None)
+                or getattr(calculation, "health_insurance_premium_paid", None)
+            )
+            if raw_paid is not None and _num(raw_paid) > 0:
+                _sub(ins_annex, "privateHealthInsurance", _num(raw_paid))
+
             _sub(ins_annex, "interestSavings", sec_income)
 
         # Format and output UTF-8 XML string

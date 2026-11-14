@@ -72,39 +72,5 @@ async def _noop_rls(session, user_id):
 
 _db_module.set_rls_user_id = _noop_rls
 
-# ── Patch storage service to use local filesystem instead of MinIO ─────────────
-import app.services.storage_service as _storage_mod
-
-import pathlib, uuid as _uuid
-
-LOCAL_STORAGE = pathlib.Path("./dev_storage")
-LOCAL_STORAGE.mkdir(exist_ok=True)
-
-
-def _local_upload(file_bytes: bytes, key: str, content_type: str = "application/octet-stream") -> str:
-    dest = LOCAL_STORAGE / key.replace("/", "_")
-    dest.write_bytes(file_bytes)
-    return key
-
-
-def _local_presigned(key: str, expires_seconds: int = 600) -> str:
-    return f"http://localhost:8000/dev-storage/{key.replace('/', '_')}"
-
-
-def _local_delete(key: str) -> bool:
-    p = LOCAL_STORAGE / key.replace("/", "_")
-    if p.exists():
-        p.unlink()
-    return True
-
-
-def _local_exists(key: str) -> bool:
-    return (LOCAL_STORAGE / key.replace("/", "_")).exists()
-
-
-_storage_mod.StorageService.upload_file    = staticmethod(_local_upload)
-_storage_mod.StorageService.generate_presigned_url = staticmethod(_local_presigned)
-_storage_mod.StorageService.delete_file   = staticmethod(_local_delete)
-_storage_mod.StorageService.file_exists   = staticmethod(_local_exists)
-
-print("✅ Dev patches applied: SQLite + fakeredis + local file storage")
+# Storage service natively uses _LocalStorageService when ENVIRONMENT=development
+print("✅ Dev patches applied: SQLite + fakeredis (native dev local storage active)")

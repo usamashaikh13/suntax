@@ -221,6 +221,196 @@ def test_ech0119_rejects_malformed_xml():
     assert len(errors) > 0
 
 
+def test_ech0119_health_insurance_never_fabricates_actual_premium_when_unknown():
+    """Verify that when actual paid health insurance premium is unknown, the XML does not fabricate privateHealthInsurance from capped deduction."""
+    tr = MockModel(
+        id="tr-test-hi-unknown",
+        canton_code="ZH",
+        municipality_name="Zürich",
+        municipality_code="261",
+        tax_year=2025,
+    )
+    prof = MockModel(
+        personal_data={"first_name": "Test", "last_name": "Person", "civil_status": "ledig", "ahv_number": "7569217076985"},
+        income_data={"gross_salary": 90000},
+        deductions_data={"insurance_canton": 2900, "insurance_federal": 1800},
+        wealth_data={"total_wealth": 10000},
+    )
+    calc = MockModel(
+        results={"taxable_income": 75000},
+        calculation_details={
+            "cantonal_taxable_income": 75000,
+            "federal_taxable_income": 75000,
+            "canton_deductions_list": [{"code": "health_insurance", "amount": 2900}],
+            "federal_deductions_list": [{"code": "health_insurance", "amount": 1800}],
+        },
+    )
+
+    xml_content = generate_ech_xml(tr, prof, calc)
+    root = ET.fromstring(xml_content)
+    ns = {"e": "http://www.ech.ch/xmlns/eCH-0119/4"}
+
+    # finalDeduction must be present with the statutory caps
+    final_ded_c = root.find(".//e:insurancePremiums//e:finalDeduction/e:cantonalTax", ns).text
+    final_ded_f = root.find(".//e:insurancePremiums//e:finalDeduction/e:federalTax", ns).text
+    assert final_ded_c == "2900"
+    assert final_ded_f == "1800"
+
+    # privateHealthInsurance must NOT be fabricated when actual amount is unknown
+    phi_el = root.find(".//e:insurancePremiums//e:privateHealthInsurance", ns)
+    assert phi_el is None
+
+    # Still validates against official schema
+    is_valid, errors = validate_ech_xml(xml_content)
+    assert is_valid, f"Validation failed: {errors}"
+
+
+def test_ech0119_numeric_religion_code_mapping():
+    """Verify numeric religion codes (111, 121, 122, 200) are mapped correctly and not turned into 200."""
+    from app.services.xml_export_service import _parse_religion_code
+    assert _parse_religion_code("111") == "111"
+    assert _parse_religion_code(111) == "111"
+    assert _parse_religion_code("121") == "121"
+    assert _parse_religion_code("122") == "122"
+    assert _parse_religion_code("200") == "200"
+    assert _parse_religion_code("evangelisch") == "111"
+    assert _parse_religion_code("römisch-katholisch") == "121"
+    assert _parse_religion_code("christkatholisch") == "122"
+    assert _parse_religion_code("keine") == "200"
+
+
+def test_ech0119_cantonal_federal_net_income_divergence():
+    """Verify cantonal and federal net income diverge accurately when deductions differ."""
+    tr = MockModel(
+        id="tr-test-divergence",
+        canton_code="ZH",
+        municipality_name="Winterthur",
+        municipality_code="230",
+        tax_year=2025,
+    )
+    prof = MockModel(
+        personal_data={
+            "first_name": "Lea",
+            "last_name": "Meier",
+            "civil_status": "ledig",
+            "ahv_number": "756.1234.5678.97",
+            "religion": "111",
+        },
+        income_data={"gross_salary": 105000, "securities_income": 40},
+        deductions_data={
+            "commuting_deduction": 2600,
+            "meal_deduction": 3200,
+            "other_job_costs": 3150,
+            "pillar3a_p1": 7258,
+            "insurance_canton": 2900,
+            "insurance_federal": 1800,
+            "health_insurance_actual": 4800,
+        },
+        wealth_data={"total_wealth": 25000},
+        liabilities_data={"total_debt": 0},
+    )
+    calc = MockModel(
+        results={"taxable_income": 85932, "federal_taxable_income": 87032},
+        calculation_details={
+            "cantonal_taxable_income": 85932,
+            "federal_taxable_income": 87032,
+            "canton_deductions_total": 19108,
+            "federal_deductions_total": 18008,
+            "canton_deductions_list": [
+                {"code": "commute_total", "amount": 2600},
+                {"code": "meal_deduction_full", "amount": 3200},
+                {"code": "work_expenses_flat", "amount": 3150},
+                {"code": "pillar3a", "amount": 7258},
+                {"code": "health_insurance", "amount": 2900},
+            ],
+            "federal_deductions_list": [
+                {"code": "commute_total", "amount": 2600},
+                {"code": "meal_deduction_full", "amount": 3200},
+                {"code": "work_expenses_flat", "amount": 3150},
+                {"code": "pillar3a", "amount": 7258},
+                {"code": "health_insurance", "amount": 1800},
+            ],
+        },
+    )
+
+    xml_content = generate_ech_xml(tr, prof, calc)
+    root = ET.fromstring(xml_content)
+    ns = {"e": "http://www.ech.ch/xmlns/eCH-0119/4"}
+
+    # Religion code preserved
+    rel_el = root.find(".//e:personDataPartner1//e:religion", ns)
+    assert rel_el is not None
+    assert rel_el.text == "111"
+
+    # Net income cantonal (85932) vs federal (87032)
+    net_c = root.find(".//e:revenueCalculation//e:netIncome/e:cantonalTax", ns).text
+    net_f = root.find(".//e:revenueCalculation//e:netIncome/e:federalTax", ns).text
+    assert net_c == "85932"
+    assert net_f == "87032"
+
+    # Actual health insurance paid (4800) vs capped deductions (2900 / 1800)
+    phi_el = root.find(".//e:insurancePremiums//e:privateHealthInsurance", ns)
+    assert phi_el is not None
+    assert phi_el.text == "4800"
+
+    final_ded_c = root.find(".//e:insurancePremiums//e:finalDeduction/e:cantonalTax", ns).text
+    final_ded_f = root.find(".//e:insurancePremiums//e:finalDeduction/e:federalTax", ns).text
+    assert final_ded_c == "2900"
+    assert final_ded_f == "1800"
+
+    # Assets & taxable wealth
+    tot_assets = root.find(".//e:asset//e:totalAmountAssets/e:fiscalValue", ns).text
+    tot_fisc_assets = root.find(".//e:asset//e:totalAmountFiscalAssets/e:fiscalValue", ns).text
+    assert tot_assets == "25000"
+    assert tot_fisc_assets == "25000"
+
+    # Validates against official schema
+    is_valid, errors = validate_ech_xml(xml_content)
+    assert is_valid, f"Validation failed: {errors}"
+
+
+def test_ech0119_asset_liabilities_and_net_wealth():
+    """Verify debts are included and reduce totalAmountFiscalAssets (Reinvermögen)."""
+    tr = MockModel(
+        id="tr-test-debt",
+        canton_code="ZH",
+        municipality_name="Zürich",
+        municipality_code="261",
+        tax_year=2025,
+    )
+    prof = MockModel(
+        personal_data={"first_name": "Anna", "last_name": "Keller", "civil_status": "ledig", "ahv_number": "7569217076985"},
+        income_data={"gross_salary": 80000},
+        deductions_data={"insurance_canton": 2900, "insurance_federal": 1800},
+        wealth_data={"total_wealth": 50000},
+        liabilities_data={"total_debt": 15000},
+    )
+    calc = MockModel(
+        results={"taxable_income": 65000},
+        calculation_details={
+            "cantonal_taxable_income": 65000,
+            "federal_taxable_income": 65000,
+            "canton_deductions_list": [{"code": "health_insurance", "amount": 2900}],
+            "federal_deductions_list": [{"code": "health_insurance", "amount": 1800}],
+        },
+    )
+
+    xml_content = generate_ech_xml(tr, prof, calc)
+    root = ET.fromstring(xml_content)
+    ns = {"e": "http://www.ech.ch/xmlns/eCH-0119/4"}
+
+    tot_assets = root.find(".//e:asset//e:totalAmountAssets/e:fiscalValue", ns).text
+    tot_liab = root.find(".//e:asset//e:totalAmountLiabilities/e:fiscalValue", ns).text
+    tot_fisc_assets = root.find(".//e:asset//e:totalAmountFiscalAssets/e:fiscalValue", ns).text
+
+    assert tot_assets == "50000"
+    assert tot_liab == "15000"
+    assert tot_fisc_assets == "35000"
+
+    is_valid, errors = validate_ech_xml(xml_content)
+    assert is_valid, f"Validation failed: {errors}"
+
+
 def test_ech0119_xxe_prevention():
     """Verify XML external entity injection attempts are rejected."""
     xxe_xml = """<?xml version="1.0" encoding="UTF-8"?>

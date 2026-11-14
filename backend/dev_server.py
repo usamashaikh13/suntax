@@ -16,9 +16,10 @@ from app.models import *  # noqa — ensures all models are imported for table c
 
 
 async def create_tables():
-    """Create all SQLite tables from SQLAlchemy models."""
+    """Create all SQLite tables from SQLAlchemy models and ensure required columns."""
     from app.core.database import Base
     from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy import inspect, text
 
     # SQLite-specific engine (no pool kwargs)
     engine = create_async_engine(
@@ -27,8 +28,18 @@ async def create_tables():
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+        def _ensure_sqlite_columns(connection):
+            insp = inspect(connection)
+            tables = set(insp.get_table_names())
+            if "users" in tables:
+                user_cols = {c["name"] for c in insp.get_columns("users")}
+                if "tokens_valid_after" not in user_cols:
+                    connection.execute(text("ALTER TABLE users ADD COLUMN tokens_valid_after DATETIME"))
+
+        await conn.run_sync(_ensure_sqlite_columns)
     await engine.dispose()
-    print("✅ SQLite tables created")
+    print("✅ SQLite tables created & verified")
 
 
 asyncio.run(create_tables())
