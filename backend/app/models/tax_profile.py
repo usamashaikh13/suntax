@@ -9,7 +9,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.models.compat import JSONB
+from app.models.compat import JSONB, UUIDType
 
 if TYPE_CHECKING:
     from app.models.tax_return import TaxReturn
@@ -20,9 +20,9 @@ class TaxProfile(Base):
 
     __tablename__ = "tax_profiles"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(UUIDType, primary_key=True, default=lambda: str(uuid.uuid4()))
     tax_return_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("tax_returns.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+        UUIDType, ForeignKey("tax_returns.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
     )
 
     personal_data: Mapped[Optional[str]] = mapped_column(JSONB, nullable=True)

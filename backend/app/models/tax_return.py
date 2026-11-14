@@ -9,6 +9,7 @@ from sqlalchemy import DateTime, ForeignKey, SmallInteger, String, Text, UniqueC
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.models.compat import UUIDType
 
 if TYPE_CHECKING:
     from app.models.document import Document
@@ -25,8 +26,8 @@ class TaxReturn(Base):
         UniqueConstraint("user_id", "tax_year", "canton_code", name="uq_user_year_canton"),
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    id: Mapped[str] = mapped_column(UUIDType, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(UUIDType, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
 
     canton_code: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
     municipality_code: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

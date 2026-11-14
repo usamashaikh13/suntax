@@ -9,7 +9,7 @@ from sqlalchemy import DateTime, Float, SmallInteger, String, Text, UniqueConstr
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
-from app.models.compat import JSONB
+from app.models.compat import JSONB, UUIDType
 
 
 class TaxRule(Base):
@@ -20,7 +20,7 @@ class TaxRule(Base):
         UniqueConstraint("canton_code", "tax_year", "rule_type", name="uq_rule_canton_year_type"),
     )
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    id: Mapped[str] = mapped_column(UUIDType, primary_key=True, default=lambda: str(uuid.uuid4()))
     canton_code: Mapped[str] = mapped_column(String(2), nullable=False, index=True)
     tax_year: Mapped[int] = mapped_column(SmallInteger, nullable=False, index=True)
     rule_type: Mapped[str] = mapped_column(String(64), nullable=False)

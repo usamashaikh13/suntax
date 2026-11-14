@@ -15,6 +15,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
+from app.models.compat import UUIDType
 
 
 class SecurityToken(Base):
@@ -26,7 +27,7 @@ class SecurityToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     token_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     user_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+        UUIDType, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
@@ -54,10 +55,10 @@ class AiChatMessage(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        UUIDType, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     tax_return_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("tax_returns.id", ondelete="CASCADE"), nullable=False, index=True
+        UUIDType, ForeignKey("tax_returns.id", ondelete="CASCADE"), nullable=False, index=True
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)

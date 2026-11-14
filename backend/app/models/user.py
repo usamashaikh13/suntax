@@ -22,7 +22,7 @@ class User(Base):
     __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(
-        String(36),
+        UUIDType,
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
         index=True,

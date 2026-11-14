@@ -8,24 +8,11 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.core.database import Base, _is_sqlite
-
-
-if _is_sqlite:
-    from sqlalchemy import JSON as JSONB
-    from sqlalchemy import String as UUID_TYPE
-
-    def _uuid_col(**kw):
-        return mapped_column(String(36), **kw)
-else:
-    from sqlalchemy.dialects.postgresql import JSONB  # type: ignore
-    from sqlalchemy.dialects.postgresql import UUID as UUID_TYPE  # type: ignore
-
-    def _uuid_col(**kw):
-        return mapped_column(UUID_TYPE(as_uuid=True), **kw)
+from app.core.database import Base
+from app.models.compat import JSONB, UUIDType
 
 
 class AuditLog(Base):
@@ -33,14 +20,14 @@ class AuditLog(Base):
 
     __tablename__ = "audit_logs"
 
-    id: Mapped[str] = mapped_column(
-        String(36),
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"),
         primary_key=True,
-        default=lambda: str(uuid.uuid4()),
+        autoincrement=True,
     )
 
     user_id: Mapped[Optional[str]] = mapped_column(
-        String(36),
+        UUIDType,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,

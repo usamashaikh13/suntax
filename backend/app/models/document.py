@@ -9,7 +9,7 @@ from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, String,
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
-from app.models.compat import JSONB
+from app.models.compat import JSONB, UUIDType
 
 if TYPE_CHECKING:
     from app.models.tax_return import TaxReturn
@@ -21,9 +21,9 @@ class Document(Base):
 
     __tablename__ = "documents"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    tax_return_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tax_returns.id", ondelete="SET NULL"), nullable=True, index=True)
+    id: Mapped[str] = mapped_column(UUIDType, primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id: Mapped[str] = mapped_column(UUIDType, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    tax_return_id: Mapped[Optional[str]] = mapped_column(UUIDType, ForeignKey("tax_returns.id", ondelete="SET NULL"), nullable=True, index=True)
 
     original_filename: Mapped[str] = mapped_column(Text, nullable=False)
     storage_key: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
