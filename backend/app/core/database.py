@@ -131,7 +131,7 @@ async def set_rls_user_id(session: AsyncSession, user_id: UUID | str) -> None:
     uid = str(user_id)
     try:
         await session.execute(
-            text("SELECT set_config('app.current_user_id', :uid, true)"),
+            text("SELECT set_config('app.current_user_id', :uid, false)"),
             {"uid": uid},
         )
     except Exception as exc:
@@ -157,6 +157,11 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
             raise
         finally:
+            if not _is_sqlite:
+                try:
+                    await session.execute(text("SELECT set_config('app.current_user_id', '', false)"))
+                except Exception:
+                    pass
             await session.close()
 
 

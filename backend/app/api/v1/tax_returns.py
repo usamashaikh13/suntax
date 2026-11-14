@@ -113,10 +113,10 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
         if changed:
             profile.personal_data = pd
             db.add(profile)
-            await db.commit()
-            await db.refresh(profile)
+            await db.flush()
         return profile
 
+    import uuid
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc)
     init_pd = {}
@@ -129,6 +129,7 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
         init_pd["address_city"] = tax_return.municipality_name
 
     profile = TaxProfile(
+        id=str(uuid.uuid4()),
         tax_return_id=str(tax_return.id),
         personal_data=init_pd,
         income_data={},
@@ -142,8 +143,7 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
         updated_at=now,
     )
     db.add(profile)
-    await db.commit()
-    await db.refresh(profile)
+    await db.flush()
     return profile
 
 
@@ -353,7 +353,9 @@ async def create_tax_return(
             detail=f"A tax return for {payload.tax_year} in {payload.canton_code} already exists",
         )
 
+    import uuid
     tax_return = TaxReturn(
+        id=str(uuid.uuid4()),
         user_id=str(current_user.id),
         canton_code=payload.canton_code.upper(),
         municipality_code=payload.municipality_code,
