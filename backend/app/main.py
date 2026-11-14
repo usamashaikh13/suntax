@@ -88,7 +88,12 @@ async def lifespan(app: FastAPI):
         except Exception as seed_err:
             logger.warning("Could not auto-seed rules/info texts: %s", seed_err)
     except Exception as exc:
-        logger.error("Database schema initialization error: %s", exc)
+        logger.error(
+            "Database schema initialization error (%s): %s. "
+            "If deployed on Render, ensure DATABASE_URL in suntax-api Environment "
+            "is set to the Internal Database URL of your suntax-db PostgreSQL instance.",
+            type(exc).__name__, exc,
+        )
     yield
     _b_cfg = settings.get_brand_config()
     logger.info("%s shutting down...", _b_cfg["brand_name"])

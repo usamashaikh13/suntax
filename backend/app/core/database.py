@@ -16,6 +16,7 @@ from collections.abc import AsyncGenerator
 from typing import Optional
 from uuid import UUID
 
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -29,17 +30,45 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ── Engine ────────────────────────────────────────────────────────────────────
+# ── Engine URL sanitization for asyncpg & Render compatibility ───────────────
 
-_database_url = settings.DATABASE_URL
-# Render exposes PostgreSQL URLs with the synchronous ``postgres://`` or ``postgresql://`` scheme.
-# This application uses SQLAlchemy's async engine, so transparently select the
-# installed asyncpg driver when an unqualified Render URL is supplied.
-if _database_url.startswith("postgres://"):
-    _database_url = _database_url.replace("postgres://", "postgresql+asyncpg://", 1)
-elif _database_url.startswith("postgresql://"):
-    _database_url = _database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
+def _prepare_db_url_and_args(raw_url: str) -> tuple[str, dict]:
+    url = raw_url.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+asyncpg://", 1)
+    elif url.startswith("postgresql://") and not url.startswith("postgresql+asyncpg://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    connect_args: dict = {}
+    if not url.startswith("sqlite"):
+        parsed = urlparse(url)
+        query_params = parse_qs(parsed.query)
+
+        # asyncpg does not accept sslmode in URL query; convert to connect_args['ssl']
+        if "sslmode" in query_params:
+            mode = query_params.pop("sslmode")[0].lower()
+            if mode in ("require", "prefer", "verify-ca", "verify-full"):
+                connect_args["ssl"] = "require"
+            elif mode == "disable":
+                connect_args["ssl"] = False
+
+        if "ssl" in query_params:
+            ssl_val = query_params.pop("ssl")[0].lower()
+            if ssl_val in ("true", "1", "require"):
+                connect_args["ssl"] = "require"
+            elif ssl_val in ("false", "0", "disable"):
+                connect_args["ssl"] = False
+
+        new_query = urlencode(query_params, doseq=True)
+        url = urlunparse(
+            (parsed.scheme, parsed.netloc, parsed.path, parsed.params, new_query, parsed.fragment)
+        )
+
+    return url, connect_args
+
+
+_database_url, _db_connect_args = _prepare_db_url_and_args(settings.DATABASE_URL)
 _is_sqlite = _database_url.startswith("sqlite")
 
 if _is_sqlite:
@@ -56,6 +85,8 @@ else:
         "echo": settings.DEBUG,
         "pool_pre_ping": True,
     }
+    if _db_connect_args:
+        _engine_kwargs["connect_args"] = _db_connect_args
     if _pool_class:
         _engine_kwargs["poolclass"] = _pool_class
     else:
