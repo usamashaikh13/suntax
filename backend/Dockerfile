@@ -80,6 +80,9 @@ COPY --from=builder /install /usr/local
 # Copy application source
 COPY --chown=suntax:suntax . .
 
+# Ensure storage directory exists and is owned by suntax user
+RUN mkdir -p dev_storage && chown -R suntax:suntax dev_storage
+
 # Switch to non-root user
 USER suntax
 

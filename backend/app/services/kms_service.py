@@ -46,25 +46,57 @@ class KMSService:
         if env_key:
             return hashlib.sha256(env_key.encode("utf-8")).digest()
 
-        # Dev / fallback local secure storage
-        os.makedirs(os.path.dirname(_FALLBACK_KEY_FILE), exist_ok=True)
-        if os.path.exists(_FALLBACK_KEY_FILE):
-            try:
-                with open(_FALLBACK_KEY_FILE, "rb") as f:
-                    return f.read()[:32]
-            except Exception as e:
-                logger.warning("Could not read KMS fallback key: %s", e)
-
-        # Generate a new 256-bit KEK
-        new_kek = AESGCM.generate_key(bit_length=256)
+        # In production or containerized environments where SUNTAX_KMS_MASTER_KEY is not yet
+        # explicitly set, derive a deterministic KEK from SECRET_KEY with domain separation.
+        # This prevents PermissionError on read-only/non-root containers, avoids losing keys across
+        # ephemeral container restarts, and maintains consistent decryption across multi-worker setups.
         try:
-            with open(_FALLBACK_KEY_FILE, "wb") as f:
-                f.write(new_kek)
-            os.chmod(_FALLBACK_KEY_FILE, 0o600)  # strict owner-only permissions
-        except Exception as e:
-            logger.warning("Could not write KMS fallback key file: %s", e)
+            from app.core.config import settings
+            if settings.ENVIRONMENT != "development" and getattr(settings, "SECRET_KEY", None):
+                logger.warning(
+                    "SUNTAX_KMS_MASTER_KEY not set in %s environment. "
+                    "Deriving fallback master key from SECRET_KEY. "
+                    "Configure SUNTAX_KMS_MASTER_KEY in production settings for strict key separation.",
+                    settings.ENVIRONMENT,
+                )
+                return hashlib.sha256(f"suntax-kms-kek:{settings.SECRET_KEY}".encode("utf-8")).digest()
+        except Exception:
+            pass
 
-        return new_kek
+        # Dev / fallback local secure storage (guarded with try/except against permission errors)
+        try:
+            os.makedirs(os.path.dirname(_FALLBACK_KEY_FILE), exist_ok=True)
+            if os.path.exists(_FALLBACK_KEY_FILE):
+                try:
+                    with open(_FALLBACK_KEY_FILE, "rb") as f:
+                        key_bytes = f.read()[:32]
+                        if len(key_bytes) == 32:
+                            return key_bytes
+                except Exception as e:
+                    logger.warning("Could not read KMS fallback key: %s", e)
+
+            # Generate a new 256-bit KEK
+            new_kek = AESGCM.generate_key(bit_length=256)
+            try:
+                with open(_FALLBACK_KEY_FILE, "wb") as f:
+                    f.write(new_kek)
+                os.chmod(_FALLBACK_KEY_FILE, 0o600)  # strict owner-only permissions
+            except Exception as e:
+                logger.warning("Could not write KMS fallback key file: %s", e)
+
+            return new_kek
+        except Exception as perm_err:
+            logger.warning(
+                "Filesystem fallback key creation failed (%s). "
+                "Falling back to derived in-memory KEK.",
+                perm_err,
+            )
+            try:
+                from app.core.config import settings
+                secret = getattr(settings, "SECRET_KEY", "suntax-dev-fallback-key-2026")
+            except Exception:
+                secret = "suntax-dev-fallback-key-2026"
+            return hashlib.sha256(f"suntax-kms-kek:{secret}".encode("utf-8")).digest()
 
     def generate_data_key(self) -> Tuple[bytes, bytes]:
         """
