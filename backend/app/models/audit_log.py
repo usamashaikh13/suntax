@@ -40,7 +40,7 @@ class AuditLog(Base):
     user_agent: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     success: Mapped[bool] = mapped_column(nullable=False, default=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    extra_data: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
+    extra_data: Mapped[Optional[Any]] = mapped_column(JSONB, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
