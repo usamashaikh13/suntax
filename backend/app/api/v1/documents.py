@@ -33,6 +33,8 @@ from fastapi import (
     File,
     HTTPException,
     Query,
+    Request,
+    Response,
     UploadFile,
     status,
 )
@@ -752,6 +754,7 @@ async def get_document(
 )
 async def get_download_url(
     document_id: str,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> PresignedUrlResponse:
@@ -760,12 +763,83 @@ async def get_download_url(
     try:
         url = await storage.generate_presigned_url(doc.storage_key, expires_seconds=600)
     except Exception as exc:
-        logger.error("Presigned URL generation failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Storage service is unavailable for file download.",
+        logger.warning("Storage presigned URL generation failed: %s", exc)
+        url = ""
+
+    # In deployed environments, ensure the download URL is routable by remote browsers
+    base_url = (os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("BACKEND_URL") or str(request.base_url)).rstrip("/")
+    if not url or "localhost:9000" in url or "127.0.0.1:9000" in url:
+        from datetime import timedelta
+        from app.core.security import create_access_token
+        download_token = create_access_token(
+            data={"sub": str(current_user.id), "doc_id": str(doc.id)},
+            expires_delta=timedelta(minutes=15),
         )
+        url = f"{base_url}/api/v1/documents/{doc.id}/file?token={download_token}"
+    elif url.startswith("/"):
+        url = f"{base_url}{url}"
+    elif "localhost:8000" in url and ("render.com" in base_url or not base_url.startswith("http://localhost")):
+        url = url.replace("http://localhost:8000", base_url)
+
     return PresignedUrlResponse(url=url, expires_in_seconds=600)
+
+
+@router.get(
+    "/documents/{document_id}/file",
+    summary="Directly stream document file bytes with authentication",
+)
+async def stream_document_file(
+    document_id: str,
+    request: Request,
+    token: Optional[str] = Query(None),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    user_id = None
+    if token:
+        from jose import jwt
+        try:
+            payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            user_id = payload.get("sub")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired download token",
+            )
+    else:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            raw_token = auth_header.split(" ", 1)[1]
+            from jose import jwt
+            try:
+                payload = jwt.decode(raw_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+                user_id = payload.get("sub")
+            except Exception:
+                pass
+
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to access document file",
+        )
+
+    await set_rls_user_id(db, user_id)
+    doc = await _get_owned_document(db, document_id, user_id)
+    try:
+        file_bytes = await storage.download_file(doc.storage_key)
+    except Exception as exc:
+        logger.error("Failed to download document %s from storage: %s", document_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document file not found in storage",
+        )
+
+    filename = doc.original_filename or f"document_{doc.id}.pdf"
+    content_type = doc.mime_type or "application/octet-stream"
+    return Response(
+        content=file_bytes,
+        media_type=content_type,
+        headers={"Content-Disposition": f"inline; filename=\"{filename}\""},
+    )
 
 
 # ── Processing Status ─────────────────────────────────────────────────────────

@@ -66,8 +66,11 @@ class _LocalStorageService:
         return envelope_service.decrypt_document(encrypted_payload)
 
     async def generate_presigned_url(self, key: str, expires_seconds: int = 600) -> str:
-        # Return a local URL; the /dev-files route in main.py serves these
-        return f"http://localhost:8000/dev-files/{key.replace('/', '_')}"
+        safe_key = key.replace("/", "_")
+        backend_url = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("BACKEND_URL")
+        if backend_url:
+            return f"{backend_url.rstrip('/')}/dev-files/{safe_key}"
+        return f"http://localhost:8000/dev-files/{safe_key}"
 
     async def delete_file(self, key: str) -> bool:
         p = _local_key_to_path(key)
@@ -114,6 +117,7 @@ class _S3StorageService:
             region_name=region,
         )
         self._bucket = settings.MINIO_BUCKET_NAME
+        self._local_fallback = _LocalStorageService()
         self._ensure_bucket()
 
     def _ensure_bucket(self) -> None:
@@ -154,13 +158,22 @@ class _S3StorageService:
             if "ServerSideEncryption" in extra_args or "SSEKMSKeyId" in extra_args:
                 extra_args.pop("ServerSideEncryption", None)
                 extra_args.pop("SSEKMSKeyId", None)
-                await self._run_sync(
-                    self._client.upload_fileobj,
-                    io.BytesIO(encrypted_bytes),
-                    self._bucket,
-                    key,
-                    ExtraArgs=extra_args,
-                )
+                try:
+                    await self._run_sync(
+                        self._client.upload_fileobj,
+                        io.BytesIO(encrypted_bytes),
+                        self._bucket,
+                        key,
+                        ExtraArgs=extra_args,
+                    )
+                except Exception as inner_exc:
+                    if "Could not connect to the endpoint URL" in str(inner_exc):
+                        logger.warning("S3 unreachable (%s), storing locally.", inner_exc)
+                        return await self._local_fallback.upload_file(file_bytes, key, content_type)
+                    raise inner_exc
+            elif "Could not connect to the endpoint URL" in str(exc):
+                logger.warning("S3 unreachable (%s), storing locally.", exc)
+                return await self._local_fallback.upload_file(file_bytes, key, content_type)
             else:
                 raise exc
         return key
@@ -174,17 +187,26 @@ class _S3StorageService:
             if exc.response["Error"]["Code"] in ("404", "NoSuchKey"):
                 raise FileNotFoundError(f"Object '{key}' not found")
             raise
+        except Exception as exc:
+            if "Could not connect to the endpoint URL" in str(exc):
+                logger.warning("S3 unreachable (%s), downloading from local fallback.", exc)
+                return await self._local_fallback.download_file(key)
+            raise exc
         buf.seek(0)
         return envelope_service.decrypt_document(buf.read())
 
     async def generate_presigned_url(self, key: str, expires_seconds: int = 600) -> str:
-        url: str = await self._run_sync(
-            self._client.generate_presigned_url,
-            "get_object",
-            Params={"Bucket": self._bucket, "Key": key},
-            ExpiresIn=expires_seconds,
-        )
-        return url
+        try:
+            url: str = await self._run_sync(
+                self._client.generate_presigned_url,
+                "get_object",
+                Params={"Bucket": self._bucket, "Key": key},
+                ExpiresIn=expires_seconds,
+            )
+            return url
+        except Exception as exc:
+            logger.warning("S3 presigned URL generation failed (%s), using local route.", exc)
+            return await self._local_fallback.generate_presigned_url(key, expires_seconds)
 
     async def delete_file(self, key: str) -> bool:
         from botocore.exceptions import ClientError
@@ -192,6 +214,10 @@ class _S3StorageService:
             await self._run_sync(self._client.delete_object, Bucket=self._bucket, Key=key)
             return True
         except ClientError:
+            return False
+        except Exception as exc:
+            if "Could not connect to the endpoint URL" in str(exc):
+                return await self._local_fallback.delete_file(key)
             return False
 
     async def file_exists(self, key: str) -> bool:
@@ -201,6 +227,10 @@ class _S3StorageService:
             return True
         except ClientError:
             return False
+        except Exception as exc:
+            if "Could not connect to the endpoint URL" in str(exc):
+                return await self._local_fallback.file_exists(key)
+            return False
 
     async def get_object_metadata(self, key: str) -> Optional[dict]:
         from botocore.exceptions import ClientError
@@ -208,14 +238,48 @@ class _S3StorageService:
             return await self._run_sync(self._client.head_object, Bucket=self._bucket, Key=key)
         except ClientError:
             return None
+        except Exception as exc:
+            if "Could not connect to the endpoint URL" in str(exc):
+                return await self._local_fallback.get_object_metadata(key)
+            return None
 
 
 # ── Public singleton ──────────────────────────────────────────────────────────
+
+def _is_s3_reachable(endpoint: str, timeout: float = 0.5) -> bool:
+    """Check if the MinIO/S3 endpoint is reachable before binding."""
+    import socket
+    from urllib.parse import urlparse
+    if not endpoint.startswith("http://") and not endpoint.startswith("https://"):
+        endpoint = f"http://{endpoint}"
+    try:
+        parsed = urlparse(endpoint)
+        host = parsed.hostname or "localhost"
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        # External cloud object storage (e.g. AWS S3, Cloudflare R2, Exoscale) is always treated as configured
+        if host not in ("localhost", "127.0.0.1", "0.0.0.0"):
+            return True
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
 
 def _make_storage():
     if settings.ENVIRONMENT == "development":
         logger.info("Using LOCAL filesystem storage (dev mode)")
         return _LocalStorageService()
+
+    endpoint = getattr(settings, "MINIO_ENDPOINT", "localhost:9000")
+    if not _is_s3_reachable(endpoint):
+        logger.warning(
+            "MinIO/S3 endpoint '%s' is not reachable. "
+            "Using resilient local filesystem storage (dev_storage). "
+            "To enable external cloud storage, configure MINIO_ENDPOINT, MINIO_ACCESS_KEY, and MINIO_SECRET_KEY in Render environment.",
+            endpoint,
+        )
+        return _LocalStorageService()
+
     return _S3StorageService()
 
 

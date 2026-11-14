@@ -197,6 +197,9 @@ async def serve_dev_file(file_key: str):
 
     file_path = Path("./dev_storage") / file_key
     if not file_path.exists():
+        from app.services.storage_service import _local_key_to_path
+        file_path = _local_key_to_path(file_key)
+    if not file_path.exists():
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="File not found")
 
