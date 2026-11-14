@@ -664,12 +664,12 @@ async def upload_documents(
     # Dispatch background processing after successful database commit
     for d_id in doc_ids_to_process:
         dispatched = False
-        if settings.ENVIRONMENT != "development":
+        if getattr(settings, "USE_CELERY", False) and settings.ENVIRONMENT != "development":
             try:
                 process_document.delay(d_id)
                 dispatched = True
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Celery dispatch failed, falling back to background tasks: %s", e)
         if not dispatched:
             background_tasks.add_task(document_pipeline_service.process_document_by_id, d_id)
 
@@ -989,9 +989,15 @@ async def retry_document_processing(
     await db.commit()
     await db.refresh(doc)
 
-    try:
-        process_document.delay(str(doc.id))
-    except Exception:
+    if getattr(settings, "USE_CELERY", False) and settings.ENVIRONMENT != "development":
+        try:
+            process_document.delay(str(doc.id))
+        except Exception:
+            if background_tasks is not None:
+                background_tasks.add_task(document_pipeline_service.process_document_by_id, str(doc.id))
+            else:
+                await document_pipeline_service.process_document(str(doc.id), db)
+    else:
         if background_tasks is not None:
             background_tasks.add_task(document_pipeline_service.process_document_by_id, str(doc.id))
         else:
