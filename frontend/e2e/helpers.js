@@ -83,9 +83,10 @@ async function createTestUser(prefix = 'tester') {
  */
 async function setAuthSession(context, tokens) {
   if (tokens.accessToken) {
+    const domain = new URL(FRONTEND_URL).hostname;
     await context.addCookies([
-      { name: 'suntax_access_token', value: tokens.accessToken, domain: 'localhost', path: '/' },
-      { name: 'suntax_refresh_token', value: tokens.refreshToken || '', domain: 'localhost', path: '/' },
+      { name: 'suntax_access_token', value: tokens.accessToken, domain, path: '/' },
+      { name: 'suntax_refresh_token', value: tokens.refreshToken || '', domain, path: '/' },
     ]);
   }
 }
