@@ -114,6 +114,7 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
             profile.personal_data = pd
             db.add(profile)
             await db.flush()
+            await db.refresh(profile)
         return profile
 
     import uuid
@@ -144,6 +145,7 @@ async def _get_or_create_profile(tax_return: TaxReturn, db: AsyncSession) -> Tax
     )
     db.add(profile)
     await db.flush()
+    await db.refresh(profile)
     return profile
 
 
@@ -394,6 +396,10 @@ async def get_tax_profile(
     """Return (or lazily create) the editable taxpayer profile for a tax return."""
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
     profile = await _get_or_create_profile(tax_return, db)
+    try:
+        await db.refresh(profile)
+    except Exception:
+        pass
     return TaxProfileResponse.model_validate(profile)
 
 
