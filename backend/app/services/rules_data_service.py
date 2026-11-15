@@ -17,6 +17,73 @@ from app.core.config import settings
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 
+RECEIPT_TRANSLATIONS_EN: Dict[str, str] = {
+    # Always required
+    "lohn": "Salary certificate (Lohnausweis)",
+    "lohn2": "Spouse salary certificate (Lohnausweis Partner 2)",
+    "securities": "Tax statement or bank/custody statements as of 31.12.",
+    # Field specific
+    "neben": "Secondary employment salary slip (Lohnausweis Nebenerwerb)",
+    "ahv": "AHV/IV Pension certificate (Rentenbescheinigung AHV/IV)",
+    "pens": "Occupational pension certificate (Rentenbescheinigung)",
+    "alv": "Unemployment benefit statement (Arbeitslosenkasse)",
+    "zulagen": "Daily allowances / family allowances statement",
+    "other": "Documentation of other income",
+    "korp": "Dividend & shares yield statement",
+    "kapAbf": "Severance / lump-sum benefit statement",
+    "unterIn": "Alimony received payment proofs",
+    "kidUnterIn": "Child alimony received payment proofs",
+    "home": "Mortgage interest certificate and property maintenance bills",
+    "weekly": "Rental contract at place of employment (weekly commute)",
+    "support": "Proof of support payments",
+    "kidsOut": "Confirmation of education / university enrolment",
+    "alimony": "Proof of spousal alimony paid",
+    "kidAlimony": "Proof of child alimony paid",
+    "p3a": "Pillar 3a contribution certificate (Tax certificate)",
+    "p3a2": "Spouse Pillar 3a contribution certificate",
+    "p3a_catchup": "Pillar 3a retroactive catch-up contribution certificate",
+    "prem": "Health insurance tax certificate (Premiums & out-of-pocket costs)",
+    "pkBuy": "Pension fund buy-in certificate (Pensionskassen-Einkauf)",
+    "wb": "Invoices and receipts for further education",
+    "bkEff": "Proof of actual job-related expenses",
+    "depot": "Custody account statement / fee receipts",
+    "party": "Donation receipts for political parties",
+    "sick": "Medical expense receipts & health insurance settlement statements",
+    "handicap": "Disability expense receipts and medical attestations",
+    "donate": "Charitable donation receipts",
+    "rentLeist": "Proof of annuity payments",
+    "care": "Third-party childcare invoices / Kita confirmation",
+    "life": "Life insurance surrender value statement as of 31.12.",
+    "korpW": "Valuation of company shares / non-listed investments",
+    "otherW": "Proof of other assets (vehicles, precious metals, art, cash)",
+    "debt": "Debt statement / mortgage balance statement as of 31.12.",
+    "capital": "Capital settlement certificate",
+    "giftIn": "Inheritance or gift deed / statement",
+    "giftOut": "Proof of gifts granted",
+}
+
+PERSONAL_DATA_TRANSLATIONS_EN: Dict[str, str] = {
+    "ahvnr": "AHV / Social Security Number (756.xxxx.xxxx.xx)",
+    "birth": "Date of birth",
+    "addr": "Official residential address as of 31.12.",
+    "name2": "Partner 2: Full legal name",
+    "ahvnr2": "Partner 2: AHV / Social Security Number",
+    "birth2": "Partner 2: Date of birth",
+    "kidName": "Children: Full legal name(s)",
+    "kidBirth": "Children: Date(s) of birth",
+}
+
+ANNEX_TRANSLATIONS_EN: Dict[str, str] = {
+    "job_expenses_annex": "Professional Expenses Statement",
+    "securities_annex": "Securities and Assets Statement with Withholding Tax Refund Application",
+    "medical_list_annex": "Medical and Accident Expenses Statement",
+    "work_costs_list_annex": "Other Work-Related Expenses Statement",
+    "training_list_annex": "Further Education and Training Statement",
+    "donations_list_annex": "Charitable Donations Statement",
+    "real_estate_annex": "Real Estate / Property Register",
+    "debt_annex": "Debt and Liabilities Statement",
+}
+
 
 class RulesDataService:
     """Data-driven access layer for rules, availability, receipts, questions, and i18n texts."""
@@ -292,6 +359,7 @@ class RulesDataService:
             item = {
                 "key": key,
                 "label": label,
+                "label_en": RECEIPT_TRANSLATIONS_EN.get(key, label),
                 "requirement": req,
                 "attached": has_doc,
                 "hint": rule_def.get("hint", ""),
@@ -373,6 +441,7 @@ class RulesDataService:
             entry = {
                 "key": fkey,
                 "label": lbl,
+                "label_en": RECEIPT_TRANSLATIONS_EN.get(fkey, lbl),
                 "requirement": req,
                 "form_field": rdef.get("form_field", ""),
                 "attached": has_doc,
@@ -406,7 +475,12 @@ class RulesDataService:
             if cond == "children_count > 0" and children_count <= 0:
                 continue
             if not personal_validators.get(pkey, True):
-                missing_personal.append({"key": pkey, "label": req_pd.get("label", pkey)})
+                lbl_de = req_pd.get("label", pkey)
+                missing_personal.append({
+                    "key": pkey,
+                    "label": lbl_de,
+                    "label_en": PERSONAL_DATA_TRANSLATIONS_EN.get(pkey, lbl_de),
+                })
 
         # 4. All 8 App-generated annexes from receipts_rules.json
         annex_conditions = {
@@ -420,7 +494,11 @@ class RulesDataService:
             "liabilities.total > 0": liab_total > 0,
         }
         annexes = [
-            {"key": a["key"], "title": a["title"]}
+            {
+                "key": a["key"],
+                "title": a["title"],
+                "title_en": ANNEX_TRANSLATIONS_EN.get(a["key"], a["title"]),
+            }
             for a in rules.get("app_generated_annexes", [])
             if annex_conditions.get(a.get("condition", ""), False)
         ]

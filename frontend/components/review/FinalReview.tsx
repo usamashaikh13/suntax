@@ -38,6 +38,79 @@ interface Props {
   onNavigateTab?: (tab: string) => void;
 }
 
+const RECEIPT_LABELS_EN: Record<string, string> = {
+  lohn: 'Salary certificate (Lohnausweis)',
+  lohn2: 'Spouse salary certificate (Lohnausweis Partner 2)',
+  securities: 'Tax statement or bank/custody statements as of 31.12.',
+  neben: 'Secondary employment salary slip (Lohnausweis Nebenerwerb)',
+  ahv: 'AHV/IV Pension certificate (Rentenbescheinigung AHV/IV)',
+  pens: 'Occupational pension certificate (Rentenbescheinigung)',
+  alv: 'Unemployment benefit statement (Arbeitslosenkasse)',
+  zulagen: 'Daily allowances / family allowances statement',
+  other: 'Documentation of other income',
+  korp: 'Dividend & shares yield statement',
+  kapAbf: 'Severance / lump-sum benefit statement',
+  unterIn: 'Alimony received payment proofs',
+  kidUnterIn: 'Child alimony received payment proofs',
+  home: 'Mortgage interest certificate and property maintenance bills',
+  weekly: 'Rental contract at place of employment (weekly commute)',
+  support: 'Proof of support payments',
+  kidsOut: 'Confirmation of education / university enrolment',
+  alimony: 'Proof of spousal alimony paid',
+  kidAlimony: 'Proof of child alimony paid',
+  p3a: 'Pillar 3a contribution certificate (Tax certificate)',
+  p3a2: 'Spouse Pillar 3a contribution certificate',
+  p3a_catchup: 'Pillar 3a retroactive catch-up contribution certificate',
+  prem: 'Health insurance tax certificate (Premiums & out-of-pocket costs)',
+  pkBuy: 'Pension fund buy-in certificate (Pensionskassen-Einkauf)',
+  wb: 'Invoices and receipts for further education',
+  bkEff: 'Proof of actual job-related expenses',
+  depot: 'Custody account statement / fee receipts',
+  party: 'Donation receipts for political parties',
+  sick: 'Medical expense receipts & health insurance settlement statements',
+  handicap: 'Disability expense receipts and medical attestations',
+  donate: 'Charitable donation receipts',
+  rentLeist: 'Proof of annuity payments',
+  care: 'Third-party childcare invoices / Kita confirmation',
+  life: 'Life insurance surrender value statement as of 31.12.',
+  korpW: 'Valuation of company shares / non-listed investments',
+  otherW: 'Proof of other assets (vehicles, precious metals, art, cash)',
+  debt: 'Debt statement / mortgage balance statement as of 31.12.',
+  capital: 'Capital settlement certificate',
+  giftIn: 'Inheritance or gift deed / statement',
+  giftOut: 'Proof of gifts granted',
+};
+
+const PERSONAL_DATA_LABELS_EN: Record<string, string> = {
+  ahvnr: 'AHV / Social Security Number (756.xxxx.xxxx.xx)',
+  birth: 'Date of birth',
+  addr: 'Official residential address as of 31.12.',
+  name2: 'Partner 2: Full legal name',
+  ahvnr2: 'Partner 2: AHV / Social Security Number',
+  birth2: 'Partner 2: Date of birth',
+  kidName: 'Children: Full legal name(s)',
+  kidBirth: 'Children: Date(s) of birth',
+};
+
+const ANNEX_TITLES_EN: Record<string, string> = {
+  job_expenses_annex: 'Professional Expenses Statement',
+  securities_annex: 'Securities and Assets Statement with Withholding Tax Refund Application',
+  medical_list_annex: 'Medical and Accident Expenses Statement',
+  work_costs_list_annex: 'Other Work-Related Expenses Statement',
+  training_list_annex: 'Further Education and Training Statement',
+  donations_list_annex: 'Charitable Donations Statement',
+  real_estate_annex: 'Real Estate / Property Register',
+  debt_annex: 'Debt and Liabilities Statement',
+  berufskosten: 'Professional Expenses Statement',
+  wertschriften: 'Securities and Assets Statement',
+  liegenschaften: 'Real Estate / Property Register',
+  schulden: 'Debt and Liabilities Statement',
+  krankheit: 'Medical and Accident Expenses Statement',
+  uebrige_berufskosten: 'Other Work-Related Expenses Statement',
+  weiterbildung: 'Further Education and Training Statement',
+  spenden: 'Charitable Donations Statement',
+};
+
 const getConfirmationTextDe = () =>
   `Gemäss Art. 110 DBG (schweizerisches Selbstdeklarationsprinzip) habe ich meine Steuererklärung sorgfältig überprüft und bestätige, dass alle gemachten Angaben vollständig, wahrheitsgetreu und belegt sind. Ich nehme zur Kenntnis, dass die Steuerberechnung von ${BRAND.name} eine unverbindliche Schätzung (« ca. CHF … ») darstellt und die rechtsgültige Veranlagung ausschliesslich durch das kantonale Steueramt erfolgt.`;
 
@@ -105,6 +178,21 @@ export function FinalReview({
 
   const pd = (profile?.personal_data || {}) as Record<string, any>;
   const inc = (profile?.income_data || {}) as Record<string, any>;
+
+  const getReceiptLabel = (item: any) => {
+    if (isGerman) return item.label || item.key;
+    return item.label_en || RECEIPT_LABELS_EN[item.key] || item.label || item.key;
+  };
+
+  const getPersonalDataLabel = (mp: any) => {
+    if (isGerman) return mp.label || mp.key;
+    return mp.label_en || PERSONAL_DATA_LABELS_EN[mp.key] || mp.label || mp.key;
+  };
+
+  const getAnnexTitle = (a: any) => {
+    if (isGerman) return a.title || a.key;
+    return a.title_en || ANNEX_TITLES_EN[a.key] || a.title || a.key;
+  };
   const ded = (profile?.deductions_data || {}) as Record<string, any>;
   const r = calculation?.results || {};
   const savingsAnalysis = r.savings_analysis || calculation?.savings_analysis || null;
@@ -623,7 +711,7 @@ export function FinalReview({
                 </p>
                 <ul className="list-disc pl-5 text-amber-900 space-y-0.5">
                   {receiptCheck.required_missing.map((item: any) => (
-                    <li key={item.key}>{item.label}</li>
+                    <li key={item.key}>{getReceiptLabel(item)}</li>
                   ))}
                 </ul>
               </div>
@@ -636,7 +724,7 @@ export function FinalReview({
                 </p>
                 <ul className="list-disc pl-5 text-emerald-900 space-y-0.5">
                   {receiptCheck.attached_ok.map((item: any) => (
-                    <li key={item.key}>{item.label}</li>
+                    <li key={item.key}>{getReceiptLabel(item)}</li>
                   ))}
                 </ul>
               </div>
@@ -649,7 +737,7 @@ export function FinalReview({
                 </p>
                 <ul className="list-disc pl-5 text-amber-900 space-y-0.5">
                   {receiptCheck.missing_personal_data.map((mp: any) => (
-                    <li key={mp.key}>{mp.label}</li>
+                    <li key={mp.key}>{getPersonalDataLabel(mp)}</li>
                   ))}
                 </ul>
               </div>
@@ -664,7 +752,7 @@ export function FinalReview({
                 </p>
                 <ul className="list-disc pl-5 text-slate-600 space-y-0.5">
                   {receiptCheck.keep_only_items.map((item: any) => (
-                    <li key={item.key}>{item.label}</li>
+                    <li key={item.key}>{getReceiptLabel(item)}</li>
                   ))}
                 </ul>
               </div>
@@ -679,7 +767,7 @@ export function FinalReview({
                 </p>
                 <ul className="list-disc pl-5 text-blue-900 space-y-0.5">
                   {receiptCheck.app_generated_annexes.map((a: any) => (
-                    <li key={a.key}>{a.title}</li>
+                    <li key={a.key}>{getAnnexTitle(a)}</li>
                   ))}
                 </ul>
               </div>
@@ -738,6 +826,19 @@ export function FinalReview({
                   : `Send along with original salary slips to the municipal tax office of ${taxReturn.municipality_name}.`}
               </p>
             </div>
+          </div>
+
+          {/* Explicit disclaimer confirming SunTax does NOT transmit automatically to the tax authority */}
+          <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 space-y-1">
+            <span className="font-bold flex items-center gap-1.5 text-amber-950">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+              {isGerman ? 'Wichtiger rechtlicher Hinweis zur Einreichung:' : 'Important legal notice regarding submission:'}
+            </span>
+            <p className="leading-relaxed">
+              {isGerman
+                ? `${BRAND.name} finalisiert Ihr Steuerdossier gemäss Art. 110 DBG (Selbstdeklaration). Die Steuererklärung wird von uns NICHT elektronisch an das Steueramt übertragen. Bitte drucken Sie das amtliche Hauptformular aus, unterschreiben Sie es handschriftlich und senden Sie es zusammen mit dem Original-Lohnausweis per Post an das Steueramt Ihrer Wohngemeinde.`
+                : `${BRAND.name} finalizes your tax dossier according to Art. 110 DBG (self-declaration). SunTax does NOT automatically transmit your tax return to the tax authority. You must print out the official declaration form, sign it by hand, and mail it with your original salary certificate to your municipal tax office.`}
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3 pt-2">
