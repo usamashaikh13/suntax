@@ -29,6 +29,7 @@ import { api } from '@/lib/api'
 import { TaxProfile } from '@/types'
 import { QuestionInfoTextData } from './ContextualInfoModal'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { formatApiError } from '@/lib/utils'
 
 interface Props {
   profile: TaxProfile
@@ -417,7 +418,7 @@ export function TaxQuestions({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Speichern fehlgeschlagen' : 'Save failed',
-        description: err?.response?.data?.detail || (isGerman ? 'Bitte überprüfe deine Eingaben.' : 'Please review your inputs.'),
+        description: formatApiError(err, isGerman ? 'Bitte überprüfe deine Eingaben.' : 'Please review your inputs.'),
         variant: 'destructive',
       })
     } finally {

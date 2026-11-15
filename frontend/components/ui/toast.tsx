@@ -89,27 +89,57 @@ const ToastClose = React.forwardRef<
 ));
 ToastClose.displayName = ToastPrimitives.Close.displayName;
 
+function sanitizeToastNode(node: React.ReactNode): React.ReactNode {
+  if (node === null || node === undefined || typeof node === 'boolean') {
+    return undefined;
+  }
+  if (typeof node === 'string' || typeof node === 'number') {
+    return node;
+  }
+  if (React.isValidElement(node)) {
+    return node;
+  }
+  if (Array.isArray(node)) {
+    return node
+      .map((item) => {
+        if (typeof item === 'object' && item !== null && !React.isValidElement(item)) {
+          return (item as any).msg || (item as any).message || JSON.stringify(item);
+        }
+        return String(item);
+      })
+      .join(', ');
+  }
+  if (typeof node === 'object') {
+    return (node as any).msg || (node as any).message || (node as any).detail || JSON.stringify(node);
+  }
+  return String(node);
+}
+
 const ToastTitle = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Title>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Title>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <ToastPrimitives.Title
     ref={ref}
     className={cn('text-sm font-semibold', className)}
     {...props}
-  />
+  >
+    {sanitizeToastNode(children)}
+  </ToastPrimitives.Title>
 ));
 ToastTitle.displayName = ToastPrimitives.Title.displayName;
 
 const ToastDescription = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Description>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Description>
->(({ className, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <ToastPrimitives.Description
     ref={ref}
     className={cn('text-sm opacity-90', className)}
     {...props}
-  />
+  >
+    {sanitizeToastNode(children)}
+  </ToastPrimitives.Description>
 ));
 ToastDescription.displayName = ToastPrimitives.Description.displayName;
 
@@ -121,7 +151,7 @@ type ToastActionElement = React.ReactElement<typeof ToastAction>;
 const TOAST_LIMIT = 5;
 const TOAST_REMOVE_DELAY = 5000;
 
-type ToasterToast = ToastProps & {
+type ToasterToast = Omit<ToastProps, 'title'> & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
@@ -200,13 +230,23 @@ function dispatch(action: Action) {
 function toast(props: Omit<ToasterToast, 'id'>) {
   const id = genId();
   const update = (p: Partial<ToasterToast>) =>
-    dispatch({ type: 'UPDATE_TOAST', toast: { ...p, id } });
+    dispatch({
+      type: 'UPDATE_TOAST',
+      toast: {
+        ...p,
+        title: p.title !== undefined ? sanitizeToastNode(p.title) : undefined,
+        description: p.description !== undefined ? sanitizeToastNode(p.description) : undefined,
+        id,
+      },
+    });
   const dismiss = () => dispatch({ type: 'DISMISS_TOAST', toastId: id });
 
   dispatch({
     type: 'ADD_TOAST',
     toast: {
       ...props,
+      title: sanitizeToastNode(props.title),
+      description: sanitizeToastNode(props.description),
       id,
       open: true,
       onOpenChange: (open) => {

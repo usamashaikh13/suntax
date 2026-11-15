@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { api } from '@/lib/api'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatApiError } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
 
 interface Props {
@@ -81,9 +81,10 @@ export function TaxCalculationDisplay({
     } catch (error: any) {
       toast({
         title: isGerman ? 'Berechnung fehlgeschlagen' : 'Calculation failed',
-        description:
-          error?.response?.data?.detail ||
-          (isGerman ? 'Bitte überprüfe, ob alle erforderlichen Angaben vorhanden sind.' : 'Please verify all required information is provided.'),
+        description: formatApiError(
+          error,
+          isGerman ? 'Bitte überprüfe, ob alle erforderlichen Angaben vorhanden sind.' : 'Please verify all required information is provided.'
+        ),
         variant: 'destructive',
       })
     } finally {

@@ -26,7 +26,7 @@ import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { TaxReturn, TaxProfile, User } from '@/types';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatApiError } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 import { BRAND } from '@/lib/brand';
 
@@ -132,7 +132,7 @@ export function FinalReview({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Einladung fehlgeschlagen' : 'Invitation failed',
-        description: err?.response?.data?.detail || (isGerman ? 'Bitte versuche es erneut.' : 'Please try again.'),
+        description: formatApiError(err, isGerman ? 'Bitte versuche es erneut.' : 'Please try again.'),
         variant: 'destructive',
       });
     } finally {
@@ -280,10 +280,10 @@ export function FinalReview({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Checkout fehlgeschlagen' : 'Checkout failed',
-        description:
-          err?.response?.data?.detail ||
-          err?.message ||
-          (isGerman ? 'Bitte deaktiviere eventuelle Ad-Blocker oder nutze den Sandbox-Modus.' : 'Please disable any ad-blockers or use sandbox mode.'),
+        description: formatApiError(
+          err,
+          isGerman ? 'Bitte deaktiviere eventuelle Ad-Blocker oder nutze den Sandbox-Modus.' : 'Please disable any ad-blockers or use sandbox mode.'
+        ),
         variant: 'destructive',
       });
     } finally {
@@ -308,7 +308,7 @@ export function FinalReview({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Test-Zahlung fehlgeschlagen' : 'Test payment failed',
-        description: err?.response?.data?.detail || err?.message || (isGerman ? 'Simulation fehlgeschlagen.' : 'Simulation failed.'),
+        description: formatApiError(err, isGerman ? 'Simulation fehlgeschlagen.' : 'Simulation failed.'),
         variant: 'destructive',
       });
     } finally {
@@ -335,7 +335,12 @@ export function FinalReview({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Zahlung noch nicht bestätigt' : 'Payment not yet confirmed',
-        description: err?.response?.data?.detail || (isGerman ? 'Die Zahlung wurde beim Zahlungsanbieter noch nicht bestätigt. Bitte schliesse den Vorgang ab.' : 'The payment has not yet been confirmed by the provider. Please complete the transaction.'),
+        description: formatApiError(
+          err,
+          isGerman
+            ? 'Die Zahlung wurde beim Zahlungsanbieter noch nicht bestätigt. Bitte schliesse den Vorgang ab.'
+            : 'The payment has not yet been confirmed by the provider. Please complete the transaction.'
+        ),
         variant: 'destructive',
       });
     } finally {
@@ -377,7 +382,10 @@ export function FinalReview({
     } catch (error: any) {
       toast({
         title: isGerman ? 'Bestätigung fehlgeschlagen' : 'Confirmation failed',
-        description: error?.response?.data?.detail || (isGerman ? 'Bitte vervollständigen Sie alle Pflichtfelder.' : 'Please complete all required fields.'),
+        description: formatApiError(
+          error,
+          isGerman ? 'Bitte vervollständigen Sie alle Pflichtfelder.' : 'Please complete all required fields.'
+        ),
         variant: 'destructive',
       });
     } finally {

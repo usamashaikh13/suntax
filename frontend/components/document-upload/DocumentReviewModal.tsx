@@ -26,7 +26,7 @@ import {
   AlertCircle,
   Eye,
 } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatApiError } from '@/lib/utils';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface Props {
@@ -319,7 +319,7 @@ export function DocumentReviewModal({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Speichern fehlgeschlagen' : 'Save failed',
-        description: err?.response?.data?.detail || (isGerman ? 'Konnte Felder nicht aktualisieren.' : 'Could not update document fields.'),
+        description: formatApiError(err, isGerman ? 'Konnte Felder nicht aktualisieren.' : 'Could not update document fields.'),
         variant: 'destructive',
       });
     } finally {
@@ -350,7 +350,7 @@ export function DocumentReviewModal({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Wiederholung fehlgeschlagen' : 'Retry failed',
-        description: err?.response?.data?.detail || (isGerman ? 'Konnte OCR nicht erneut starten.' : 'Unable to retry OCR at this time.'),
+        description: formatApiError(err, isGerman ? 'Konnte OCR nicht erneut starten.' : 'Unable to retry OCR at this time.'),
         variant: 'destructive',
       });
     } finally {

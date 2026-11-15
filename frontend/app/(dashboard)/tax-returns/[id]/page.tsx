@@ -41,7 +41,7 @@ import {
   HelpCircle,
   Building
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatApiError } from '@/lib/utils'
 
 const CANTON_NAMES: Record<string, string> = {
   ZH: 'Zürich', ZG: 'Zug', SZ: 'Schwyz', SG: 'St. Gallen',
@@ -220,7 +220,8 @@ export default function TaxReturnDetailPage() {
 
   // Restore step from URL query or localStorage on initial load
   useEffect(() => {
-    const urlStep = searchParams.get('step') as FlowStep | null
+    const rawStep = searchParams.get('step') || searchParams.get('tab')
+    const urlStep = (rawStep === 'docs' ? 'documents' : rawStep) as FlowStep | null
     if (urlStep && STEPS_CONFIG.some(s => s.id === urlStep)) {
       setCurrentStep(urlStep)
       return
@@ -314,7 +315,7 @@ export default function TaxReturnDetailPage() {
     } catch (err: any) {
       toast({
         title: isGerman ? 'Speichern fehlgeschlagen' : 'Save failed',
-        description: err?.response?.data?.detail || (isGerman ? 'Bitte überprüfe deine Angaben.' : 'Please check your inputs.'),
+        description: formatApiError(err, isGerman ? 'Bitte überprüfe deine Angaben.' : 'Please check your inputs.'),
         variant: 'destructive',
       })
     } finally {

@@ -20,7 +20,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
-import { formatFileSize } from '@/lib/utils';
+import { formatFileSize, formatApiError } from '@/lib/utils';
 import { DOCUMENT_CATEGORIES } from '@/types';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 
@@ -202,7 +202,7 @@ export function DocumentUploader({
             ? (isGerman ? 'Datei überschreitet das Limit von 50 MB.' : 'File exceeds 50MB maximum upload limit.')
             : status === 415
             ? (isGerman ? 'Nicht unterstütztes Format. Erlaubt: PDF, JPG, PNG, WEBP, TIFF, HEIC.' : 'Unsupported format. Allowed: PDF, JPG, PNG, WEBP, TIFF, HEIC.')
-            : err?.response?.data?.detail || (isGerman ? 'Dokumenten-Upload fehlgeschlagen.' : 'Document upload failed.');
+            : formatApiError(err, isGerman ? 'Dokumenten-Upload fehlgeschlagen.' : 'Document upload failed.');
 
         if (status === 503) {
           setStorageUnavailableError(msg);

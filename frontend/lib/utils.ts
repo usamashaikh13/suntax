@@ -220,3 +220,37 @@ export function confidenceToLabel(confidence: number): string {
   if (confidence >= 0.6) return 'Mittel';
   return 'Niedrig';
 }
+
+/**
+ * Safely extracts a user-readable error string from an API error or exception.
+ * Prevents React Error #31 caused by rendering raw error/FastAPI 422 validation objects.
+ */
+export function formatApiError(err: any, fallback = 'Ein Fehler ist aufgetreten.'): string {
+  if (!err) return fallback;
+  const detail = err?.response?.data?.detail ?? err?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail
+      .map((item) => {
+        if (typeof item === 'object' && item !== null) {
+          const field = Array.isArray(item.loc) ? item.loc.slice(-1)[0] : item.loc;
+          const msg = item.msg || item.message || JSON.stringify(item);
+          return field ? `${field}: ${msg}` : msg;
+        }
+        return String(item);
+      })
+      .filter(Boolean);
+    if (msgs.length > 0) return msgs.join(', ');
+  }
+  if (typeof detail === 'object' && detail !== null) {
+    if (detail.msg) return String(detail.msg);
+    if (detail.message) return String(detail.message);
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return fallback;
+    }
+  }
+  if (typeof err.message === 'string' && err.message.trim()) return err.message;
+  return fallback;
+}

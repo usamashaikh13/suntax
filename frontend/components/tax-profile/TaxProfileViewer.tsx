@@ -26,6 +26,7 @@ import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { TaxProfile } from '@/types';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
+import { formatApiError } from '@/lib/utils';
 
 interface Props {
   profile: TaxProfile;
@@ -161,7 +162,7 @@ export function TaxProfileViewer({
     } catch (err: any) {
       toast({
         title: isGerman ? 'Speichern fehlgeschlagen' : 'Save failed',
-        description: err?.response?.data?.detail || (isGerman ? 'Bitte überprüfe deine Eingaben.' : 'Please verify your entries.'),
+        description: formatApiError(err, isGerman ? 'Bitte überprüfe deine Eingaben.' : 'Please verify your entries.'),
         variant: 'destructive',
       });
     } finally {

@@ -5,10 +5,10 @@ Pydantic v2 schemas for TaxProfile and its nested structures.
 from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Union
-from uuid import UUID
+from uuid import UUID, uuid4
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ── Nested sub-schemas ────────────────────────────────────────────────────────
@@ -168,9 +168,11 @@ class TaxFlag(BaseModel):
 
 
 class TaxQuestion(BaseModel):
-    id: str
-    category: str  # personal | income | wealth | deductions | liabilities
-    question: str
+    model_config = ConfigDict(extra="allow")
+
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    category: str = "personal"  # personal | income | wealth | deductions | liabilities
+    question: str = ""
     answer: Optional[str] = None
     is_answered: bool = False
     is_required: bool = False
@@ -199,6 +201,59 @@ class TaxProfileResponse(BaseModel):
     notes: Optional[str] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+
+    @field_validator("tax_questions", mode="before")
+    @classmethod
+    def coerce_tax_questions(cls, v: Any) -> Any:
+        if v is None:
+            return []
+        if isinstance(v, dict):
+            coerced = []
+            for q_id, q_val in v.items():
+                if isinstance(q_val, dict):
+                    coerced.append({
+                        "id": str(q_val.get("id", q_id)),
+                        "category": str(q_val.get("category", "personal")),
+                        "question": str(q_val.get("question", str(q_id).replace("_", " ").capitalize())),
+                        "answer": str(q_val.get("answer")) if q_val.get("answer") is not None else None,
+                        "is_answered": bool(q_val.get("is_answered", q_val.get("answer") is not None)),
+                        "is_required": bool(q_val.get("is_required", False)),
+                        "field_hint": q_val.get("field_hint"),
+                        "options": q_val.get("options"),
+                    })
+                else:
+                    coerced.append({
+                        "id": str(q_id),
+                        "category": "personal",
+                        "question": str(q_id).replace("_", " ").capitalize(),
+                        "answer": str(q_val) if q_val is not None else None,
+                        "is_answered": q_val is not None,
+                        "is_required": False,
+                    })
+            return coerced
+        if isinstance(v, list):
+            coerced_list = []
+            for item in v:
+                if isinstance(item, dict):
+                    coerced_list.append(item)
+                elif hasattr(item, "__dict__"):
+                    coerced_list.append(item.__dict__)
+                elif isinstance(item, str):
+                    coerced_list.append({
+                        "id": item,
+                        "category": "personal",
+                        "question": item,
+                        "is_answered": False,
+                    })
+            return coerced_list
+        return []
+
+    @field_validator("tax_flags", mode="before")
+    @classmethod
+    def coerce_tax_flags(cls, v: Any) -> Any:
+        if v is None or not isinstance(v, list):
+            return []
+        return v
 
 
 class TaxProfileUpdateRequest(BaseModel):

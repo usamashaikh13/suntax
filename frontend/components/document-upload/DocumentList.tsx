@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { Document as TaxDocument, DOCUMENT_CATEGORIES } from '@/types';
-import { formatFileSize, formatDate } from '@/lib/utils';
+import { formatFileSize, formatDate, formatApiError } from '@/lib/utils';
 import { DocumentReviewModal } from './DocumentReviewModal';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 
@@ -107,7 +107,7 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
     } catch (err: any) {
       toast({
         title: dict.documents.toastDeleteFailed,
-        description: err?.response?.data?.detail || (isGerman ? 'Dokument konnte nicht gelöscht werden.' : 'Unable to delete document.'),
+        description: formatApiError(err, isGerman ? 'Dokument konnte nicht gelöscht werden.' : 'Unable to delete document.'),
         variant: 'destructive',
       });
     } finally {
@@ -150,7 +150,7 @@ export function DocumentList({ documents, onDelete, onRefresh }: Props) {
     } catch (err: any) {
       toast({
         title: dict.documents.toastRetryFailed,
-        description: err?.response?.data?.detail || (isGerman ? 'OCR-Wiederholung fehlgeschlagen.' : 'OCR retry failed.'),
+        description: formatApiError(err, isGerman ? 'OCR-Wiederholung fehlgeschlagen.' : 'OCR retry failed.'),
         variant: 'destructive',
       });
     } finally {
