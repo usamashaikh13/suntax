@@ -190,7 +190,8 @@ class EmailService:
         b_name = brand["brand_name"]
         b_color = brand["primary_color"]
         b_support = brand["support_email"]
-        verify_url = f"{settings.FRONTEND_URL}/auth/verify-email?token={token}"
+        base_url = settings.FRONTEND_URL.rstrip("/")
+        verify_url = f"{base_url}/verify-email?token={token}"
         html = f"""
 <!DOCTYPE html>
 <html lang="de">
@@ -249,7 +250,8 @@ class EmailService:
         b_name = brand["brand_name"]
         b_color = brand["primary_color"]
         b_support = brand["support_email"]
-        reset_url = f"{settings.FRONTEND_URL}/auth/reset-password?token={token}"
+        base_url = settings.FRONTEND_URL.rstrip("/")
+        reset_url = f"{base_url}/reset-password?token={token}"
         html = f"""
 <!DOCTYPE html>
 <html lang="de">
