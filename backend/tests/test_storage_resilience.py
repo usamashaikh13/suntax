@@ -35,7 +35,7 @@ async def test_local_storage_upload_and_download_roundtrip(tmp_path):
     assert downloaded == content
 
     url = await storage.generate_presigned_url(test_key)
-    assert "dev-files" in url
+    assert url == ""  # Local storage delegates to authenticated document streaming endpoint
 
     deleted = await storage.delete_file(test_key)
     assert deleted is True

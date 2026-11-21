@@ -63,9 +63,19 @@ class InactivityCleanupService:
             user_id = str(user.id)
             user_email = user.email
 
+            # Purge document files and document_blobs
+            from app.services.storage_service import StorageService
+            storage_svc = StorageService()
+            docs_res = await db.execute(select(Document).where(Document.user_id == user_id))
+            for doc in docs_res.scalars().all():
+                try:
+                    await storage_svc.delete_file(doc.storage_key, db=db)
+                except Exception as del_err:
+                    logger.warning("Error deleting document %s during inactivity purge: %s", doc.storage_key, del_err)
+
             # Create audit log before deletion
             audit = AuditLog(
-                user_id=user_id,
+                user_id=None,
                 action="ndsg_hard_deletion_inactivity",
                 resource_type="user",
                 resource_id=user_id,

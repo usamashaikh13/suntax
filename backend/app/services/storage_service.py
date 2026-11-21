@@ -107,13 +107,12 @@ class _LocalStorageService:
         return envelope_service.decrypt_document(encrypted_payload)
 
     async def generate_presigned_url(self, key: str, expires_seconds: int = 600) -> str:
-        safe_key = key.replace("/", "_")
-        backend_url = os.environ.get("RENDER_EXTERNAL_URL") or os.environ.get("BACKEND_URL")
-        if backend_url:
-            return f"{backend_url.rstrip('/')}/dev-files/{safe_key}"
-        return f"http://localhost:8000/dev-files/{safe_key}"
+        # Local/DB storage does not issue unauthenticated raw file URLs.
+        # Direct presigned URLs require S3/MinIO. In local storage mode, clients
+        # route file requests through the authenticated endpoint /api/v1/documents/{id}/file.
+        return ""
 
-    async def delete_file(self, key: str) -> bool:
+    async def delete_file(self, key: str, db: Optional[object] = None) -> bool:
         safe_key = key.replace("/", "_").replace("..", "__")
         p = _local_key_to_path(key)
         if p.exists():
@@ -122,14 +121,19 @@ class _LocalStorageService:
             except Exception:
                 pass
         try:
-            from app.core.database import AsyncSessionLocal
             from app.models.document_blob import DocumentBlob
 
-            async with AsyncSessionLocal() as session:
-                blob = await session.get(DocumentBlob, safe_key)
+            if db is not None:
+                blob = await db.get(DocumentBlob, safe_key)
                 if blob:
-                    await session.delete(blob)
-                    await session.commit()
+                    await db.delete(blob)
+            else:
+                from app.core.database import AsyncSessionLocal
+                async with AsyncSessionLocal() as session:
+                    blob = await session.get(DocumentBlob, safe_key)
+                    if blob:
+                        await session.delete(blob)
+                        await session.commit()
         except Exception as exc:
             logger.warning("Could not delete document blob '%s' from database: %s", safe_key, exc)
         return True

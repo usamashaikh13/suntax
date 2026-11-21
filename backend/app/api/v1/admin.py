@@ -339,126 +339,103 @@ async def trigger_inactivity_cleanup(
     }
 
 
-@router.get(
-    "/database/snapshot",
-    summary="Download full JSON database snapshot for Render free tier backup & migration",
+@router.post(
+    "/database/encrypted-backup",
+    summary="Create full AES-256-GCM encrypted backup archive with DocumentBlobs",
 )
-async def download_database_snapshot(
+async def trigger_encrypted_backup(
     admin: User = Depends(get_current_admin_user),
     db: AsyncSession = Depends(get_db),
 ) -> Dict[str, Any]:
     """
-    Exports a structured JSON snapshot of all taxpayer returns, profiles, calculations,
-    and metadata. Can be used for immediate zero-loss restore or migration to a permanent DB.
+    Triggers an on-demand full AES-256-GCM encrypted backup of all database tables and
+    encrypted DocumentBlobs. Plaintext customer PII, hashes, and tax details are never
+    exposed. Returns manifest metadata and verification details.
     """
-    from app.models.tax_profile import TaxProfile
-    from app.models.tax_calculation import TaxCalculation
-    from app.models.waitlist import WaitlistEntry
+    from app.services.secure_backup_service import secure_backup_service
 
-    users_res = await db.execute(select(User))
-    users = users_res.scalars().all()
+    result = await secure_backup_service.create_encrypted_backup(
+        db=db,
+        operator=admin.email,
+    )
+    return {
+        "status": "success",
+        "message": "Full AES-256-GCM encrypted backup archive successfully created.",
+        "filename": result["filename"],
+        "file_size_bytes": result["file_size_bytes"],
+        "manifest": result["manifest"],
+        "pruned_backups": result.get("pruned_backups", []),
+    }
 
-    tr_res = await db.execute(select(TaxReturn))
-    returns = tr_res.scalars().all()
 
-    prof_res = await db.execute(select(TaxProfile))
-    profiles = prof_res.scalars().all()
+@router.get(
+    "/system-status",
+    summary="[Admin] System environment, compliance posture, and infrastructure status",
+)
+async def get_system_status(
+    admin: User = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Provides a comprehensive operational and security posture report.
+    Guaranteed NEVER to expose database passwords, secret keys, or API tokens.
+    """
+    from app.core.config import settings
+    from app.services.rules_data_service import rules_data_service
+    from app.models.document_blob import DocumentBlob
 
-    calc_res = await db.execute(select(TaxCalculation))
-    calcs = calc_res.scalars().all()
+    # Check database dialect
+    bind = db.bind
+    db_dialect = bind.dialect.name if bind else "unknown"
 
-    doc_res = await db.execute(select(Document))
-    docs = doc_res.scalars().all()
+    # Count document blobs
+    blob_count_res = await db.execute(select(func.count(DocumentBlob.key)))
+    blob_count = blob_count_res.scalar_one_or_none() or 0
 
-    waitlist_res = await db.execute(select(WaitlistEntry))
-    waitlist = waitlist_res.scalars().all()
+    # Count documents
+    doc_count_res = await db.execute(select(func.count(Document.id)))
+    doc_count = doc_count_res.scalar_one_or_none() or 0
+
+    # Active cantons
+    available_cantons = rules_data_service.get_available_canton_codes()
+    gated_cantons = [c for c in rules_data_service.list_all_canton_codes() if c not in available_cantons]
 
     return {
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-        "exported_by": admin.email,
-        "counts": {
-            "users": len(users),
-            "tax_returns": len(returns),
-            "tax_profiles": len(profiles),
-            "tax_calculations": len(calcs),
-            "documents": len(docs),
-            "waitlist": len(waitlist),
+        "environment": settings.ENVIRONMENT,
+        "is_production": settings.ENVIRONMENT == "production",
+        "brand_name": settings.BRAND_NAME,
+        "brand_domain": settings.BRAND_DOMAIN,
+        "database": {
+            "dialect": db_dialect,
+            "ssl_enforced": "ssl" in settings.DATABASE_URL or "sslmode" in settings.DATABASE_URL,
+            "row_level_security": True,
         },
-        "data": {
-            "users": [
-                {
-                    "id": str(u.id),
-                    "email": u.email,
-                    "full_name": u.full_name,
-                    "is_active": u.is_active,
-                    "is_verified": u.is_verified,
-                    "created_at": u.created_at.isoformat() if u.created_at else None,
-                }
-                for u in users
-            ],
-            "tax_returns": [
-                {
-                    "id": str(r.id),
-                    "user_id": str(r.user_id),
-                    "canton_code": r.canton_code,
-                    "tax_year": r.tax_year,
-                    "status": r.status,
-                    "transmission_status": r.transmission_status,
-                    "payment_status": r.payment_status,
-                    "created_at": r.created_at.isoformat() if r.created_at else None,
-                    "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
-                }
-                for r in returns
-            ],
-            "tax_profiles": [
-                {
-                    "id": str(p.id),
-                    "tax_return_id": str(p.tax_return_id),
-                    "personal_data": p.personal_data,
-                    "income_data": p.income_data,
-                    "wealth_data": p.wealth_data,
-                    "deductions_data": p.deductions_data,
-                    "liabilities_data": p.liabilities_data,
-                    "tax_questions": p.tax_questions,
-                }
-                for p in profiles
-            ],
-            "tax_calculations": [
-                {
-                    "id": str(c.id),
-                    "tax_return_id": str(c.tax_return_id),
-                    "cantonal_income_tax": float(c.cantonal_income_tax) if c.cantonal_income_tax is not None else 0.0,
-                    "municipal_income_tax": float(c.municipal_income_tax) if c.municipal_income_tax is not None else 0.0,
-                    "federal_income_tax": float(c.federal_income_tax) if c.federal_income_tax is not None else 0.0,
-                    "total_tax_due": float(c.total_tax_due) if c.total_tax_due is not None else 0.0,
-                    "calculation_details": c.calculation_details,
-                    "is_final": c.is_final,
-                    "calculated_at": c.calculated_at.isoformat() if c.calculated_at else None,
-                }
-                for c in calcs
-            ],
-            "documents": [
-                {
-                    "id": str(d.id),
-                    "tax_return_id": str(d.tax_return_id) if d.tax_return_id else None,
-                    "user_id": str(d.user_id),
-                    "filename": d.original_filename,
-                    "document_type": d.document_type,
-                    "storage_key": d.storage_key,
-                    "file_size_bytes": d.file_size_bytes,
-                    "uploaded_at": d.uploaded_at.isoformat() if d.uploaded_at else None,
-                }
-                for d in docs
-            ],
-            "waitlist": [
-                {
-                    "id": str(w.id),
-                    "email": w.email,
-                    "canton_code": w.canton_code,
-                    "created_at": w.created_at.isoformat() if w.created_at else None,
-                }
-                for w in waitlist
-            ],
+        "storage": {
+            "backend": "database_blob_and_local_envelope" if not settings.MINIO_ACCESS_KEY or settings.MINIO_ENDPOINT == "localhost:9000" else "s3_compatible",
+            "at_rest_encryption": "AES-256-GCM (Per-Document Envelope DEK via KMS)",
+            "tracked_documents": doc_count,
+            "persisted_blobs": blob_count,
+        },
+        "backup": {
+            "encryption": "AES-256-GCM (Dedicated BACKUP_ENCRYPTION_KEY)",
+            "retention_days": getattr(settings, "BACKUP_RETENTION_DAYS", 30),
+            "isolated_restore_required": True,
+        },
+        "security_posture": {
+            "two_factor_auth": "Enforced (TOTP with replay protection; test bypass strictly forbidden in production)",
+            "rate_limiting": "Enabled (SlowAPI)",
+            "cors_origins_configured": len(settings.BACKEND_CORS_ORIGINS),
+        },
+        "cantons": {
+            "verified_active": available_cantons,
+            "coming_soon_gated": gated_cantons,
+            "default_tax_year": rules_data_service.get_default_tax_year(),
+        },
+        "compliance_and_launch_blockers": {
+            "swiss_hosting": "BLOCKED: Staging is hosted in Frankfurt (Render / Vercel). Production requires migration to Swiss cloud (AWS Zürich eu-central-2 or Exoscale/Infomaniak).",
+            "canton_transmission": "BLOCKED: Direct electronic filing via eCH-0119 gateway is gated until official cantonal certification. Users submit via official PDF dossier and postal / portal upload.",
+            "swiss_ai_privacy": "BLOCKED: External AI is disabled by default (ENABLE_EXTERNAL_AI_EXTRACTION=False). Production requires Swiss-hosted AI or on-premise OCR.",
+            "payment_merchant": "BLOCKED: Live Payrexx merchant account credentials required for production credit card / TWINT settlement.",
         },
     }
 

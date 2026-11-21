@@ -800,6 +800,14 @@ async def stream_document_file(
         try:
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
             user_id = payload.get("sub")
+            doc_token_id = payload.get("doc_id")
+            if doc_token_id and str(doc_token_id) != str(document_id):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Download token is not valid for this document",
+                )
+        except HTTPException:
+            raise
         except Exception:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

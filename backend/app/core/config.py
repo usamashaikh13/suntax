@@ -70,8 +70,28 @@ class Settings(BaseSettings):
 
     # ── Application ──────────────────────────────────────────────────────────
     APP_NAME: str = str(_BRAND_DEFAULTS.get("brand_name", "SunTax"))
-    ENVIRONMENT: str = "development"  # development | staging | production
+    ENVIRONMENT: str = "development"  # development | staging | production | test
     DEBUG: bool = False
+
+    @field_validator("ENVIRONMENT", mode="before")
+    @classmethod
+    def validate_environment(cls, v: str) -> str:
+        val = str(v).lower().strip()
+        if val in ("prod", "production"):
+            return "production"
+        if val in ("stage", "staging"):
+            return "staging"
+        if val in ("test", "testing"):
+            return "test"
+        return "development"
+
+    @field_validator("DEBUG", mode="after")
+    @classmethod
+    def enforce_no_debug_in_production(cls, v: bool, info) -> bool:
+        env = (info.data.get("ENVIRONMENT") or "").lower()
+        if env == "production":
+            return False
+        return v
 
     def get_brand_config(self) -> Dict[str, Any]:
         """Return active brand settings dynamically (reflects any env or runtime override)."""
@@ -130,6 +150,22 @@ class Settings(BaseSettings):
 
     # Token for email verification / password-reset (24 h)
     EMAIL_TOKEN_EXPIRE_HOURS: int = 24
+
+    @field_validator("SECRET_KEY", mode="after")
+    @classmethod
+    def enforce_strong_secret_key_in_production(cls, v: str, info) -> str:
+        env = (info.data.get("ENVIRONMENT") or "").lower()
+        if env == "production":
+            if v == "CHANGE-ME-use-at-least-32-random-characters-here!!" or len(v) < 32:
+                raise ValueError(
+                    "In production, SECRET_KEY must be a cryptographically secure key of at least 32 characters."
+                )
+        return v
+
+    # ── Encrypted Backup & Disaster Recovery (nDSG / ISO 27001) ───────────────
+    BACKUP_ENCRYPTION_KEY: Optional[str] = None
+    BACKUP_RETENTION_DAYS: int = 30
+    BACKUP_DIR: str = "backups"
 
     # ── MinIO / S3 ────────────────────────────────────────────────────────────
     MINIO_ENDPOINT: str = "localhost:9000"
@@ -223,7 +259,7 @@ class Settings(BaseSettings):
     @classmethod
     def enforce_no_2fa_bypass_in_production(cls, v: bool, info) -> bool:
         env = (info.data.get("ENVIRONMENT") or "").lower()
-        if env in ("production", "prod"):
+        if env in ("production", "staging"):
             return False
         return v
 

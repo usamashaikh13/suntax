@@ -771,14 +771,24 @@ async def update_me(
 )
 async def delete_me(
     request: Request,
+    hard_delete: bool = Query(
+        False,
+        description="Permanently erase all personal tax data and documents under Swiss nDSG Right to Erasure",
+    ),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> MessageResponse:
-    """Soft-deactivate current user account, revoke all sessions, and audit the event."""
-    current_user.is_active = False
-    current_user.tokens_valid_after = datetime.now(timezone.utc)
-    db.add(current_user)
-    await revoke_all_user_refresh_tokens(str(current_user.id), db=db)
+    """
+    Deactivates or permanently deletes current user account.
+    When hard_delete=True, purges all stored documents from disk/database blob storage
+    and permanently deletes all relational records pursuant to Swiss nDSG Art. 32.
+    """
+    user_id = str(current_user.id)
+    user_email = current_user.email
+    ip_addr = _client_ip(request)
+
+    # Revoke all sessions and denylist active token
+    await revoke_all_user_refresh_tokens(user_id, db=db)
     auth_header = request.headers.get("Authorization", "")
     bearer = auth_header.removeprefix("Bearer ").strip()
     if bearer:
@@ -789,13 +799,48 @@ async def delete_me(
             await add_token_to_denylist(bearer, rem, db=db)
         except HTTPException:
             pass
+
+    if hard_delete:
+        # 1. Fetch user's documents and purge from physical storage & document_blobs
+        from app.models.document import Document
+        from app.services.storage_service import StorageService
+        storage_svc = StorageService()
+
+        docs_res = await db.execute(select(Document).where(Document.user_id == user_id))
+        user_docs = docs_res.scalars().all()
+        for doc in user_docs:
+            try:
+                await storage_svc.delete_file(doc.storage_key, db=db)
+            except Exception as del_err:
+                logger.warning("Error deleting document file %s during hard delete: %s", doc.storage_key, del_err)
+
+        # 2. Write anonymized audit log before deleting record
+        await _write_audit(
+            db,
+            user_id=None,
+            action="user.hard_deleted_ndsg",
+            resource_type="user",
+            resource_id=user_id,
+            ip_address=ip_addr,
+        )
+
+        # 3. Permanently delete user from database (cascades to returns, profiles, calculations)
+        await db.delete(current_user)
+        await db.commit()
+        logger.info("Permanently deleted account %s under Swiss nDSG Right to Erasure", user_email)
+        return MessageResponse(message="Account and all associated personal data have been permanently erased.")
+
+    # Soft deactivation
+    current_user.is_active = False
+    current_user.tokens_valid_after = datetime.now(timezone.utc)
+    db.add(current_user)
     await _write_audit(
         db,
-        user_id=str(current_user.id),
+        user_id=user_id,
         action="user.account_deactivated",
         resource_type="user",
-        resource_id=str(current_user.id),
-        ip_address=_client_ip(request),
+        resource_id=user_id,
+        ip_address=ip_addr,
     )
     await db.commit()
     return MessageResponse(message="Account deactivated successfully.")

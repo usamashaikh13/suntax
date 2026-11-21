@@ -42,6 +42,7 @@ const nextConfig = {
     NEXT_PUBLIC_BRAND_LOGO_PATH: process.env.NEXT_PUBLIC_BRAND_LOGO_PATH || brandConfig.logo_path,
     NEXT_PUBLIC_BRAND_PRIMARY_COLOR: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || brandConfig.primary_color,
     NEXT_PUBLIC_COMPANY_LEGAL_NAME: process.env.NEXT_PUBLIC_COMPANY_LEGAL_NAME || brandConfig.company_legal_name,
+    NEXT_PUBLIC_ENVIRONMENT: process.env.NEXT_PUBLIC_ENVIRONMENT || process.env.NODE_ENV || 'development',
   },
 
   // Image configuration
