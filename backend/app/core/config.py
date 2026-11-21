@@ -259,7 +259,7 @@ class Settings(BaseSettings):
     @classmethod
     def enforce_no_2fa_bypass_in_production(cls, v: bool, info) -> bool:
         env = (info.data.get("ENVIRONMENT") or "").lower()
-        if env in ("production", "staging"):
+        if env in ("production", "prod"):
             return False
         return v
 
