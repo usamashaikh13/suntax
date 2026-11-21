@@ -113,9 +113,9 @@ class OcrService:
         return None
 
     def _detect_languages(self) -> str:
-        """Return available OCR language string (e.g. deu+fra+ita+eng)."""
+        """Return available OCR language string (prioritizes German + English for speed and accuracy)."""
         available = []
-        target_langs = ["deu", "fra", "ita", "eng"]
+        target_langs = ["deu", "eng"]
 
         if self._tessdata_dir:
             for lang in target_langs:
@@ -178,11 +178,12 @@ class OcrService:
             osd_img = img.copy()
             if max(osd_img.size) > 1000:
                 osd_img.thumbnail((1000, 1000), resample=Image.Resampling.BILINEAR)
+            osd_timeout = min(3.0, timeout) if timeout else 3.0
             osd = pytesseract.image_to_osd(
                 osd_img,
                 config=config,
                 output_type=pytesseract.Output.DICT,
-                timeout=timeout,
+                timeout=osd_timeout,
             )
             rot_deg = osd.get("rotate", 0)
             conf = float(osd.get("orientation_conf", 0.0))
@@ -257,12 +258,12 @@ class OcrService:
                 f"Image size ({w}x{h} = {w*h} pixels) exceeds the maximum allowed limit of {settings.OCR_MAX_IMAGE_PIXELS} pixels."
             )
 
-        # 3. Downscale oversized camera images to optimal OCR resolution (max 2048px)
-        max_dim = 2048
+        # 3. Downscale oversized camera images to optimal OCR resolution (max 1400px)
+        max_dim = 1400
         if max(w, h) > max_dim:
             scale = max_dim / float(max(w, h))
             new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
-            img = img.resize((new_w, new_h), resample=Image.Resampling.LANCZOS)
+            img = img.resize((new_w, new_h), resample=Image.Resampling.BILINEAR)
 
         # 4. Convert to RGB if palette/RGBA
         if img.mode not in ("L", "RGB"):

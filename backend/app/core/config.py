@@ -185,7 +185,7 @@ class Settings(BaseSettings):
     # ── OCR & Document Processing Limits ──────────────────────────────────────
     OCR_MAX_PAGES: int = 50
     OCR_MAX_IMAGE_PIXELS: int = 50_000_000
-    OCR_TIMEOUT_SECONDS: int = 120
+    OCR_TIMEOUT_SECONDS: int = 180
     TESSDATA_DIR: Optional[str] = "backend/tessdata"
 
     # ── Sentry ────────────────────────────────────────────────────────────────
