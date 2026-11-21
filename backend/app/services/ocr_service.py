@@ -191,14 +191,9 @@ class OcrService:
                 logger.info("Detected document rotation of %d degrees (confidence %.2f); correcting orientation", rot_deg, conf)
                 # Rotate clockwise in Pillow via negative angle
                 img = img.rotate(-rot_deg, expand=True)
-        except RuntimeError as rt_exc:
-            if "timeout" in str(rt_exc).lower():
-                raise OcrLimitError(
-                    f"OCR processing exceeded time limit of {settings.OCR_TIMEOUT_SECONDS} seconds."
-                ) from rt_exc
         except Exception as exc:
-            # OSD might raise TesseractError on low-text images or diagrams; keep current orientation
-            logger.debug("Tesseract OSD orientation detection skipped or failed: %s", exc)
+            # OSD is best-effort: if it times out, lacks text, or fails, proceed with the original image orientation
+            logger.debug("Tesseract OSD orientation detection skipped or timed out: %s", exc)
         return img
 
     def _deskew_image(self, img: Image.Image, max_angle: float = 8.0, step: float = 1.0) -> Image.Image:
