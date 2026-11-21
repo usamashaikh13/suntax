@@ -85,6 +85,23 @@ async def lifespan(app: FastAPI):
             async with AsyncSessionLocal() as session:
                 await deduction_rules_service.seed_from_csv(session)
                 await question_info_service.seed_defaults(session)
+
+            # Auto-sync existing local storage files into DocumentBlob table (Render free persistence)
+            try:
+                from app.models.document_blob import DocumentBlob
+                import pathlib
+                dev_storage_dir = pathlib.Path(__file__).resolve().parent.parent / "dev_storage"
+                if dev_storage_dir.exists():
+                    async with AsyncSessionLocal() as session:
+                        for f in dev_storage_dir.glob("*"):
+                            if f.is_file() and f.stat().st_size > 0:
+                                key = f.name
+                                existing = await session.get(DocumentBlob, key)
+                                if not existing:
+                                    session.add(DocumentBlob(key=key, payload=f.read_bytes()))
+                        await session.commit()
+            except Exception as blob_err:
+                logger.warning("Could not sync storage to DocumentBlob: %s", blob_err)
         except Exception as seed_err:
             logger.warning("Could not auto-seed rules/info texts: %s", seed_err)
     except Exception as exc:

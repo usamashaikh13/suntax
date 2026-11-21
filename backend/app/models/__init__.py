@@ -7,6 +7,7 @@ from app.core.database import Base  # noqa: F401 – re-exported for convenience
 from app.models.audit_log import AuditLog
 from app.models.deduction_rule import DeductionRule
 from app.models.document import Document
+from app.models.document_blob import DocumentBlob
 from app.models.question_info_text import QuestionInfoText
 from app.models.security_state import AiChatMessage, SecurityToken, TotpReplayEntry
 from app.models.tax_calculation import TaxCalculation
@@ -22,6 +23,7 @@ __all__ = [
     "AiChatMessage",
     "DeductionRule",
     "Document",
+    "DocumentBlob",
     "QuestionInfoText",
     "SecurityToken",
     "TaxCalculation",

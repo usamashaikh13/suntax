@@ -44,24 +44,65 @@ def _local_key_to_path(key: str) -> pathlib.Path:
 
 
 class _LocalStorageService:
-    """Filesystem-based storage for local development (no MinIO required)."""
+    """Filesystem-based storage with PostgreSQL / SQLite persistent blob fallback (survives Render dyno restarts)."""
 
     def __init__(self) -> None:
         _LOCAL_STORAGE.mkdir(exist_ok=True)
 
     async def upload_file(self, file_bytes: bytes, key: str, content_type: str = "") -> str:
+        safe_key = key.replace("/", "_").replace("..", "__")
         p = _local_key_to_path(key)
         p.parent.mkdir(parents=True, exist_ok=True)
         # Apply multi-layer AES-256-GCM envelope encryption (FDPIC / nDSG compliant)
         encrypted_bytes = envelope_service.encrypt_document(file_bytes)
         p.write_bytes(encrypted_bytes)
+
+        # Sync to persistent database blob storage (protects against Render free-tier container wipes)
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.models.document_blob import DocumentBlob
+
+            async with AsyncSessionLocal() as session:
+                existing = await session.get(DocumentBlob, safe_key)
+                if existing:
+                    existing.payload = encrypted_bytes
+                else:
+                    session.add(DocumentBlob(key=safe_key, payload=encrypted_bytes))
+                await session.commit()
+        except Exception as exc:
+            logger.warning("Could not persist document blob '%s' to database: %s", safe_key, exc)
+
         return key
 
     async def download_file(self, key: str) -> bytes:
+        safe_key = key.replace("/", "_").replace("..", "__")
         p = _local_key_to_path(key)
-        if not p.exists():
-            raise FileNotFoundError(f"Dev storage: '{key}' not found")
-        encrypted_payload = p.read_bytes()
+        encrypted_payload: Optional[bytes] = None
+
+        if p.exists() and p.stat().st_size > 0:
+            encrypted_payload = p.read_bytes()
+        else:
+            # Fallback to database blob storage if disk was purged on Render restart
+            try:
+                from app.core.database import AsyncSessionLocal
+                from app.models.document_blob import DocumentBlob
+
+                async with AsyncSessionLocal() as session:
+                    blob = await session.get(DocumentBlob, safe_key)
+                    if blob and blob.payload:
+                        encrypted_payload = bytes(blob.payload)
+                        # Re-hydrate file onto local filesystem for fast access
+                        try:
+                            p.parent.mkdir(parents=True, exist_ok=True)
+                            p.write_bytes(encrypted_payload)
+                        except Exception:
+                            pass
+            except Exception as exc:
+                logger.warning("Could not retrieve document blob '%s' from database: %s", safe_key, exc)
+
+        if not encrypted_payload:
+            raise FileNotFoundError(f"Storage: '{key}' not found on disk or database")
+
         # Transparently decrypt envelope with KMS-managed DEK
         return envelope_service.decrypt_document(encrypted_payload)
 
@@ -73,19 +114,56 @@ class _LocalStorageService:
         return f"http://localhost:8000/dev-files/{safe_key}"
 
     async def delete_file(self, key: str) -> bool:
+        safe_key = key.replace("/", "_").replace("..", "__")
         p = _local_key_to_path(key)
         if p.exists():
-            p.unlink()
+            try:
+                p.unlink()
+            except Exception:
+                pass
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.models.document_blob import DocumentBlob
+
+            async with AsyncSessionLocal() as session:
+                blob = await session.get(DocumentBlob, safe_key)
+                if blob:
+                    await session.delete(blob)
+                    await session.commit()
+        except Exception as exc:
+            logger.warning("Could not delete document blob '%s' from database: %s", safe_key, exc)
         return True
 
     async def file_exists(self, key: str) -> bool:
-        return _local_key_to_path(key).exists()
+        if _local_key_to_path(key).exists():
+            return True
+        safe_key = key.replace("/", "_").replace("..", "__")
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.models.document_blob import DocumentBlob
+
+            async with AsyncSessionLocal() as session:
+                blob = await session.get(DocumentBlob, safe_key)
+                return blob is not None
+        except Exception:
+            return False
 
     async def get_object_metadata(self, key: str) -> Optional[dict]:
         p = _local_key_to_path(key)
-        if not p.exists():
-            return None
-        return {"ContentLength": p.stat().st_size}
+        if p.exists():
+            return {"ContentLength": p.stat().st_size}
+        safe_key = key.replace("/", "_").replace("..", "__")
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.models.document_blob import DocumentBlob
+
+            async with AsyncSessionLocal() as session:
+                blob = await session.get(DocumentBlob, safe_key)
+                if blob and blob.payload:
+                    return {"ContentLength": len(blob.payload)}
+        except Exception:
+            pass
+        return None
 
 
 # ── MinIO / S3 production storage ─────────────────────────────────────────────

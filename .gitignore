@@ -84,6 +84,8 @@ yarn-debug.log
 # Uploaded files & local storage
 uploads/
 media/
+backups/
+backend/backups/
 jira_evidence_screenshots/
 frontend/inspect_return.png
 frontend/test_output.pdf
