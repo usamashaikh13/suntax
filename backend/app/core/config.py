@@ -239,6 +239,13 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = "re_your_resend_api_key"
     TWILIO_SENDGRID_API_KEY: Optional[str] = None
 
+    # ── Standard SMTP (Gmail, Brevo, Resend SMTP, custom SMTP) ───────────────
+    SMTP_HOST: Optional[str] = None
+    SMTP_PORT: int = 587
+    SMTP_USER: Optional[str] = None
+    SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+
     # ── Twilio (SMS & Phone Text Messages) ────────────────────────────────────
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None

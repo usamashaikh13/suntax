@@ -41,9 +41,34 @@ class EmailService:
         """Return True when we should print to console instead of external APIs."""
         if self._is_dev:
             return True
+        has_smtp = bool(settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD)
         has_sendgrid = bool(self._sendgrid_api_key and not self._sendgrid_api_key.startswith("SG.your_"))
         has_resend = bool(self._resend_api_key and not self._resend_api_key.startswith("re_your_"))
-        return not (has_sendgrid or has_resend)
+        return not (has_smtp or has_sendgrid or has_resend)
+
+    def _send_smtp_sync(self, to: str, subject: str, html: str) -> bool:
+        """Synchronously send email via standard SMTP (e.g. Gmail, Brevo, custom)."""
+        import smtplib
+        from email.mime.multipart import MIMEMultipart
+        from email.mime.text import MIMEText
+        import re
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = self._from_address
+        msg["To"] = to
+
+        plain_text = re.sub(r"<[^>]+>", "", html).strip()
+        msg.attach(MIMEText(plain_text, "plain", "utf-8"))
+        msg.attach(MIMEText(html, "html", "utf-8"))
+
+        with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=15.0) as server:
+            if settings.SMTP_USE_TLS:
+                server.starttls()
+            if settings.SMTP_USER and settings.SMTP_PASSWORD:
+                server.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
+            server.sendmail(self._from_address, [to], msg.as_string())
+        return True
 
     async def _send(self, to: str, subject: str, html: str) -> bool:
         """
@@ -72,7 +97,17 @@ class EmailService:
             )
             return True
 
-        # 1. Try Twilio SendGrid if configured
+        # 1. Try standard SMTP if configured
+        if settings.SMTP_HOST and settings.SMTP_USER and settings.SMTP_PASSWORD:
+            try:
+                import asyncio
+                await asyncio.to_thread(self._send_smtp_sync, to, subject, html)
+                logger.info("Email sent via SMTP to %s", to)
+                return True
+            except Exception as exc:
+                logger.error("SMTP dispatch failed: %s", exc)
+
+        # 2. Try Twilio SendGrid if configured
         if self._sendgrid_api_key and not self._sendgrid_api_key.startswith("SG.your_"):
             try:
                 # Extract clean email address if in "Name <email@domain>" format
