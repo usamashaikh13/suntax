@@ -29,6 +29,10 @@ class TaxCalculation(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="draft")
     is_final: Mapped[bool] = mapped_column(nullable=False, default=False)
     rule_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    tax_rule_version: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    inputs: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    results: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    breakdown: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     taxable_income: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     taxable_wealth: Mapped[Optional[float]] = mapped_column(Float, nullable=True)

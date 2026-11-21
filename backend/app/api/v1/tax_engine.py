@@ -195,6 +195,10 @@ async def calculate_tax(
     calc = TaxCalculation(
         tax_return_id=str(tr.id),
         rule_version=rules.version,
+        tax_rule_version=rules.version,
+        inputs=profile.personal_data or {},
+        results=result_data,
+        breakdown=result_data.get("breakdown", {}),
         status="completed",
         taxable_income=float(result.taxable_income),
         taxable_wealth=float(result.taxable_wealth),
