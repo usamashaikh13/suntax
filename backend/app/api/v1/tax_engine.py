@@ -453,6 +453,59 @@ async def export_dossier(
     )
 
 
+@router.get(
+    "/tax-returns/{tax_return_id}/preflight",
+    tags=["Tax Engine"],
+    summary="Inspect official local preflight validation report (all 6 gates)",
+)
+async def get_preflight_report(
+    tax_return_id: str,
+    lang: str = Query("de", pattern="^(de|en)$"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Run full preflight verification across all 6 gates (XSD, AHV, BFS, rounding, attachments, anti-fabrication)."""
+    tr = await _get_tax_return(tax_return_id, db, current_user)
+    profile_result = await db.execute(select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id)))
+    profile = profile_result.scalar_one_or_none()
+    calc_result = await db.execute(
+        select(TaxCalculation).where(TaxCalculation.tax_return_id == str(tr.id)).order_by(TaxCalculation.calculated_at.desc()).limit(1)
+    )
+    calc = calc_result.scalar_one_or_none()
+    if not profile or not calc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Profile or calculation missing.")
+    docs_result = await db.execute(select(Document).where(Document.tax_return_id == str(tr.id)))
+    documents = docs_result.scalars().all()
+    tr.user = current_user
+
+    pdf_bytes = generate_tax_return_pdf(tr, profile, calc, lang=lang)
+    try:
+        xml_str = generate_ech_xml(tr, profile, calc, attachments=documents)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    from app.services.canton_acceptance_service import cantonal_acceptance_service
+    report = await cantonal_acceptance_service.verify_acceptance(
+        xml_str, pdf_bytes, tr, profile, calc, documents
+    )
+    return {
+        "tax_return_id": str(tr.id),
+        "canton": tr.canton_code,
+        "tax_year": tr.tax_year,
+        "is_passed": report.is_passed,
+        "disclaimer": report.disclaimer,
+        "gates": [
+            {
+                "gate_name": g.gate_name,
+                "passed": g.passed,
+                "details": g.details,
+                "errors": g.errors,
+            }
+            for g in report.gate_results
+        ],
+    }
+
+
 # ── Confirm ───────────────────────────────────────────────────────────────────
 
 
