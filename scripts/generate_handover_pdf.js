@@ -3,7 +3,7 @@ const path = require('path');
 const { chromium } = require(path.resolve('/Users/osamashaikh/.gemini/antigravity/scratch/suntax/frontend/node_modules/@playwright/test'));
 
 const MD_PATH = '/Users/osamashaikh/.gemini/antigravity/scratch/suntax/docs/SunTax_Milestone_2_Document_Processing_Handover.md';
-const SCREENSHOTS_DIR = '/Users/osamashaikh/.gemini/antigravity/scratch/suntax/docs/screenshots_milestone2';
+const DOCS_DIR = '/Users/osamashaikh/.gemini/antigravity/scratch/suntax/docs';
 const PDF_OUTPUT_DOCS = '/Users/osamashaikh/.gemini/antigravity/scratch/suntax/docs/SunTax_Milestone_2_Document_Processing_Handover.pdf';
 const PDF_OUTPUT_BRAIN = '/Users/osamashaikh/.gemini/antigravity/brain/b9c7cd63-97a4-416c-af83-0fa8d84d8782/SunTax_Milestone_2_Document_Processing_Handover.pdf';
 
@@ -11,14 +11,18 @@ function convertMarkdownToHtml(md) {
   let html = md;
 
   // Replace images with Base64 embedded images
-  html = html.replace(/!\[([^\]]*)\]\((screenshots_milestone2\/[^\)]+)\)/g, (match, alt, relPath) => {
-    const filename = path.basename(relPath);
-    const imgPath = path.join(SCREENSHOTS_DIR, filename);
+  html = html.replace(/!\[([^\]]*)\]\((([^\)]+)\.(?:png|jpg|jpeg|svg))\)/gi, (match, alt, relPath) => {
+    let imgPath = path.resolve(DOCS_DIR, relPath);
+    if (!fs.existsSync(imgPath)) {
+      imgPath = path.resolve('/Users/osamashaikh/.gemini/antigravity/scratch/suntax', relPath);
+    }
     if (fs.existsSync(imgPath)) {
       const b64 = fs.readFileSync(imgPath).toString('base64');
+      const ext = path.extname(imgPath).toLowerCase().replace('.', '') || 'png';
+      const mime = ext === 'svg' ? 'image/svg+xml' : `image/${ext}`;
       return `<div class="screenshot-container">
-        <div class="screenshot-title">📷 ${alt || filename}</div>
-        <img src="data:image/png;base64,${b64}" alt="${alt}" class="screenshot-img" />
+        <div class="screenshot-title">📷 ${alt || path.basename(relPath)}</div>
+        <img src="data:${mime};base64,${b64}" alt="${alt}" class="screenshot-img" />
       </div>`;
     }
     return `<div class="screenshot-container">[Image: ${alt}]</div>`;
@@ -99,7 +103,7 @@ async function generatePdf() {
     size: A4;
     margin: 20mm 15mm 20mm 15mm;
     @top-right {
-      content: "SunTax — Milestone 2 Handover";
+      content: "SunTax — Client Handover Package";
       font-size: 8pt;
       color: #64748B;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -124,7 +128,7 @@ async function generatePdf() {
 
   .doc-h1 {
     color: #1E7B52;
-    font-size: 20pt;
+    font-size: 19pt;
     font-weight: 800;
     margin-top: 0;
     margin-bottom: 4px;
@@ -133,32 +137,32 @@ async function generatePdf() {
 
   .doc-h2 {
     color: #0F172A;
-    font-size: 13pt;
+    font-size: 12.5pt;
     font-weight: 700;
     border-bottom: 1.5px solid #1E7B52;
     padding-bottom: 4px;
-    margin-top: 24px;
-    margin-bottom: 12px;
+    margin-top: 22px;
+    margin-bottom: 10px;
     page-break-after: avoid;
   }
 
   .doc-h3 {
     color: #1E7B52;
-    font-size: 11pt;
+    font-size: 10.5pt;
     font-weight: 700;
-    margin-top: 18px;
+    margin-top: 16px;
     margin-bottom: 6px;
     page-break-after: avoid;
   }
 
   p {
     margin-top: 0;
-    margin-bottom: 10px;
+    margin-bottom: 9px;
   }
 
   ul {
     margin-top: 0;
-    margin-bottom: 12px;
+    margin-bottom: 11px;
     padding-left: 20px;
   }
 
@@ -268,7 +272,7 @@ async function generatePdf() {
 
   .screenshot-img {
     max-width: 100%;
-    max-height: 160mm;
+    max-height: 155mm;
     border: 1px solid #CBD5E1;
     border-radius: 4px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
@@ -278,7 +282,7 @@ async function generatePdf() {
     border: 0;
     height: 1px;
     background: #E2E8F0;
-    margin: 20px 0;
+    margin: 18px 0;
   }
 </style>
 </head>
@@ -311,11 +315,11 @@ ${bodyHtml}
     printBackground: true,
     displayHeaderFooter: true,
     headerTemplate: `<div style="width: 100%; font-size: 8pt; color: #64748b; padding: 0 15mm; display: flex; justify-content: space-between; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-      <span>SunTax — Milestone 2 Client Handover</span>
+      <span>SunTax — Client Handover Package</span>
       <span>Confidential · Staging Demo Only</span>
     </div>`,
     footerTemplate: `<div style="width: 100%; font-size: 8pt; color: #64748b; padding: 0 15mm; display: flex; justify-content: space-between; font-family: -apple-system, BlinkMacSystemFont, sans-serif;">
-      <span>AI Document Processing Handover</span>
+      <span>Milestone 2 & System Delivery</span>
       <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
     </div>`
   });
