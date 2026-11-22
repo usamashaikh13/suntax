@@ -1,0 +1,60 @@
+Total pages: 2
+=== PAGE 1 ===
+SunTax – Developer Guide · Addendum 1
+9 November 2026 · Only the additions to the guide you already have. Files: Ergaenzung_1.zip
+1. Brand name in one place
+The product will be renamed («SunTax» is only a working name). Never hard-code the name:
+keep it, the logo, the domain and the contact e-mail in one config value each, used everywhere
+(UI, e-mails, PDFs, sourceDescription  in eCH-0119).
+2. Cantons switched on one by one
+Build the app for all cantons (rules for all 26 are in the data), but submission is only offered
+in cantons that are switched on.
+Each canton gets an availability flag per tax year in the rules table: available  (direct
+submission works) or coming_soon . Switching a canton on must need no code change,
+only data.
+First confirmed: Zürich (eCH-0119 via webservice from 1 Jan 2027, access requested at zh-
+tax@zh.ch). Other cantons are switched on as soon as their access or certification is in
+place (candidates: Bern, Thurgau, Schwyz, Solothurn). The goal is to launch with as many
+cantons as are ready by then.
+The transmission to each canton is its own small module (same eCH-0119 file, different
+delivery), so adding a canton does not touch the calculation.
+If the postcode on 31 Dec is in a coming_soon  canton: show «Dein Kanton kommt bald»,
+offer a waiting list by e-mail (canton + e-mail stored), no payment.
+The website's canton calculator keeps showing all 26 cantons (it only informs).
+3. Rules 2025 and 2026 as data rules_2025_2026.json
+All 26 cantons with base values = 2025 and a y2026  block with only the changes. Confirmed
+for 2026: federal tax, ZH, AG, SZ, SO, VS (changed) and UR, GL, BS, VD (unchanged). The
+other 17 cantons: 2026 not yet confirmed, use 2025 until updated. Federal car rate 2026: CHF
+0.75/km (2025: 0.70).
+4. Receipt rules as data receipts_rules.json
+For every field: required  (attached, submission blocked without it) or keep_only  (not
+attached). Plus the receipts that are always required, the annex documents the app generates
+itself, and the required personal data. Values follow Zürich; store them per canton and year.
+5. Question catalogue questions.json
+The 14 question cards of step 3 with exact German wording, answer options, follow-up fields
+and the condition for each card (e.g. custody questions only for unmarried parents, partner-2
+
+=== PAGE 2 ===
+questions only for married couples). The «Next» button stays disabled until the card is
+answered, with a hint above it saying what is missing.
+6. All app texts in one file app_texts_de.json
+250 visible German texts extracted from the prototype, so nothing has to be retyped. Put all UI
+texts into one translation file ( de ) from the start; an English version will follow later.
+7. New feature: «So viel sparst du» (savings display)
+Goal: the user sees what each deduction is worth in francs. This is the main argument against
+the free cantonal software.
+Per deduction: next to every optional deduction (commute, meals, pillar 3a, insurance,
+training, child care, donations, medical costs …) show «Spart ca. CHF X».
+How to compute X: run the tax engine twice, once with and once without that one
+deduction, for both cantonal and federal tax: X = (tax without) − (tax with). Round to CHF
+10. Never use a flat percentage.
+Summary at the end (review step and after submission): «Dank deinen Abzügen sparst du
+ca. CHF Y.» Y = tax without all optional deductions − tax with them (computed once, not
+the sum of the single X values, because of progression).
+Wording: always «ca.» and the note «Unverbindliche Schätzung – die definitive Steuer
+berechnet das Steueramt.»
+Dependency: the cantonal part is only as good as the cantonal tariff. Until real cantonal
+tariffs and municipal multipliers are implemented, label the amount clearly as a rough
+estimate.
+Tests: X is never negative, is 0 when the deduction is 0, and Y ≥ the largest single X.
+

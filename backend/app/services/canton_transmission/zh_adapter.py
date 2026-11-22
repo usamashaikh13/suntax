@@ -35,7 +35,7 @@ class ZurichWebserviceAdapter(CantonTransmissionAdapter):
                 "Dein vollständiges eCH-0119 Steuerdossier für den Kanton Zürich ist bereit. "
                 "Da die direkte elektronische Schnittstelle zum kantonalen Steueramt noch nicht freigegeben ist, "
                 "drucke bitte das Hauptformular aus, unterschreibe es handschriftlich und sende es per Post "
-                "zusammen mit deinen Original-Lohnausweisen an dein Gemeindesteueramt, oder lade das Dossier im ZHprivateTax Portal hoch."
+                "zusammen mit deinen Original-Lohnausweisen an dein zuständiges Gemeindesteueramt."
             ),
             metadata={
                 "xml_bytes": len(xml_str.encode("utf-8")),

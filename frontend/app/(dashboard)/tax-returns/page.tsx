@@ -88,7 +88,7 @@ export default function TaxReturnsPage() {
       case 'ready_for_download':
       case 'ready_for_postal_filing':
         return {
-          label: t('returns.statusDossierReady') || (isGerman ? 'Dossier bereit (Postversand / ZHprivateTax)' : 'Dossier Ready (Postal Filing / ZHprivateTax)'),
+          label: t('returns.statusDossierReady') || (isGerman ? 'Dossier bereit (Postversand)' : 'Dossier Ready (Postal Filing)'),
           badgeClass: 'bg-teal-50 text-teal-800 border-teal-300 font-bold',
         };
       case 'exported':

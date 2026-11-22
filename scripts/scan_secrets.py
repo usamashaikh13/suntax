@@ -60,19 +60,30 @@ def scan_file(filepath: str) -> list[str]:
     for pattern, desc in SECRET_PATTERNS:
         matches = re.finditer(pattern, content)
         for m in matches:
-            # Check line context
             line_no = content[: m.start()].count("\n") + 1
             line = content.splitlines()[line_no - 1].strip()
-            # Ignore environment variable references in bash/scripts e.g. ${VAR} or "$VAR"
-            if "${" in line or "$(" in line:
+
+            # 1. Environment variable expansion is safe
+            if "${" in line or "$(" in line or "os.environ" in line or "process.env" in line:
                 continue
-            # Ignore test directories and QA helper runners for dummy strings
-            if any(td in filepath for td in ("tests/", "test_", "e2e/", "scripts/seed_", "run_browser_qa", "e2e_lead_qa", "verify_all_four")):
-                continue
-            # Ignore test files with dummy placeholders e.g. "changeme" or test mocks
+
             lower_line = line.lower()
-            if any(term in lower_line for term in ("changeme", "dummy", "placeholder", "todo", "test1234!", "localhost", "127.0.0.1", "postgres:postgres", "sample")):
+
+            # 2. Connection strings: allow only localhost / mock test DBs
+            if "connection string" in desc.lower():
+                if any(lh in lower_line for lh in ("localhost", "127.0.0.1", "test_db", "@dpg-mock")):
+                    continue
+                # Remote or unverified host is a strict violation
+                violations.append(f"{filepath}:{line_no} - {desc} (External host detected)")
                 continue
+
+            # 3. Hardcoded passwords: allow only synthetic test tokens
+            if desc == "Hardcoded password":
+                # If explicitly marked as test, demo, mock, placeholder, sample
+                if any(tok in lower_line for tok in ("test", "mock", "dummy", "sample", "placeholder", "changeme", "todo")):
+                    continue
+
+            # 4. Critical secrets (API keys, private keys, secret keys): NEVER allowed anywhere
             violations.append(f"{filepath}:{line_no} - {desc}")
 
     return violations

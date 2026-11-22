@@ -413,7 +413,7 @@
     "statusInProgress": "In Bearbeitung",
     "statusReview": "In Prüfung",
     "statusConfirmed": "Bestätigt (Art. 110 DBG)",
-    "statusDossierReady": "Dossier bereit (Postversand / ZHprivateTax)",
+    "statusDossierReady": "Dossier bereit (Postversand)",
     "statusReadyForDownload": "Dossier bereit",
     "statusReadyForPostalFiling": "Bereit für Postversand",
     "statusExported": "Exportiert (PDF bereit)",

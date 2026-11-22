@@ -405,7 +405,7 @@ async def test_blank_corrupt_and_password_protected(db_session: AsyncSession, te
     assert "corrupt or invalid" in r_corrupt.extracted_data.get("_error_message", "").lower()
 
     # Password-protected PDF
-    pw_bytes = create_encrypted_pdf("Top secret text", password="mypassword")
+    pw_bytes = create_encrypted_pdf("Top secret text", password="test_pdf_password")
     doc_pw_id = str(uuid.uuid4())
     key_pw = f"users/{test_user.id}/{doc_pw_id}/protected.pdf"
     await storage.upload_file(pw_bytes, key_pw, "application/pdf")

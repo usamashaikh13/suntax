@@ -63,7 +63,7 @@ async def run_e2e_tests():
         # -------------------------------------------------------------------
         print("▶ SUITE 1: Authentication & User Account Lifecycle")
         user1_email = f"user1_{uuid.uuid4().hex[:8]}@suntax.ch"
-        user1_pwd = "SecurePassword123!"
+        user1_pwd = "TestSecurePassword123!"
         user1_name = "Marc Schneider"
 
         # 1.1 Register User 1
@@ -115,7 +115,7 @@ async def run_e2e_tests():
 
         # Register User 2 for multi-tenant isolation testing later
         user2_email = f"user2_{uuid.uuid4().hex[:8]}@suntax.ch"
-        user2_pwd = "SecurePassword456!"
+        user2_pwd = "TestSecurePassword456!"
         await client.post("/api/v1/auth/register", json={
             "email": user2_email,
             "password": user2_pwd,

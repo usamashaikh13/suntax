@@ -430,7 +430,7 @@ const rawEn: TranslationDictionary = {
     statusInProgress: 'In Progress',
     statusReview: 'Under Review',
     statusConfirmed: 'Confirmed (Art. 110 DBG)',
-    statusDossierReady: 'Dossier Ready (Postal Filing / ZHprivateTax)',
+    statusDossierReady: 'Dossier Ready (Postal Filing)',
     statusReadyForDownload: 'Dossier Ready',
     statusReadyForPostalFiling: 'Ready for Postal Filing',
     statusExported: 'Exported (PDF ready)',

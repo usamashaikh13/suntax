@@ -310,6 +310,12 @@ async def export_pdf(
     """Generate and return the tax return as a PDF."""
     tr = await _get_tax_return(tax_return_id, db, current_user)
 
+    if not rules_data_service.is_canton_available(tr.canton_code, tr.tax_year):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Offizieller Steuererklärungs-Export ist für Kanton {tr.canton_code} noch nicht freigeschaltet (Status: coming_soon).",
+        )
+
     profile_result = await db.execute(
         select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
     )
@@ -359,6 +365,12 @@ async def export_xml(
 ):
     """Generate and return eCH-compatible XML export."""
     tr = await _get_tax_return(tax_return_id, db, current_user)
+
+    if not rules_data_service.is_canton_available(tr.canton_code, tr.tax_year):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"eCH-0119 XML-Export ist für Kanton {tr.canton_code} noch nicht freigeschaltet (Status: coming_soon).",
+        )
 
     profile_result = await db.execute(
         select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id))
@@ -416,6 +428,11 @@ async def export_dossier(
 ):
     """Generate and return official e-tax submission ZIP package verified against cantonal criteria."""
     tr = await _get_tax_return(tax_return_id, db, current_user)
+    if not rules_data_service.is_canton_available(tr.canton_code, tr.tax_year):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Dossier-Export ist für Kanton {tr.canton_code} noch nicht freigeschaltet (Status: coming_soon).",
+        )
     profile_result = await db.execute(select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id)))
     profile = profile_result.scalar_one_or_none()
     calc_result = await db.execute(
@@ -470,6 +487,11 @@ async def get_preflight_report(
 ):
     """Run full preflight verification across all 6 gates (XSD, AHV, BFS, rounding, attachments, anti-fabrication)."""
     tr = await _get_tax_return(tax_return_id, db, current_user)
+    if not rules_data_service.is_canton_available(tr.canton_code, tr.tax_year):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Dossier-Export ist für Kanton {tr.canton_code} noch nicht freigeschaltet (Status: coming_soon).",
+        )
     profile_result = await db.execute(select(TaxProfile).where(TaxProfile.tax_return_id == str(tr.id)))
     profile = profile_result.scalar_one_or_none()
     calc_result = await db.execute(

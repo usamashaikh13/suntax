@@ -50,7 +50,7 @@ export default function DashboardPage() {
       in_progress: { label: dict.returns.statusInProgress, badgeClass: 'bg-blue-50 text-blue-700 border-blue-200' },
       review: { label: dict.returns.statusReview, badgeClass: 'bg-amber-50 text-amber-700 border-amber-200' },
       confirmed: { label: dict.returns.statusConfirmed, badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-      dossier_ready: { label: dict.returns.statusDossierReady || (isGerman ? 'Dossier bereit (Postversand / ZHprivateTax)' : 'Dossier Ready (Postal Filing / ZHprivateTax)'), badgeClass: 'bg-teal-50 text-teal-800 border-teal-300 font-bold' },
+      dossier_ready: { label: dict.returns.statusDossierReady || (isGerman ? 'Dossier bereit (Postversand)' : 'Dossier Ready (Postal Filing)'), badgeClass: 'bg-teal-50 text-teal-800 border-teal-300 font-bold' },
       ready_for_download: { label: dict.returns.statusReadyForDownload || (isGerman ? 'Dossier bereit' : 'Dossier Ready'), badgeClass: 'bg-teal-50 text-teal-800 border-teal-300 font-bold' },
       ready_for_postal_filing: { label: dict.returns.statusReadyForPostalFiling || (isGerman ? 'Bereit für Postversand' : 'Ready for Postal Filing'), badgeClass: 'bg-teal-50 text-teal-800 border-teal-300 font-bold' },
       exported: { label: dict.returns.statusExported, badgeClass: 'bg-purple-50 text-purple-700 border-purple-200' },

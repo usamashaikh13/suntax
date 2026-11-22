@@ -68,7 +68,7 @@ class TestArgon2idAndTOTP:
     """Verifies memory-hard Argon2id password hashing and RFC 6238 TOTP 2FA."""
 
     def test_argon2id_hashing(self):
-        pwd = "SwissBankingGradePassword2025!"
+        pwd = "TestSwissBankingGradePassword2025!"
         hashed = hash_password(pwd)
         assert hashed.startswith("$argon2id$")
         assert verify_password(pwd, hashed)

@@ -17,7 +17,7 @@ async def test_inactivity_cleanup_warning_and_deletion(db_session):
     active_user = User(
         id=str(uuid.uuid4()),
         email=f"active_{uuid.uuid4().hex[:6]}@suntax.ch",
-        hashed_password="fakehash",
+        hashed_password="mock_test_hash",
         last_login_at=now - timedelta(days=10),
         created_at=now - timedelta(days=20),
         is_active=True,
@@ -28,7 +28,7 @@ async def test_inactivity_cleanup_warning_and_deletion(db_session):
     warning_user = User(
         id=str(uuid.uuid4()),
         email=f"warning_{uuid.uuid4().hex[:6]}@suntax.ch",
-        hashed_password="fakehash",
+        hashed_password="mock_test_hash",
         last_login_at=now - timedelta(days=710),
         created_at=now - timedelta(days=800),
         is_active=True,
@@ -40,7 +40,7 @@ async def test_inactivity_cleanup_warning_and_deletion(db_session):
     deleted_user = User(
         id=del_id,
         email=f"deleted_{uuid.uuid4().hex[:6]}@suntax.ch",
-        hashed_password="fakehash",
+        hashed_password="mock_test_hash",
         last_login_at=now - timedelta(days=750),
         created_at=now - timedelta(days=800),
         is_active=True,
