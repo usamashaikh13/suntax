@@ -346,33 +346,58 @@ async def login(
             detail="Account is deactivated. Contact support.",
         )
 
-    # 3. Two-Factor Authentication (Mandatory 2FA Challenge on Every Sign-in)
-    if not user.totp_secret:
-        user.totp_secret = generate_totp_secret()
-        user.totp_enabled = True
-        await db.commit()
+    # 3. Two-Factor Authentication Challenge (Only when 2FA is active on the account)
+    if user.totp_enabled:
+        temp_token = create_temp_2fa_token(str(user.id), user.email)
+        otp_code = f"{secrets.randbelow(900000) + 100000}"
+        await store_email_token("2fa_login", f"{user.id}:{otp_code}", str(user.id), db=db, ttl_seconds=300)
+        try:
+            await email_service.send_email(
+                user.email,
+                f"Dein {settings.get_brand_config()['brand_name']} Sicherheitscode",
+                f"Dein 6-stelliger Sicherheitscode lautet: {otp_code}",
+            )
+        except Exception as exc:
+            logger.warning("Could not dispatch 2FA email code: %s", exc)
 
-    temp_token = create_temp_2fa_token(str(user.id), user.email)
-    otp_code = f"{secrets.randbelow(900000) + 100000}"
-    await store_email_token("2fa_login", f"{user.id}:{otp_code}", str(user.id), db=db, ttl_seconds=300)
-    try:
-        await email_service.send_email(
-            user.email,
-            f"Dein {settings.get_brand_config()['brand_name']} Sicherheitscode",
-            f"Dein 6-stelliger Sicherheitscode lautet: {otp_code}",
+        await _write_audit(
+            db,
+            user_id=str(user.id),
+            action="user.login.2fa_required",
+            ip_address=ip,
+            user_agent=ua,
         )
-    except Exception as exc:
-        logger.warning("Could not dispatch 2FA email code: %s", exc)
+        await db.commit()
+        return TokenResponse(two_factor_required=True, temp_token=temp_token)
+
+    # 4. Standard Direct Login (When 2FA has not been enabled by the user yet)
+    user.failed_login_attempts = 0
+    user.locked_until = None
+    user.last_login_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    token_data = {"sub": str(user.id)}
+    access_token = create_access_token(token_data)
+    refresh_token = create_refresh_token(token_data)
+    await store_refresh_token(str(user.id), refresh_token, db=db)
 
     await _write_audit(
         db,
         user_id=str(user.id),
-        action="user.login.2fa_required",
+        action="user.login.success",
+        resource_type="user",
+        resource_id=str(user.id),
         ip_address=ip,
         user_agent=ua,
     )
     await db.commit()
-    return TokenResponse(two_factor_required=True, temp_token=temp_token)
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        two_factor_required=False,
+    )
 
 
 @router.post(

@@ -393,6 +393,30 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* 2FA Setup Recommendation Banner (if user has not enabled 2FA yet) */}
+      {user && !user.totp_enabled && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-emerald-50/90 border border-emerald-200 rounded-2xl text-emerald-950 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0 text-[#1E7B52]">
+              <Shield className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-emerald-900">
+                {isGerman ? 'Schütze dein Konto mit Zwei-Faktor-Authentifizierung (2FA)' : 'Protect your account with Two-Factor Authentication (2FA)'}
+              </p>
+              <p className="text-xs text-emerald-700">
+                {isGerman ? 'Aktiviere TOTP mit Google Authenticator oder Apple Passwords für maximale Sicherheit.' : 'Enable TOTP with Google Authenticator or Apple Passwords for highest security.'}
+              </p>
+            </div>
+          </div>
+          <Button asChild size="sm" className="bg-[#1E7B52] hover:bg-[#165C3D] text-white text-xs font-semibold whitespace-nowrap self-start sm:self-auto shrink-0 shadow-xs">
+            <Link href="/profile">
+              {isGerman ? '2FA jetzt einrichten →' : 'Set Up 2FA Now →'}
+            </Link>
+          </Button>
+        </div>
+      )}
+
       {/* ── 5 Progress Cards ──────────────────────────────────────────────── */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">
