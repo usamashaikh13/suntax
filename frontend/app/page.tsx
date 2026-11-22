@@ -778,19 +778,20 @@ export default function LandingPage() {
             <div className="thstep reveal">
               <span className="thnum">3</span>
               <span className="sa" aria-hidden="true">
-                <span className="sa3">
+                <span className="sa3card">
                   <span className="sa3doc">
+                    <i></i>
                     <i></i>
                     <i></i>
                   </span>
                   <span className="sa3line"></span>
                   <span className="sa3to">
                     <svg
-                      width="26"
-                      height="26"
+                      width="24"
+                      height="24"
                       viewBox="0 0 24 24"
                       fill="none"
-                      stroke="#14181F"
+                      stroke="#1E7B52"
                       strokeWidth="1.8"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -799,8 +800,8 @@ export default function LandingPage() {
                     </svg>
                     <span className="sa3ok">
                       <svg
-                        width="11"
-                        height="11"
+                        width="10"
+                        height="10"
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="#FFFFFF"
@@ -1585,6 +1586,7 @@ export default function LandingPage() {
                 lineHeight: 1.1,
                 letterSpacing: '-0.03em',
                 fontWeight: 700,
+                color: '#FFFFFF',
               }}
             >
               {isGerman
