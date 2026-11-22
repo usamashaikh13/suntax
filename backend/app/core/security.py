@@ -166,6 +166,17 @@ def verify_totp_code(secret: str, code: str) -> bool:
 
     eng = _get_sync_security_engine()
     if eng is None:
+        if env in ("development", "test"):
+            now_ts = _utc_now().timestamp()
+            mem_key = (secret, clean_code)
+            expired = [k for k, exp in _USED_TOTP_CODES.items() if exp <= now_ts]
+            for k in expired:
+                _USED_TOTP_CODES.pop(k, None)
+            if mem_key in _USED_TOTP_CODES:
+                logger.warning("TOTP replay detected in dev/test memory tracker.")
+                return False
+            _USED_TOTP_CODES[mem_key] = now_ts + 120
+            return True
         logger.error("Rejecting TOTP verification: DB replay protection unavailable")
         return False
 
@@ -185,6 +196,17 @@ def verify_totp_code(secret: str, code: str) -> bool:
         logger.warning("TOTP replay detected via shared DB table: code already consumed.")
         return False
     except Exception as exc:
+        if env in ("development", "test"):
+            now_ts = _utc_now().timestamp()
+            mem_key = (secret, clean_code)
+            expired = [k for k, exp in _USED_TOTP_CODES.items() if exp <= now_ts]
+            for k in expired:
+                _USED_TOTP_CODES.pop(k, None)
+            if mem_key in _USED_TOTP_CODES:
+                logger.warning("TOTP replay detected in dev/test memory tracker.")
+                return False
+            _USED_TOTP_CODES[mem_key] = now_ts + 120
+            return True
         logger.error("TOTP DB replay persistence failed (%s) — failing closed.", type(exc).__name__)
         return False
 
