@@ -1,0 +1,19 @@
+{
+  "timestamp": "2026-11-22T11:25:11.939Z",
+  "accountA": {
+    "login": "PASS",
+    "documents_processed": "PASS",
+    "review_fields": "PASS",
+    "profile_applied": "PASS"
+  },
+  "accountB": {
+    "login": "PASS",
+    "multidoc_and_warnings": "PASS",
+    "questions": "PASS"
+  },
+  "isolation": {
+    "accountA_access_to_B_status": 404,
+    "accountB_access_to_A_status": 404,
+    "isolated": true
+  }
+}

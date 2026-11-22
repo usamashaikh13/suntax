@@ -1,631 +1,1884 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import {
-  ShieldCheck,
-  FileText,
-  Lock,
-  ArrowRight,
-  CheckCircle2,
-  ChevronDown,
-  Building2,
-  MapPin,
-  HelpCircle,
-  Clock,
-  Sparkles,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
-import { BRAND } from '@/lib/brand';
-import { api } from '@/lib/api';
+import './landing_redesign.css';
 
-interface CantonDetail {
+interface CantonMeta {
   code: string;
   name: string;
-  deadline: string;
-  jobCanton: string;
-  healthCanton: string;
-  interestCanton: string;
-  availability?: string;
-  educationMax?: number;
-  commuteMax?: number | null;
+  nameEn: string;
+  rate: string;
 }
 
-const CANTONS: CantonDetail[] = [
-  { code: 'ZH', name: 'Zürich', deadline: '31. März', jobCanton: 'CHF 4’000 max.', healthCanton: 'CHF 2’900', interestCanton: 'CHF 0' },
-  { code: 'BE', name: 'Bern', deadline: '15. März', jobCanton: 'CHF 6’700 max.', healthCanton: 'CHF 3’600', interestCanton: 'CHF 0' },
-  { code: 'LU', name: 'Luzern', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’200', interestCanton: 'CHF 0' },
-  { code: 'UR', name: 'Uri', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 2’800', interestCanton: 'CHF 0' },
-  { code: 'SZ', name: 'Schwyz', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’000', interestCanton: 'CHF 0' },
-  { code: 'OW', name: 'Obwalden', deadline: '30. April', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 2’600', interestCanton: 'CHF 0' },
-  { code: 'NW', name: 'Nidwalden', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 2’700', interestCanton: 'CHF 0' },
-  { code: 'GL', name: 'Glarus', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’000', interestCanton: 'CHF 0' },
-  { code: 'ZG', name: 'Zug', deadline: '30. April', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’400', interestCanton: 'CHF 0' },
-  { code: 'FR', name: 'Freiburg / Fribourg', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’100', interestCanton: 'CHF 0' },
-  { code: 'SO', name: 'Solothurn', deadline: '31. März', jobCanton: 'CHF 7’000 max.', healthCanton: 'CHF 3’300', interestCanton: 'CHF 0' },
-  { code: 'BS', name: 'Basel-Stadt', deadline: '31. März', jobCanton: 'CHF 3’000 max.', healthCanton: 'CHF 2’500', interestCanton: 'CHF 0' },
-  { code: 'BL', name: 'Basel-Landschaft', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 2’900', interestCanton: 'CHF 0' },
-  { code: 'SH', name: 'Schaffhausen', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’000', interestCanton: 'CHF 0' },
-  { code: 'AR', name: 'Appenzell Ausserrhoden', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 2’800', interestCanton: 'CHF 0' },
-  { code: 'AI', name: 'Appenzell Innerrhoden', deadline: '30. April', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 2’700', interestCanton: 'CHF 0' },
-  { code: 'SG', name: 'St. Gallen', deadline: '31. März', jobCanton: 'CHF 4’500 max.', healthCanton: 'CHF 3’200', interestCanton: 'CHF 0' },
-  { code: 'GR', name: 'Graubünden', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’000', interestCanton: 'CHF 0' },
-  { code: 'AG', name: 'Aargau', deadline: '31. März', jobCanton: 'CHF 7’000 max.', healthCanton: 'CHF 3’500', interestCanton: 'CHF 0' },
-  { code: 'TG', name: 'Thurgau', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’100', interestCanton: 'CHF 0' },
-  { code: 'TI', name: 'Tessin / Ticino', deadline: '30. April', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’300', interestCanton: 'CHF 0' },
-  { code: 'VD', name: 'Waadt / Vaud', deadline: '15. März', jobCanton: 'CHF 3’000 max.', healthCanton: 'CHF 3’200', interestCanton: 'CHF 0' },
-  { code: 'VS', name: 'Wallis / Valais', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’000', interestCanton: 'CHF 0' },
-  { code: 'NE', name: 'Neuenburg / Neuchâtel', deadline: '31. März', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’200', interestCanton: 'CHF 0' },
-  { code: 'GE', name: 'Genf / Genève', deadline: '31. März', jobCanton: 'CHF 500 max.', healthCanton: 'CHF 3’000', interestCanton: 'CHF 0' },
-  { code: 'JU', name: 'Jura', deadline: '30. April', jobCanton: 'CHF 6’000 max.', healthCanton: 'CHF 3’100', interestCanton: 'CHF 0' },
+const CANTONS: CantonMeta[] = [
+  { code: 'ZH', name: 'Zürich', nameEn: 'Zurich', rate: '119%' },
+  { code: 'BE', name: 'Bern', nameEn: 'Bern', rate: '154%' },
+  { code: 'LU', name: 'Luzern', nameEn: 'Lucerne', rate: '175%' },
+  { code: 'UR', name: 'Uri', nameEn: 'Uri', rate: '98%' },
+  { code: 'SZ', name: 'Schwyz', nameEn: 'Schwyz', rate: '120%' },
+  { code: 'OW', name: 'Obwalden', nameEn: 'Obwalden', rate: '140%' },
+  { code: 'NW', name: 'Nidwalden', nameEn: 'Nidwalden', rate: '120%' },
+  { code: 'GL', name: 'Glarus', nameEn: 'Glarus', rate: '63%' },
+  { code: 'ZG', name: 'Zug', nameEn: 'Zug', rate: '82%' },
+  { code: 'FR', name: 'Freiburg', nameEn: 'Fribourg', rate: '81%' },
+  { code: 'SO', name: 'Solothurn', nameEn: 'Solothurn', rate: '115%' },
+  { code: 'BS', name: 'Basel-Stadt', nameEn: 'Basel-City', rate: '100%' },
+  { code: 'BL', name: 'Basel-Landschaft', nameEn: 'Basel-Country', rate: '65%' },
+  { code: 'SH', name: 'Schaffhausen', nameEn: 'Schaffhausen', rate: '95%' },
+  { code: 'AR', name: 'Appenzell AR', nameEn: 'Appenzell AR', rate: '430%' },
+  { code: 'AI', name: 'Appenzell AI', nameEn: 'Appenzell AI', rate: '94%' },
+  { code: 'SG', name: 'St. Gallen', nameEn: 'St. Gallen', rate: '144%' },
+  { code: 'GR', name: 'Graubünden', nameEn: 'Grisons', rate: '90%' },
+  { code: 'AG', name: 'Aargau', nameEn: 'Aargau', rate: '95%' },
+  { code: 'TG', name: 'Thurgau', nameEn: 'Thurgau', rate: '62%' },
+  { code: 'TI', name: 'Tessin', nameEn: 'Ticino', rate: '77%' },
+  { code: 'VD', name: 'Waadt', nameEn: 'Vaud', rate: '78%' },
+  { code: 'VS', name: 'Wallis', nameEn: 'Valais', rate: '110%' },
+  { code: 'NE', name: 'Neuenburg', nameEn: 'Neuchâtel', rate: '70%' },
+  { code: 'GE', name: 'Genf', nameEn: 'Geneva', rate: '45%' },
+  { code: 'JU', name: 'Jura', nameEn: 'Jura', rate: '195%' },
+];
+
+const CANTON_BENCHMARKS_2025: Record<string, [number | null, number, number, number, string]> = {
+  ZH: [5200, 2900, 9300, 25000, "31. März"],
+  BE: [7000, 2450, 8300, 16000, "15. März"],
+  LU: [6500, 2600, 8000, 20000, "30 Tage nach Zustellung"],
+  UR: [13000, 1800, 8500, 25800, "31. März"],
+  SZ: [8000, 3200, 9000, 6000, "31. März"],
+  OW: [10000, 1700, 6200, 10000, "31. März"],
+  NW: [6000, 1800, 6400, 8100, "31. März"],
+  GL: [null, 3100, 7200, 25800, "31. März"],
+  ZG: [6000, 3500, 12600, 25400, "30. April"],
+  FR: [12000, 4810, 8600, 12000, "31. März"],
+  SO: [7000, 2500, 9000, 25000, "31. März"],
+  BS: [3200, 4200, 9000, 26000, "31. März"],
+  BL: [6000, 2000, 0, 10000, "31. März"],
+  SH: [6000, 3750, 8400, 9400, "31. März"],
+  AR: [6000, 2700, 7400, 25000, "31. März"],
+  AI: [null, 2900, 6000, 18000, "30. April"],
+  SG: [8000, 3400, 10800, 26700, "31. März"],
+  GR: [null, 4600, 9900, 10900, "31. März"],
+  AG: [7000, 3600, 9300, 25000, "31. März"],
+  TG: [6000, 3500, 7400, 10100, "31. März"],
+  TI: [null, 5500, 11500, 26200, "30. April"],
+  VD: [null, 5000, 0, 15200, "15. März"],
+  VS: [null, 3620, 8940, 10000, "31. März"],
+  NE: [null, 2500, 6700, 20400, "laut Steuerbrief"],
+  GE: [534, 2345, 13660, 26320, "31. März"],
+  JU: [null, 3400, 5700, 10600, "31. März"]
+};
+
+const CANTON_BENCHMARKS_2026: Record<string, [number | null, number, number]> = {
+  ZH: [5200, 2900, 9400],
+  AG: [7000, 3800, 9500],
+  SZ: [8000, 4200, 10000],
+  SO: [7200, 2600, 9300],
+  VS: [null, 3800, 8940]
+};
+
+const FAQ_ITEMS = [
+  {
+    qDe: 'Was kostet SunTax?',
+    aDe: 'CHF 39 pro Steuererklärung – Endpreis, alles inbegriffen, keine weiteren Kosten. Ehepaare und eingetragene Paare zahlen einmal. Bezahlt wird erst vor dem Einreichen.',
+    qEn: 'How much does SunTax cost?',
+    aEn: 'CHF 39 per tax return – all-inclusive final price, no additional charges. Married and registered couples pay once. Payment is only required before final submission.',
+  },
+  {
+    qDe: 'Wer berechnet meine Steuer?',
+    aDe: 'Die definitive Steuer berechnet dein kantonales Steueramt. SunTax sammelt deine Angaben, wendet die Abzüge deines Kantons und des Bundes an und zeigt dir vorher eine Schätzung.',
+    qEn: 'Who calculates my taxes?',
+    aEn: 'The definitive tax is calculated by your cantonal tax office. SunTax collects your details, applies the statutory deductions for your canton and federal level, and displays a precise calculation beforehand.',
+  },
+  {
+    qDe: 'Wie wird meine Erklärung eingereicht?',
+    aDe: 'Du prüfst die Übersicht und bestätigst sie. SunTax erstellt dein vollständiges Dossier fertig zum Ausdrucken und Unterschreiben (Postversand). Sobald dein Kanton die elektronische Schnittstelle freigibt, erfolgt die Übermittlung direkt.',
+    qEn: 'How is my tax return filed?',
+    aEn: 'You review and approve the summary. SunTax generates your complete dossier ready to print and sign for postal filing. Direct electronic transmission will be enabled as soon as your canton opens its official interface.',
+  },
+  {
+    qDe: 'Sind meine Daten sicher?',
+    aDe: 'Deine Daten werden verschlüsselt auf Servern in der Schweiz gespeichert und pro Nutzer getrennt. Wir halten das Schweizer Datenschutzgesetz (DSG) ein und verkaufen deine Daten nie. Weitergegeben werden sie nur, wo es für den Dienst nötig ist – an dein Steueramt beim Einreichen und an unsere Dienstleister in der Schweiz.',
+    qEn: 'Is my data secure?',
+    aEn: 'Your data is encrypted and stored exclusively on servers in Switzerland, strictly segregated per user. We comply with the Swiss Federal Act on Data Protection (FADP/DSG) and never sell your information.',
+  },
+  {
+    qDe: 'Für wen ist SunTax (noch) nicht geeignet?',
+    aDe: 'Noch nicht für Selbstständige, vermietete Liegenschaften und Personen mit Quellensteuer. Das prüfen wir am Anfang – bevor du etwas bezahlst.',
+    qEn: 'Who is SunTax not yet suitable for?',
+    aEn: 'Not yet for self-employed individuals, rental property owners, and taxpayers subject to withholding tax (Quellensteuer). We verify this right at the beginning before you pay anything.',
+  },
+  {
+    qDe: 'Welche Dokumente brauche ich?',
+    aDe: 'Deinen Lohnausweis oder deine Rentenbescheinigung und die Jahresauszüge deiner Bank (oder den E-Steuerauszug aus dem E-Banking). Dazu alles, was Abzüge bringt: Säule 3a, Krankenkasse, Kita, Weiterbildung, Spenden. Fehlt etwas, fragen wir nach – oder du tippst es selbst ein.',
+    qEn: 'Which documents do I need?',
+    aEn: 'Your salary certificate (Lohnausweis) or pension statement, and annual bank statements (or e-tax statement). In addition, anything qualifying for deductions: Pillar 3a, health insurance, childcare, further education, donations.',
+  },
+  {
+    qDe: 'Ist SunTax eine Steuerberatung?',
+    aDe: 'Nein. SunTax hilft dir, deine Steuererklärung korrekt und vollständig auszufüllen, und zeigt dir die Abzüge, die dir gesetzlich zustehen. Für die Angaben bist du verantwortlich – du prüfst und bestätigst alles vor dem Einreichen.',
+    qEn: 'Is SunTax a tax consultancy or fiduciary?',
+    aEn: 'No. SunTax is an intelligent self-service platform that helps you complete your tax return accurately and highlights eligible deductions. You remain responsible for your disclosures and verify everything prior to filing.',
+  },
+  {
+    qDe: 'Was passiert, wenn das Steueramt etwas anders sieht?',
+    aDe: 'Das Steueramt prüft jede Erklärung und kann Angaben korrigieren. Du bekommst dann die Veranlagung mit Begründung. Bist du nicht einverstanden, kannst du innert 30 Tagen schriftlich Einsprache erheben – die Frist steht auf der Veranlagung.',
+    qEn: 'What happens if the tax office adjusts an amount?',
+    aEn: 'The tax authority reviews every filing and may adjust deductions. You will receive an official tax assessment notice stating any differences. If you disagree, you can file a written objection (Einsprache) within 30 days.',
+  },
+  {
+    qDe: 'Wie lange speichert ihr meine Dokumente?',
+    aDe: 'Bis du sie löschst – das geht jederzeit mit einem Klick, für einzelne Dokumente oder dein ganzes Konto. Meldest du dich 2 Jahre lang nicht an, löschen wir dein Konto automatisch; vorher fragen wir per E-Mail nach. Bewahre die Originalbelege auf, mindestens bis deine Veranlagung rechtskräftig ist – das Steueramt kann sie nachfordern.',
+    qEn: 'How long do you retain my documents?',
+    aEn: 'Until you delete them – which is possible at any time with a single click, for individual files or your entire account. Keep your original receipts until your tax assessment becomes final and legally binding.',
+  },
 ];
 
 export default function LandingPage() {
-  const { t, isGerman } = useTranslation();
-  const [selectedYear, setSelectedYear] = useState<'2025' | '2026'>('2025');
-  const [selectedCantonCode, setSelectedCantonCode] = useState<string>('ZH');
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [cantonOverview, setCantonOverview] = useState<Record<string, any>>({});
-  const [federalOverview, setFederalOverview] = useState<{
-    car_rate_per_km?: number;
-    commute_max?: number;
-    pillar3a_max?: number;
-    pillar3a_catchup_max?: number;
-    health_insurance_single_pk?: number;
-  }>({});
+  const { isGerman } = useTranslation();
+  const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedCantonIndex, setSelectedCantonIndex] = useState<number>(0);
 
-  useEffect(() => {
-    let active = true;
-    api.rules
-      .getCantonsOverview(Number(selectedYear))
-      .then((res) => {
-        if (!active || !res) return;
-        const map: Record<string, any> = {};
-        for (const c of res.cantons || []) {
-          map[c.code] = c;
-        }
-        setCantonOverview(map);
-        if (res.federal) setFederalOverview(res.federal);
-      })
-      .catch(() => {
-        // Fallback silently to initial static dataset
-      });
-    return () => {
-      active = false;
+  const activeCanton: CantonMeta = (CANTONS[selectedCantonIndex] || CANTONS[0]) as CantonMeta;
+  const isZH = activeCanton.code === 'ZH';
+
+  // Benchmark formatting
+  const formatAmount = (val: number | null | undefined): string => {
+    if (val === null || val === undefined) return isGerman ? 'unbegrenzt' : 'unlimited';
+    if (val === 0) return isGerman ? 'über Tarif' : 'via tariff';
+    return Number(val).toLocaleString('en-US').replace(/,/g, '’');
+  };
+
+  const getDeadline = (code: string, year: number): string => {
+    const rawMap: Record<string, string> = {
+      BE: '15. März',
+      VD: '15. März',
+      ZG: '30. April',
+      AI: '30. April',
+      TI: '30. April',
+      LU: isGerman ? '30 Tage nach Zustellung' : '30 days after receipt',
+      NE: isGerman ? 'laut Steuerbrief' : 'as stated on tax letter',
     };
-  }, [selectedYear]);
+    const defaultDate = '31. März';
+    const dateStr = rawMap[code] || defaultDate;
 
-  const baseCanton = CANTONS.find((c) => c.code === selectedCantonCode) || CANTONS[0]!;
-  const liveCanton = cantonOverview[selectedCantonCode];
-  const activeCanton: CantonDetail = liveCanton
-    ? {
-        code: baseCanton.code,
-        name: liveCanton.name || baseCanton.name,
-        deadline: liveCanton.deadline || baseCanton.deadline,
-        jobCanton: liveCanton.work_expenses_max
-          ? `CHF ${Number(liveCanton.work_expenses_max).toLocaleString('de-CH')} max.`
-          : baseCanton.jobCanton,
-        healthCanton: liveCanton.health_insurance_single_pk
-          ? `CHF ${Number(liveCanton.health_insurance_single_pk).toLocaleString('de-CH')}`
-          : baseCanton.healthCanton,
-        interestCanton: baseCanton.interestCanton,
-        availability: liveCanton.availability || (selectedCantonCode === 'ZH' ? 'available' : 'coming_soon'),
-        educationMax: liveCanton.education_max,
-        commuteMax: liveCanton.commute_max,
+    if (year === 2025) {
+      if (/^\d{1,2}\. /.test(dateStr)) {
+        return `${dateStr} 2026 (${isGerman ? 'vorbei' : 'passed'})`;
       }
-    : {
-        ...baseCanton,
-        availability: selectedCantonCode === 'ZH' ? 'available' : 'coming_soon',
-      };
+      return isGerman ? 'vorbei' : 'passed';
+    }
+    if (/^\d{1,2}\. /.test(dateStr)) {
+      return `${dateStr} 2027`;
+    }
+    return dateStr;
+  };
 
-  const fmtChf = (n: number) => `CHF ${n.toLocaleString('de-CH').replace(/,/g, '’')}`;
-  const pillar3aMax = fmtChf(federalOverview.pillar3a_max ?? 7258);
-  const fedCarRate = (federalOverview.car_rate_per_km ?? (selectedYear === '2026' ? 0.75 : 0.7)).toFixed(2);
-  const fedHealthMax = fmtChf(federalOverview.health_insurance_single_pk ?? 1800);
-  const fedCommuteMax = fmtChf(federalOverview.commute_max ?? 3300);
+  const deadline = getDeadline(activeCanton.code, selectedYear);
+
+  // Benchmarks for Canton vs Bund
+  const bm25 = CANTON_BENCHMARKS_2025[activeCanton.code] || [6000, 3000, 8000, 10000, '31. März'];
+  const bm26 = CANTON_BENCHMARKS_2026[activeCanton.code];
+
+  const commuteCanton = selectedYear === 2026 && bm26 ? bm26[0] : bm25[0];
+  const insuranceCanton = selectedYear === 2026 && bm26 ? bm26[1] : bm25[1];
+  const childCanton = selectedYear === 2026 && bm26 ? bm26[2] : bm25[2];
+
+  const benchmarkRows = [
+    {
+      kDe: 'Säule 3a',
+      kEn: 'Pillar 3a',
+      c: '7’258',
+      b: '7’258',
+    },
+    {
+      kDe: 'Arbeitsweg',
+      kEn: 'Commuting expenses',
+      c: formatAmount(commuteCanton),
+      b: '3’300',
+    },
+    {
+      kDe: 'Kinderabzug pro Kind',
+      kEn: 'Child deduction',
+      c: formatAmount(childCanton),
+      b: '6’800',
+    },
+    {
+      kDe: 'Versicherungen (ledig)',
+      kEn: 'Insurance (single)',
+      c: formatAmount(insuranceCanton),
+      b: '1’800',
+    },
+  ];
+
+  const cantonNote = (() => {
+    if (isZH) {
+      return isGerman
+        ? `Steuerjahr ${selectedYear} · Dossier bereit zum Ausdrucken & Unterschreiben (Postversand). Elektronische Übermittlung ab 2027.`
+        : `Tax year ${selectedYear} · Dossier ready to print & sign (postal filing). Direct electronic filing available from 2027.`;
+    }
+    return isGerman
+      ? `Bund ${selectedYear} bestätigt. ${activeCanton.name}: Beträge ${selectedYear} als Richtwert · Dossier-Generierung kommt bald.`
+      : `Federal ${selectedYear} confirmed. ${activeCanton.nameEn}: ${selectedYear} benchmark amounts · Dossier generation coming soon.`;
+  })();
+
+  const cantonCtaText = isGerman
+    ? `Mit ${activeCanton.name} starten`
+    : `Start with ${activeCanton.nameEn}`;
 
   return (
-    <div className="min-h-screen bg-[#FBF9F5] text-[#0A0A0A] font-sans selection:bg-[#1E7B52] selection:text-white">
-      {/* ─── STICKY HEADER (Matches Reference) ─────────────────────────────── */}
-      <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-[#ECE8DF]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 text-[#15181D]">
-            <div className="w-8 h-8 rounded-lg bg-[#15181D] flex items-center justify-center text-white shadow-xs">
-              <svg width="18" height="20" viewBox="0 0 40 46" aria-hidden="true">
-                <path d="M4 0H27L38 11V28L23 43H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4z" fill="#15181D" />
-                <path d="M27 0L38 11H30a3 3 0 0 1-3-3z" fill="#D6D6D6" />
-                <path d="M9.5 17.5h4.5V13h5v4.5h4.5v5H19V27h-5v-4.5H9.5z" fill="#FFFFFF" />
-              </svg>
-            </div>
-            <span className="text-xl tracking-tight leading-none">
-              <span className="font-extrabold text-[#15181D]">{BRAND.shortLeft}</span>
-              {BRAND.shortRight ? <span className="font-semibold text-[#4B4F57]">{BRAND.shortRight}</span> : null}
+    <div
+      style={{
+        fontFamily: "'Geist', system-ui, sans-serif",
+        color: '#0A0A0A',
+        background: '#FFFFFF',
+        fontSize: '18px',
+        lineHeight: 1.6,
+        overflowX: 'hidden',
+      }}
+    >
+      {/* ─── 1. HEADER ────────────────────────────────────────────────────────── */}
+      <header
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          background: 'rgba(255,255,255,.8)',
+          backdropFilter: 'saturate(1.6) blur(14px)',
+          WebkitBackdropFilter: 'saturate(1.6) blur(14px)',
+          borderBottom: '1px solid #EEEEEE',
+        }}
+      >
+        <div
+          className="wrap"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '20px',
+            height: '68px',
+          }}
+        >
+          <Link
+            href="#top"
+            aria-label="SunTax Startseite"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '9px',
+              textDecoration: 'none',
+              color: '#15181D',
+            }}
+          >
+            <svg width="25" height="29" viewBox="0 0 40 46" aria-hidden="true">
+              <path
+                d="M4 0H27L38 11V28L23 43H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4z"
+                fill="#15181D"
+              />
+              <path d="M27 0L38 11H30a3 3 0 0 1-3-3z" fill="#D6D6D6" />
+              <path
+                d="M9.5 17.5h4.5V13h5v4.5h4.5v5H19V27h-5v-4.5H9.5z"
+                fill="#FFFFFF"
+              />
+              <rect x="28" y="33" width="10" height="3" rx="1" fill="#6B6F76" />
+              <rect x="23" y="39" width="15" height="3" rx="1" fill="#6B6F76" />
+            </svg>
+            <span
+              style={{
+                fontSize: '22px',
+                letterSpacing: '-0.04em',
+                lineHeight: 1,
+              }}
+            >
+              <span style={{ fontWeight: 800, color: '#15181D' }}>Sun</span>
+              <span style={{ fontWeight: 600, color: '#4B4F57' }}>Tax</span>
             </span>
           </Link>
 
-          {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-[#555555]">
-            <a href="#ablauf" className="hover:text-[#1E7B52] transition-colors">
-              {t('landing.navAblauf')}
-            </a>
-            <a href="#leistungen" className="hover:text-[#1E7B52] transition-colors">
-              {t('landing.navLeistungen')}
-            </a>
-            <a href="#sicherheit" className="hover:text-[#1E7B52] transition-colors">
-              {t('landing.navSicherheit')}
-            </a>
-            <a href="#preise" className="hover:text-[#1E7B52] transition-colors">
-              {t('landing.navPreise')}
-            </a>
-            <a href="#faq" className="hover:text-[#1E7B52] transition-colors">
-              {t('landing.navFaq')}
-            </a>
+          <nav
+            className="navlinks"
+            aria-label="Hauptmenü"
+            style={{ fontSize: '16px' }}
+          >
+            <a href="#ablauf">{isGerman ? "So funktioniert's" : 'How it works'}</a>
+            <a href="#leistungen">{isGerman ? 'Vergleich' : 'Comparison'}</a>
+            <a href="#sicherheit">{isGerman ? 'Sicherheit' : 'Security'}</a>
+            <a href="#preis">{isGerman ? 'Preis' : 'Pricing'}</a>
+            <a href="#faq">{isGerman ? 'Fragen' : 'FAQ'}</a>
           </nav>
 
-          {/* Right Header Actions */}
-          <div className="flex items-center gap-3">
-            {/* Language Switcher */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '14px',
+              fontSize: '15px',
+            }}
+          >
             <LanguageSwitcher />
-
-            <Button asChild variant="ghost" className="text-sm font-semibold text-[#14181F] hover:text-[#1E7B52]">
-              <Link href="/login">{t('common.login')}</Link>
-            </Button>
-            <Button
-              asChild
-              className="bg-[#1E7B52] hover:bg-[#16603F] text-white shadow-xs font-semibold px-4 rounded-xl text-sm h-9.5"
+            <Link
+              href="/login"
+              className="hide-sm"
+              style={{ textDecoration: 'none', color: '#555555' }}
             >
-              <Link href="/register">{t('common.startNow')}</Link>
-            </Button>
+              {isGerman ? 'Anmelden' : 'Log in'}
+            </Link>
+            <Link
+              href="/register"
+              className="btn btn-dark"
+              style={{
+                background: '#0A0A0A',
+                color: '#FFFFFF',
+                textDecoration: 'none',
+                padding: '10px 18px',
+                borderRadius: '999px',
+                fontWeight: 600,
+                minHeight: '44px',
+                boxSizing: 'border-box',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              {isGerman ? 'Jetzt starten' : 'Get started'}
+            </Link>
           </div>
         </div>
       </header>
 
-      {/* ─── 2-COLUMN HERO SECTION (Matches Reference) ───────────────────────── */}
-      <section className="relative pt-10 pb-16 sm:pt-16 sm:pb-24 border-b border-[#ECE8DF]/80">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
-            {/* Left Column: Heading, Subtitle & CTAs */}
-            <div className="lg:col-span-7 space-y-6">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-[#1E7B52] text-xs font-bold tracking-wide">
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>{t('landing.heroBadge')}</span>
-              </div>
-
-              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#0A0A0A] tracking-tight leading-[1.08]">
-                {t('landing.heroTitle')}{' '}
-                <span className="text-[#1E7B52]">{t('landing.heroTitleHighlight')}</span>
-              </h1>
-
-              <p className="text-base sm:text-lg text-[#555555] leading-relaxed max-w-xl font-normal">
-                {t('landing.heroSubtitle')}
-              </p>
-
-              <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3.5">
-                <Button
-                  asChild
-                  size="lg"
-                  className="bg-[#1E7B52] hover:bg-[#16603F] text-white font-bold px-7 h-12 text-base shadow-sm rounded-xl transition-all"
-                >
-                  <Link href="/tax-returns/new">
-                    {t('landing.heroCtaPrimary')}
-                    <ArrowRight className="h-4.5 w-4.5 ml-2" />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  size="lg"
-                  className="h-12 text-base font-semibold border-[#DCD6C8] bg-white hover:bg-slate-50 text-[#0A0A0A] rounded-xl"
-                >
-                  <a href="#ablauf">{t('landing.heroCtaSecondary')}</a>
-                </Button>
-              </div>
-
-              {/* Trust Badges */}
-              <div className="pt-4 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs font-medium text-[#666666]">
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                  <span>{t('landing.trustSwissData')}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                  <span>{t('landing.trustAllCantons')}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                  <span>{t('landing.trustFlatFee')}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Right Column: Interactive Canton & Deduction Preview Card */}
-            <div className="lg:col-span-5">
-              <div className="bg-white border border-[#ECE8DF] rounded-2xl p-6 sm:p-7 shadow-[0_20px_45px_-20px_rgba(30,30,40,0.12)] space-y-5">
-                {/* Card Top: Title & Year Switcher */}
-                <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
-                  <span className="text-sm font-bold text-[#0A0A0A]">
-                    {t('landing.cantonCardTitle')}
-                  </span>
-                  <div className="inline-flex rounded-lg bg-[#F2F2F0] p-0.5 text-xs font-semibold">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedYear('2025')}
-                      className={`px-2.5 py-1 rounded-md transition-all ${
-                        selectedYear === '2025' ? 'bg-white text-[#0A0A0A] shadow-xs font-bold' : 'text-[#666666]'
-                      }`}
-                    >
-                      2025
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedYear('2026')}
-                      className={`px-2.5 py-1 rounded-md transition-all ${
-                        selectedYear === '2026' ? 'bg-white text-[#0A0A0A] shadow-xs font-bold' : 'text-[#666666]'
-                      }`}
-                    >
-                      2026
-                    </button>
-                  </div>
-                </div>
-
-                {/* Canton Selector Dropdown */}
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label htmlFor="cantonSelect" className="block text-xs font-semibold text-[#666666]">
-                      {t('landing.cantonSelectLabel')}
-                    </label>
-                    {activeCanton.availability === 'available' ? (
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-[#1E7B52]">
-                        {isGerman ? 'Direkt einreichen möglich' : 'Ready to file'}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
-                        {isGerman ? 'Kommt bald (Info)' : 'Coming soon (Info)'}
-                      </span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <select
-                      id="cantonSelect"
-                      value={selectedCantonCode}
-                      onChange={(e) => setSelectedCantonCode(e.target.value)}
-                      className="w-full text-sm font-semibold p-2.5 pr-8 rounded-xl border border-[#DCD6C8] bg-white text-[#0A0A0A] focus:outline-none focus:border-[#1E7B52] appearance-none"
-                    >
-                      {CANTONS.map((c) => {
-                        const ov = cantonOverview[c.code];
-                        const isAvail = ov ? ov.availability === 'available' : c.code === 'ZH';
-                        return (
-                          <option key={c.code} value={c.code}>
-                            Kanton {ov?.name || c.name} ({c.code}){isAvail ? '' : ' · Kommt bald'}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <ChevronDown className="h-4 w-4 text-slate-500 absolute right-3 top-3 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Deadline Information */}
-                <div className="p-3 bg-[#F9F9F8] border border-[#ECE8DF] rounded-xl flex items-center justify-between text-xs">
-                  <span className="text-slate-600 flex items-center gap-1.5">
-                    <Clock className="h-3.5 w-3.5 text-[#1E7B52]" />
-                    {t('landing.deadlineLabel')}:
-                  </span>
-                  <span className="font-bold text-[#0A0A0A]">
-                    {activeCanton.deadline} {selectedYear === '2025' ? '2026' : '2027'}
-                  </span>
-                </div>
-
-                {/* Comparison Deduction Table */}
-                <div className="space-y-2 text-xs">
-                  <div className="grid grid-cols-12 font-bold text-[#888888] pb-1 border-b border-slate-100">
-                    <span className="col-span-6">{t('landing.colDeduction')}</span>
-                    <span className="col-span-3 text-right">{t('landing.colCanton')}</span>
-                    <span className="col-span-3 text-right">{t('landing.colFederal')}</span>
-                  </div>
-                  <div className="grid grid-cols-12 py-1 text-slate-700">
-                    <span className="col-span-6 font-medium">{t('landing.deductionJobExpenses')}</span>
-                    <span className="col-span-3 text-right font-semibold">{activeCanton.jobCanton}</span>
-                    <span className="col-span-3 text-right font-semibold">{fedCommuteMax} max.</span>
-                  </div>
-                  <div className="grid grid-cols-12 py-1 text-slate-700">
-                    <span className="col-span-6 font-medium">
-                      {isGerman ? 'Auto-Arbeitsweg (pro km)' : 'Car commute rate (per km)'}
-                    </span>
-                    <span className="col-span-3 text-right font-semibold">
-                      CHF {fedCarRate}/km
-                    </span>
-                    <span className="col-span-3 text-right font-semibold">CHF {fedCarRate}/km</span>
-                  </div>
-                  <div className="grid grid-cols-12 py-1 text-slate-700">
-                    <span className="col-span-6 font-medium">{t('landing.deductionPillar3a')}</span>
-                    <span className="col-span-3 text-right font-semibold">{pillar3aMax}</span>
-                    <span className="col-span-3 text-right font-semibold">{pillar3aMax}</span>
-                  </div>
-                  {selectedYear === '2026' && (
-                    <div className="grid grid-cols-12 py-1 text-emerald-800 bg-emerald-50/70 px-1.5 rounded">
-                      <span className="col-span-6 font-medium">
-                        {isGerman ? 'Säule 3a Einkauf (neu 2026)' : 'Pillar 3a Catch-up (2026)'}
-                      </span>
-                      <span className="col-span-3 text-right font-semibold">CHF 7’258</span>
-                      <span className="col-span-3 text-right font-semibold">CHF 7’258</span>
-                    </div>
-                  )}
-                  <div className="grid grid-cols-12 py-1 text-slate-700">
-                    <span className="col-span-6 font-medium">{t('landing.deductionHealthInsurance')}</span>
-                    <span className="col-span-3 text-right font-semibold">{activeCanton.healthCanton}</span>
-                    <span className="col-span-3 text-right font-semibold">{fedHealthMax}</span>
-                  </div>
-                </div>
-
-                {/* Card Action */}
-                <Button
-                  asChild
-                  className="w-full bg-[#1E7B52] hover:bg-[#16603F] text-white font-bold h-11 rounded-xl shadow-xs"
-                >
-                  <Link href={`/tax-returns/new?canton=${activeCanton.code}&year=${selectedYear}`}>
-                    {t('landing.cantonCta')} ({activeCanton.code})
-                    <ArrowRight className="h-4 w-4 ml-1.5" />
-                  </Link>
-                </Button>
-
-                <p className="text-[11px] text-center text-[#888888]">
-                  {t('landing.cantonNote')}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── TRUST BAR ──────────────────────────────────────────────────────── */}
-      <section className="py-6 bg-white border-b border-[#ECE8DF]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
-            <div className="flex flex-col items-center">
-              <span className="text-xl sm:text-2xl font-black text-[#1E7B52]">100%</span>
-              <span className="text-xs font-semibold text-slate-600 mt-0.5">{t('landing.trustSwissCompany')}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xl sm:text-2xl font-black text-[#1E7B52]">Schweiz</span>
-              <span className="text-xs font-semibold text-slate-600 mt-0.5">{t('landing.trustSwissData')}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xl sm:text-2xl font-black text-[#1E7B52]">26</span>
-              <span className="text-xs font-semibold text-slate-600 mt-0.5">{t('landing.trustAllCantons')}</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-xl sm:text-2xl font-black text-[#1E7B52]">CHF 39</span>
-              <span className="text-xs font-semibold text-slate-600 mt-0.5">{t('landing.trustFlatFee')}</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── HOW IT WORKS SECTION (Ablauf) ──────────────────────────────────── */}
-      <section id="ablauf" className="py-16 sm:py-24 max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-xs font-bold text-[#1E7B52] uppercase tracking-wider">
-            {t('landing.howItWorksEyebrow')}
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0A0A0A] mt-1.5 tracking-tight">
-            {t('landing.howItWorksTitle')}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="bg-white border border-[#ECE8DF] rounded-2xl p-6 sm:p-8 space-y-4 shadow-xs">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1E7B52] font-black flex items-center justify-center text-lg">
-              1
-            </div>
-            <h3 className="text-lg font-bold text-[#0A0A0A]">{t('landing.step1Title')}</h3>
-            <p className="text-sm text-slate-600 leading-relaxed">{t('landing.step1Desc')}</p>
-          </div>
-
-          <div className="bg-white border border-[#ECE8DF] rounded-2xl p-6 sm:p-8 space-y-4 shadow-xs">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1E7B52] font-black flex items-center justify-center text-lg">
-              2
-            </div>
-            <h3 className="text-lg font-bold text-[#0A0A0A]">{t('landing.step2Title')}</h3>
-            <p className="text-sm text-slate-600 leading-relaxed">{t('landing.step2Desc')}</p>
-          </div>
-
-          <div className="bg-white border border-[#ECE8DF] rounded-2xl p-6 sm:p-8 space-y-4 shadow-xs">
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 text-[#1E7B52] font-black flex items-center justify-center text-lg">
-              3
-            </div>
-            <h3 className="text-lg font-bold text-[#0A0A0A]">{t('landing.step3Title')}</h3>
-            <p className="text-sm text-slate-600 leading-relaxed">{t('landing.step3Desc')}</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── FEATURES SECTION (Leistungen) ──────────────────────────────────── */}
-      <section id="leistungen" className="py-16 sm:py-24 bg-[#F5F2EB] border-y border-[#ECE8DF]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="text-xs font-bold text-[#1E7B52] uppercase tracking-wider">
-              {t('landing.featuresEyebrow')}
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0A0A0A] mt-1.5 tracking-tight">
-              {t('landing.featuresTitle')}
-            </h2>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="bg-white rounded-2xl p-6 border border-[#ECE8DF] space-y-3">
-              <FileText className="h-6 w-6 text-[#1E7B52]" />
-              <h4 className="font-bold text-base text-[#0A0A0A]">{t('landing.feat1Title')}</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">{t('landing.feat1Desc')}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-6 border border-[#ECE8DF] space-y-3">
-              <Sparkles className="h-6 w-6 text-[#1E7B52]" />
-              <h4 className="font-bold text-base text-[#0A0A0A]">{t('landing.feat2Title')}</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">{t('landing.feat2Desc')}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-6 border border-[#ECE8DF] space-y-3">
-              <ShieldCheck className="h-6 w-6 text-[#1E7B52]" />
-              <h4 className="font-bold text-base text-[#0A0A0A]">{t('landing.feat3Title')}</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">{t('landing.feat3Desc')}</p>
-            </div>
-            <div className="bg-white rounded-2xl p-6 border border-[#ECE8DF] space-y-3">
-              <Building2 className="h-6 w-6 text-[#1E7B52]" />
-              <h4 className="font-bold text-base text-[#0A0A0A]">{t('landing.feat4Title')}</h4>
-              <p className="text-xs text-slate-600 leading-relaxed">{t('landing.feat4Desc')}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── SECURITY SECTION (Sicherheit) ──────────────────────────────────── */}
-      <section id="sicherheit" className="py-16 sm:py-24 max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-xs font-bold text-[#1E7B52] uppercase tracking-wider">
-            {t('landing.securityEyebrow')}
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0A0A0A] mt-1.5 tracking-tight">
-            {t('landing.securityTitle')}
-          </h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="bg-white border border-[#ECE8DF] rounded-2xl p-6 space-y-3">
-            <Lock className="h-6 w-6 text-[#1E7B52]" />
-            <h3 className="font-bold text-base text-[#0A0A0A]">{t('landing.sec1Title')}</h3>
-            <p className="text-sm text-slate-600 leading-relaxed">{t('landing.sec1Desc')}</p>
-          </div>
-          <div className="bg-white border border-[#ECE8DF] rounded-2xl p-6 space-y-3">
-            <ShieldCheck className="h-6 w-6 text-[#1E7B52]" />
-            <h3 className="font-bold text-base text-[#0A0A0A]">{t('landing.sec2Title')}</h3>
-            <p className="text-sm text-slate-600 leading-relaxed">{t('landing.sec2Desc')}</p>
-          </div>
-          <div className="bg-white border border-[#ECE8DF] rounded-2xl p-6 space-y-3">
-            <Sparkles className="h-6 w-6 text-[#1E7B52]" />
-            <h3 className="font-bold text-base text-[#0A0A0A]">{t('landing.sec3Title')}</h3>
-            <p className="text-sm text-slate-600 leading-relaxed">{t('landing.sec3Desc')}</p>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── PRICING SECTION (Preise) ───────────────────────────────────────── */}
-      <section id="preise" className="py-16 sm:py-24 bg-[#F5F2EB] border-y border-[#ECE8DF]">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="text-center max-w-2xl mx-auto mb-12">
-            <span className="text-xs font-bold text-[#1E7B52] uppercase tracking-wider">
-              {t('landing.pricingEyebrow')}
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0A0A0A] mt-1.5 tracking-tight">
-              {t('landing.pricingTitle')}
-            </h2>
-            <p className="text-sm text-slate-600 mt-2">{t('landing.pricingSubtitle')}</p>
-          </div>
-
-          <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-[#ECE8DF] shadow-lg shadow-black/5 space-y-6">
-            <div className="text-center border-b border-slate-100 pb-6">
-              <span className="text-xs font-bold text-[#1E7B52] uppercase tracking-wider">
-                {t('landing.pricingCardTitle')}
-              </span>
-              <div className="text-4xl font-black text-[#0A0A0A] mt-2">CHF 39.00</div>
-              <p className="text-xs text-slate-500 mt-1">{t('landing.pricingCardDesc')}</p>
-            </div>
-
-            <ul className="space-y-3 text-xs sm:text-sm text-slate-700">
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                <span>{t('landing.pricingFeature1')}</span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                <span>{t('landing.pricingFeature2')}</span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                <span>{t('landing.pricingFeature3')}</span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                <span>{t('landing.pricingFeature4')}</span>
-              </li>
-              <li className="flex items-center gap-2.5">
-                <CheckCircle2 className="h-4 w-4 text-[#1E7B52] shrink-0" />
-                <span>{t('landing.pricingFeature5')}</span>
-              </li>
-            </ul>
-
-            <Button
-              asChild
-              className="w-full bg-[#1E7B52] hover:bg-[#16603F] text-white font-bold h-12 rounded-xl text-base shadow-xs"
+      {/* ─── 2. HERO SECTION (#top) ────────────────────────────────────────────── */}
+      <section id="top" className="thhero">
+        <div className="wrap thgrid">
+          <div>
+            <h1
+              className="hero-h in"
+              style={{
+                margin: 0,
+                fontSize: '64px',
+                lineHeight: 1.05,
+                letterSpacing: '-0.04em',
+                fontWeight: 700,
+                animationDelay: '80ms',
+              }}
             >
-              <Link href="/tax-returns/new">{t('landing.pricingCta')}</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── FAQ SECTION ────────────────────────────────────────────────────── */}
-      <section id="faq" className="py-16 sm:py-24 max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-12">
-          <span className="text-xs font-bold text-[#1E7B52] uppercase tracking-wider">
-            {t('landing.faqEyebrow')}
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-[#0A0A0A] mt-1.5 tracking-tight">
-            {t('landing.faqTitle')}
-          </h2>
-        </div>
-
-        <div className="space-y-3">
-          {[
-            { q: t('landing.faq1Q'), a: t('landing.faq1A') },
-            { q: t('landing.faq2Q'), a: t('landing.faq2A') },
-            { q: t('landing.faq3Q'), a: t('landing.faq3A') },
-            { q: t('landing.faq4Q'), a: t('landing.faq4A') },
-            { q: t('landing.faq5Q'), a: t('landing.faq5A') },
-          ].map((item, index) => {
-            const isOpen = openFaq === index;
-            return (
-              <div
-                key={index}
-                className="bg-white border border-[#ECE8DF] rounded-2xl p-5 cursor-pointer transition-all"
-                onClick={() => setOpenFaq(isOpen ? null : index)}
+              {isGerman ? (
+                <>
+                  Deine Steuererklärung.
+                  <br />
+                  <span style={{ color: '#1E7B52' }}>
+                    In wenigen Minuten erledigt.
+                  </span>
+                </>
+              ) : (
+                <>
+                  Your Swiss tax return.
+                  <br />
+                  <span style={{ color: '#1E7B52' }}>
+                    Completed in minutes.
+                  </span>
+                </>
+              )}
+            </h1>
+            <p
+              className="in thlead"
+              style={{ animationDelay: '160ms' }}
+            >
+              {isGerman
+                ? 'Belege hochladen, ein paar Fragen beantworten, einreichen. SunTax führt dich Schritt für Schritt – für CHF 39.'
+                : 'Upload receipts, answer a few questions, file. SunTax guides you step by step – for CHF 39.'}
+            </p>
+            <div
+              className="in"
+              style={{
+                marginTop: '34px',
+                display: 'flex',
+                gap: '12px',
+                flexWrap: 'wrap',
+                animationDelay: '240ms',
+              }}
+            >
+              <Link
+                href="/register"
+                className="btn btn-red thbtn"
+                style={{ background: '#1E7B52', color: '#FFFFFF' }}
               >
-                <div className="flex items-center justify-between gap-4 font-bold text-sm sm:text-base text-[#0A0A0A]">
-                  <span>{item.q}</span>
-                  <ChevronDown
-                    className={`h-4 w-4 text-slate-400 transition-transform duration-200 shrink-0 ${
-                      isOpen ? 'rotate-180 text-[#1E7B52]' : ''
-                    }`}
+                {isGerman ? 'Jetzt starten' : 'Get started'}
+                <svg
+                  className="arr"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2 8h12M9 3l5 5-5 5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
                   />
+                </svg>
+              </Link>
+              <a href="#ablauf" className="btn thbtn thbtn2">
+                {isGerman ? "So funktioniert's" : 'How it works'}
+              </a>
+            </div>
+          </div>
+
+          <div className="thcardwrap in" style={{ animationDelay: '200ms' }}>
+            <div className="thcard kw">
+              {/* Year Toggle */}
+              <div className="kwtop">
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: '15px',
+                    fontWeight: 600,
+                    color: '#555555',
+                  }}
+                >
+                  {isGerman ? 'Was gilt in deinem Kanton?' : 'What applies in your canton?'}
+                </p>
+                <div className="kwyr" role="group" aria-label="Steuerjahr">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedYear(2026)}
+                    aria-pressed={selectedYear === 2026}
+                    style={{
+                      border: 0,
+                      cursor: 'pointer',
+                      borderRadius: '9px',
+                      padding: '6px 12px',
+                      font: 'inherit',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      minHeight: '36px',
+                      background: selectedYear === 2026 ? '#FFFFFF' : 'transparent',
+                      color: selectedYear === 2026 ? '#14181F' : '#6E6E6E',
+                      boxShadow: selectedYear === 2026 ? '0 1px 3px rgba(0,0,0,.15)' : 'none',
+                    }}
+                  >
+                    2026
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedYear(2025)}
+                    aria-pressed={selectedYear === 2025}
+                    style={{
+                      border: 0,
+                      cursor: 'pointer',
+                      borderRadius: '9px',
+                      padding: '6px 12px',
+                      font: 'inherit',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      minHeight: '36px',
+                      background: selectedYear === 2025 ? '#FFFFFF' : 'transparent',
+                      color: selectedYear === 2025 ? '#14181F' : '#6E6E6E',
+                      boxShadow: selectedYear === 2025 ? '0 1px 3px rgba(0,0,0,.15)' : 'none',
+                    }}
+                  >
+                    2025
+                  </button>
                 </div>
-                {isOpen && <p className="text-xs sm:text-sm text-slate-600 mt-3 pt-3 border-t border-slate-100 leading-relaxed">{item.a}</p>}
               </div>
-            );
-          })}
+
+              {/* Canton Select */}
+              <div className="kwsel">
+                <select
+                  aria-label={isGerman ? 'Kanton wählen' : 'Select canton'}
+                  value={selectedCantonIndex}
+                  onChange={(e) => setSelectedCantonIndex(parseInt(e.target.value, 10) || 0)}
+                >
+                  {CANTONS.map((c, i) => (
+                    <option key={c.code} value={i}>
+                      {isGerman ? c.name : c.nameEn} ({c.code})
+                    </option>
+                  ))}
+                </select>
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#14181F"
+                  strokeWidth="2.2"
+                  aria-hidden="true"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </div>
+
+              {/* Deadline */}
+              <div className="kwdl">
+                <span>{isGerman ? 'Abgabefrist' : 'Filing deadline'}</span>
+                <b>{deadline}</b>
+              </div>
+
+              {/* Benchmark Table */}
+              <div className="kwh">
+                <span></span>
+                <span>{isGerman ? 'Kanton' : 'Canton'}</span>
+                <span>{isGerman ? 'Bund' : 'Federal'}</span>
+              </div>
+              {benchmarkRows.map((r, idx) => (
+                <div key={idx} className="kwr">
+                  <span>{isGerman ? r.kDe : r.kEn}</span>
+                  <b>{r.c}</b>
+                  <b>{r.b}</b>
+                </div>
+              ))}
+
+              {/* CTA button */}
+              <Link
+                href="/register"
+                className="btn btn-red kwbtn"
+                style={{ background: '#1E7B52', textDecoration: 'none' }}
+              >
+                {cantonCtaText}
+                <svg
+                  className="arr"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2 8h12M9 3l5 5-5 5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </Link>
+
+              {/* Canton Note & Strict Postal/Dossier Badge */}
+              <div
+                style={{
+                  marginTop: '12px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                }}
+              >
+                {isZH ? (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: '#DCFCE7',
+                      color: '#166534',
+                    }}
+                  >
+                    {isGerman ? 'Dossier bereit (Postversand)' : 'Dossier ready (postal filing)'}
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                      background: '#FEF3C7',
+                      color: '#92400E',
+                    }}
+                  >
+                    {isGerman ? 'Kommt bald (Info)' : 'Coming soon (Info)'}
+                  </span>
+                )}
+              </div>
+              <p style={{ margin: '8px 0 0', fontSize: '12.5px', color: '#6E6E6E' }}>
+                {cantonNote}
+              </p>
+            </div>
+
+            {/* Swiss Security Badge */}
+            <div className="thbadge">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#16A34A"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 11V8a6 6 0 0 1 12 0v3M5 11h14v10H5zM12 15v2" />
+              </svg>
+              <span>
+                {isGerman
+                  ? 'Verschlüsselt · Server in der Schweiz'
+                  : 'Encrypted · Servers in Switzerland'}
+              </span>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ─── FOOTER ─────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-[#ECE8DF] bg-white py-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-slate-500">
-          <div className="flex items-center gap-3">
-            <span className="font-bold text-[#0A0A0A]">{BRAND.companyLegalName}</span>
-            <span>·</span>
-            <span>© {new Date().getFullYear()} {t('landing.footerRights')}</span>
+      {/* ─── 3. TRUST BAR (.thtrust) ───────────────────────────────────────────── */}
+      <section className="thtrust">
+        <div className="wrap thtrustgrid">
+          <div className="reveal">
+            <span className="thtic">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />
+              </svg>
+            </span>
+            <span>{isGerman ? 'Schweizer Unternehmen' : 'Swiss company'}</span>
+          </div>
+          <div className="reveal">
+            <span className="thtic">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 11V8a6 6 0 0 1 12 0v3M5 11h14v10H5zM12 15v2" />
+              </svg>
+            </span>
+            <span>{isGerman ? 'Daten in der Schweiz' : 'Data in Switzerland'}</span>
+          </div>
+          <div className="reveal">
+            <span className="thtic">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5" />
+              </svg>
+            </span>
+            <span>{isGerman ? 'Alle 26 Kantone' : 'All 26 cantons'}</span>
+          </div>
+          <div className="reveal">
+            <span className="thtic">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 12V4h8l10 10-8 8L3 12zM7.5 7.5h.01" />
+              </svg>
+            </span>
+            <span>{isGerman ? 'Fixpreis CHF 39' : 'Fixed price CHF 39'}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 4. HOW IT WORKS (#ablauf) ─────────────────────────────────────────── */}
+      <section id="ablauf" style={{ background: '#FFFFFF' }}>
+        <div className="wrap thsec">
+          <div className="thhead">
+            <p className="reveal thkick">
+              {isGerman ? "So funktioniert's" : 'How it works'}
+            </p>
+            <h2 className="sec-h reveal thh2">
+              {isGerman
+                ? 'In drei Schritten zur fertigen Steuererklärung.'
+                : 'To your completed tax return in three simple steps.'}
+            </h2>
+          </div>
+          <div className="thsteps">
+            <span className="thline" aria-hidden="true"></span>
+
+            {/* Step 1 */}
+            <div className="thstep reveal">
+              <span className="thnum">1</span>
+              <span className="sa" aria-hidden="true">
+                <span className="sa1tray">
+                  <span className="sa1doc">
+                    <i></i>
+                    <i></i>
+                    <i></i>
+                  </span>
+                  <span className="sa1bar">
+                    <b></b>
+                  </span>
+                  <span className="sa1ok">
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="3.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12l4 4L19 6" />
+                    </svg>
+                  </span>
+                </span>
+              </span>
+              <h3>{isGerman ? 'Belege hochladen' : 'Upload receipts'}</h3>
+              <p>
+                {isGerman
+                  ? 'Lohnausweis, Bankauszug und weitere Belege – als Foto oder PDF.'
+                  : 'Salary certificate, bank statement and other receipts – as photo or PDF.'}
+              </p>
+            </div>
+
+            {/* Step 2 */}
+            <div className="thstep reveal">
+              <span className="thnum">2</span>
+              <span className="sa" aria-hidden="true">
+                <span className="sa2card">
+                  <span className="sa2q">
+                    {isGerman ? 'Wie kommst du zur Arbeit?' : 'How do you commute to work?'}
+                  </span>
+                  <span className="sa2o">
+                    <span className="sa2a">{isGerman ? 'ÖV' : 'Public transit'}</span>
+                    <span className="sa2b">{isGerman ? 'Velo' : 'Bike'}</span>
+                    <span className="sa2c">{isGerman ? 'Auto' : 'Car'}</span>
+                  </span>
+                </span>
+              </span>
+              <h3>{isGerman ? 'Fragen beantworten' : 'Answer questions'}</h3>
+              <p>
+                {isGerman
+                  ? 'Wenige, einfache Fragen. Jede Frage ist kurz erklärt.'
+                  : 'A few simple questions. Every question is clearly explained.'}
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="thstep reveal">
+              <span className="thnum">3</span>
+              <span className="sa" aria-hidden="true">
+                <span className="sa3">
+                  <span className="sa3doc">
+                    <i></i>
+                    <i></i>
+                  </span>
+                  <span className="sa3line"></span>
+                  <span className="sa3to">
+                    <svg
+                      width="26"
+                      height="26"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#14181F"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M3 10L12 4l9 6M5 10v9M9.5 10v9M14.5 10v9M19 10v9M3 21h18" />
+                    </svg>
+                    <span className="sa3ok">
+                      <svg
+                        width="11"
+                        height="11"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#FFFFFF"
+                        strokeWidth="3.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12l4 4L19 6" />
+                      </svg>
+                    </span>
+                  </span>
+                </span>
+              </span>
+              <h3>{isGerman ? 'Prüfen und einreichen' : 'Review and file'}</h3>
+              <p>
+                {isGerman
+                  ? 'Du siehst alles auf einen Blick und erstellst dein Dossier mit einem Klick.'
+                  : 'Review everything at a glance and generate your dossier with one click.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 5. COMPARISON SECTION (#leistungen) ───────────────────────────────── */}
+      <section id="leistungen" style={{ background: '#F7F5F0' }}>
+        <div className="wrap thsec">
+          <div className="thhead">
+            <p className="reveal thkick">{isGerman ? 'Warum SunTax?' : 'Why SunTax?'}</p>
+            <h2 className="sec-h reveal thh2">
+              {isGerman
+                ? 'Der einfache Weg zwischen Selbermachen und Treuhänder.'
+                : 'The smart way between DIY and an expensive tax advisor.'}
+            </h2>
+          </div>
+          <div className="cv reveal">
+            <div className="cvr cvh">
+              <div></div>
+              <div>{isGerman ? 'Steuerprogramm des Kantons' : 'Cantonal software'}</div>
+              <div>{isGerman ? 'Treuhänder' : 'Tax advisor'}</div>
+              <div className="cvs">
+                <span className="cvlogo">SunTax</span>
+              </div>
+            </div>
+
+            <div className="cvr">
+              <div className="cvk">{isGerman ? 'Wer füllt aus?' : 'Who fills it in?'}</div>
+              <div>{isGerman ? 'Du selbst, Ziffer für Ziffer' : 'You, line by line'}</div>
+              <div>{isGerman ? 'Der Treuhänder' : 'The advisor'}</div>
+              <div className="cvs">
+                {isGerman ? 'Du – Schritt für Schritt geführt' : 'You – guided step by step'}
+              </div>
+            </div>
+
+            <div className="cvr">
+              <div className="cvk">
+                {isGerman ? 'Fragen in einfacher Sprache' : 'Questions in plain language'}
+              </div>
+              <div>
+                <span className="cvn">–</span>
+              </div>
+              <div>
+                <span className="cvy">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                </span>
+              </div>
+              <div className="cvs">
+                <span className="cvy">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+
+            <div className="cvr">
+              <div className="cvk">
+                {isGerman ? 'Abzüge werden für dich gesucht' : 'Deductions found for you'}
+              </div>
+              <div>
+                <span className="cvn">–</span>
+              </div>
+              <div>
+                <span className="cvy">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                </span>
+              </div>
+              <div className="cvs">
+                <span className="cvy">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+
+            <div className="cvr">
+              <div className="cvk">
+                {isGerman ? 'Belege per Foto einlesen' : 'Receipt scanning from photos'}
+              </div>
+              <div>{isGerman ? 'Je nach Kanton' : 'Varies by canton'}</div>
+              <div>
+                <span className="cvn">–</span>
+              </div>
+              <div className="cvs">
+                <span className="cvy">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                </span>
+              </div>
+            </div>
+
+            <div className="cvr">
+              <div className="cvk">
+                {isGerman ? 'Einreichung' : 'Filing format'}
+              </div>
+              <div>
+                <span className="cvy">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                </span>
+              </div>
+              <div>
+                <span className="cvy">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="#FFFFFF"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M5 12l4 4L19 6" />
+                  </svg>
+                </span>
+              </div>
+              <div className="cvs">
+                <span style={{ fontSize: '13px', fontWeight: 600, color: '#1E7B52' }}>
+                  {isGerman ? 'Dossier (Postversand)' : 'Dossier (postal)'}
+                </span>
+              </div>
+            </div>
+
+            <div className="cvr">
+              <div className="cvk">
+                {isGerman ? 'Zeitaufwand' : 'Time required'}
+              </div>
+              <div>{isGerman ? 'Je nach Fall länger' : 'Varies, usually longer'}</div>
+              <div>{isGerman ? 'Termin und Unterlagen bringen' : 'Appointment & drop-off'}</div>
+              <div className="cvs">{isGerman ? 'Wenige Minuten' : 'A few minutes'}</div>
+            </div>
+
+            <div className="cvr">
+              <div className="cvk">{isGerman ? 'Kosten' : 'Cost'}</div>
+              <div>{isGerman ? 'Gratis' : 'Free'}</div>
+              <div>{isGerman ? 'Nach Aufwand (CHF 250–600)' : 'Hourly rate (CHF 250–600)'}</div>
+              <div className="cvs">{isGerman ? 'CHF 39 Fixpreis' : 'CHF 39 flat fee'}</div>
+            </div>
+          </div>
+          <p
+            className="reveal"
+            style={{
+              margin: '22px auto 0',
+              textAlign: 'center',
+              color: '#6B6B6B',
+              fontSize: '16px',
+              maxWidth: '640px',
+            }}
+          >
+            {isGerman
+              ? 'Das Steuerprogramm des Kantons ist gratis – dafür füllst du das Formular selbst aus. Mit SunTax wirst du geführt und siehst jeden Abzug, der dir zusteht.'
+              : 'Cantonal tax programs are free – but you have to decipher every form yourself. With SunTax, you are guided clearly and see every statutory deduction.'}
+          </p>
+        </div>
+      </section>
+
+      {/* ─── 6. SECURITY SECTION (#sicherheit) ─────────────────────────────────── */}
+      <section id="sicherheit" style={{ background: '#FFFFFF' }}>
+        <div className="wrap thsec">
+          <div className="thhead">
+            <p className="reveal thkick">{isGerman ? 'Sicherheit' : 'Security'}</p>
+            <h2 className="sec-h reveal thh2">
+              {isGerman ? 'Deine Daten sind bei uns sicher.' : 'Your data is safe with us.'}
+            </h2>
+          </div>
+          <div className="scg">
+            {/* Card 1 */}
+            <div className="scc reveal">
+              <div className="scv" aria-hidden="true">
+                <div className="sv1">
+                  <svg
+                    width="64"
+                    height="72"
+                    viewBox="0 0 24 26"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path
+                      d="M12 2l9 3.4v6.8c0 5.8-4 9.4-9 10.8-5-1.4-9-5-9-10.8V5.4z"
+                      fill="#FFFFFF"
+                      stroke="#1E7B52"
+                      strokeWidth="1.5"
+                    />
+                    <path
+                      className="sv1chk"
+                      d="M8 12.5l3 3 5-6"
+                      stroke="#1E7B52"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                  <span className="sv1tag">
+                    {isGerman ? 'Server in der Schweiz' : 'Servers in Switzerland'}
+                  </span>
+                </div>
+              </div>
+              <h3>
+                {isGerman ? 'Gespeichert in der Schweiz' : 'Hosted in Switzerland'}
+              </h3>
+              <p>
+                {isGerman
+                  ? 'Deine Daten und Belege liegen auf Servern in der Schweiz – nach Schweizer Datenschutzgesetz.'
+                  : 'Your data and receipts reside on Swiss servers – compliant with the Swiss Federal Act on Data Protection (FADP/DSG).'}
+              </p>
+            </div>
+
+            {/* Card 2 */}
+            <div className="scc reveal">
+              <div className="scv" aria-hidden="true">
+                <div className="sv2">
+                  <div className="sv2doc">
+                    <span className="sv2a">Lohn 104’000</span>
+                    <span className="sv2b">•••• ••••</span>
+                  </div>
+                  <svg
+                    className="sv2lock"
+                    width="34"
+                    height="40"
+                    viewBox="0 0 24 28"
+                    fill="none"
+                    stroke="#1E7B52"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path className="sv2sh" d="M7 13V9a5 5 0 0 1 10 0v4" />
+                    <rect x="4" y="13" width="16" height="12" rx="3" fill="#FFFFFF" />
+                    <path d="M12 18v2" />
+                  </svg>
+                </div>
+              </div>
+              <h3>{isGerman ? 'Verschlüsselt' : 'End-to-end encrypted'}</h3>
+              <p>
+                {isGerman
+                  ? 'Alles wird verschlüsselt übertragen und gespeichert – auch deine Belege.'
+                  : 'Everything is encrypted in transit and at rest – including all uploaded tax receipts.'}
+              </p>
+            </div>
+
+            {/* Card 3 */}
+            <div className="scc reveal">
+              <div className="scv" aria-hidden="true">
+                <div className="sv3">
+                  <div className="sv3ph">
+                    <span className="sv3t">Code</span>
+                    <div className="sv3d">
+                      <i style={{ ['--i' as any]: 0 }}></i>
+                      <i style={{ ['--i' as any]: 1 }}></i>
+                      <i style={{ ['--i' as any]: 2 }}></i>
+                      <i style={{ ['--i' as any]: 3 }}></i>
+                      <i style={{ ['--i' as any]: 4 }}></i>
+                      <i style={{ ['--i' as any]: 5 }}></i>
+                    </div>
+                    <span className="sv3ok">
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#FFFFFF"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12l4 4L19 6" />
+                      </svg>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <h3>
+                {isGerman ? 'Anmeldung mit Code' : 'Secure two-factor login'}
+              </h3>
+              <p>
+                {isGerman
+                  ? 'Jede Anmeldung bestätigst du mit einem Code per Authenticator oder E-Mail.'
+                  : 'Logins are secured with real two-factor authentication (TOTP or code).'}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <Link href="/terms" className="hover:text-[#1E7B52] transition-colors">
-              {t('landing.footerTerms')}
+          <div className="scb reveal">
+            <span>
+              <span className="thok">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12l4 4L19 6" />
+                </svg>
+              </span>
+              {isGerman ? 'Wir verkaufen deine Daten nie' : 'We never sell your data'}
+            </span>
+            <span>
+              <span className="thok">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12l4 4L19 6" />
+                </svg>
+              </span>
+              {isGerman ? 'Du kannst alles jederzeit löschen' : 'Delete all your data anytime'}
+            </span>
+            <span>
+              <span className="thok">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#FFFFFF"
+                  strokeWidth="2.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M5 12l4 4L19 6" />
+                </svg>
+              </span>
+              {isGerman
+                ? 'Deine Erklärung geht nur an dein Steueramt'
+                : 'Your declaration is only shared with your tax office'}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 7. WHO IT IS FOR (#fuerwen) ────────────────────────────────────────── */}
+      <section id="fuerwen" style={{ background: '#FFFFFF' }}>
+        <div className="wrap thsec">
+          <div className="avwrap">
+            <div>
+              <p className="reveal thkick">{isGerman ? 'Für wen' : 'Target audience'}</p>
+              <h2 className="sec-h reveal thh2" style={{ textAlign: 'left' }}>
+                {isGerman
+                  ? 'Für die allermeisten Steuererklärungen.'
+                  : 'For the vast majority of tax returns.'}
+              </h2>
+              <p
+                className="reveal"
+                style={{
+                  margin: '18px 0 0',
+                  color: '#555555',
+                  fontSize: '20px',
+                  lineHeight: 1.55,
+                  maxWidth: '420px',
+                }}
+              >
+                {isGerman
+                  ? 'Ob allein, zu zweit, mit Kindern oder im Ruhestand – SunTax passt sich deiner Situation an.'
+                  : 'Whether single, a couple, with children, or retired – SunTax adapts seamlessly to your tax situation.'}
+              </p>
+              <Link
+                href="/register"
+                className="btn btn-red thbtn reveal"
+                style={{
+                  marginTop: '28px',
+                  background: '#1E7B52',
+                  color: '#FFFFFF',
+                  textDecoration: 'none',
+                }}
+              >
+                {isGerman ? 'Kostenlos registrieren' : 'Register for free'}
+                <svg
+                  className="arr"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2 8h12M9 3l5 5-5 5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </Link>
+            </div>
+
+            <div className="av reveal">
+              <div className="avr">
+                <span>
+                  {isGerman
+                    ? 'Angestellte, auch mit mehreren Stellen'
+                    : 'Employed individuals, including multiple jobs'}
+                </span>
+                <span className="avy">{isGerman ? 'Verfügbar' : 'Available'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman
+                    ? 'Pensionierte mit AHV und Pensionskasse'
+                    : 'Retirees with AHV and pension funds'}
+                </span>
+                <span className="avy">{isGerman ? 'Verfügbar' : 'Available'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman
+                    ? 'Familien und Alleinerziehende'
+                    : 'Families and single parents'}
+                </span>
+                <span className="avy">{isGerman ? 'Verfügbar' : 'Available'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman
+                    ? 'Verheiratete und eingetragene Paare'
+                    : 'Married and registered couples'}
+                </span>
+                <span className="avy">{isGerman ? 'Verfügbar' : 'Available'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman
+                    ? 'Selbst bewohntes Eigenheim'
+                    : 'Owner-occupied residential property'}
+                </span>
+                <span className="avy">{isGerman ? 'Verfügbar' : 'Available'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman
+                    ? 'Säule 3a, Konten und Wertschriften'
+                    : 'Pillar 3a, bank accounts, and securities'}
+                </span>
+                <span className="avy">{isGerman ? 'Verfügbar' : 'Available'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman ? 'Wochenaufenthalter' : 'Weekly commuters'}
+                </span>
+                <span className="avy">{isGerman ? 'Verfügbar' : 'Available'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman ? 'Selbstständig Erwerbende' : 'Self-employed individuals'}
+                </span>
+                <span className="avb">{isGerman ? 'Bald' : 'Soon'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman ? 'Vermietete Liegenschaften' : 'Rental and investment properties'}
+                </span>
+                <span className="avb">{isGerman ? 'Bald' : 'Soon'}</span>
+              </div>
+              <div className="avr">
+                <span>
+                  {isGerman ? 'Personen mit Quellensteuer' : 'Individuals subject to tax at source'}
+                </span>
+                <span className="avb">{isGerman ? 'Bald' : 'Soon'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 8. PRICING SECTION (#preis) ───────────────────────────────────────── */}
+      <section id="preis" style={{ background: '#F7F5F0' }}>
+        <div className="wrap thsec">
+          <div className="thprice reveal">
+            <div>
+              <p className="thkick">{isGerman ? 'Preis' : 'Pricing'}</p>
+              <h2 className="sec-h thh2" style={{ marginTop: '10px' }}>
+                {isGerman ? 'Ein fairer Fixpreis.' : 'A fair flat fee.'}
+              </h2>
+              <p className="thpr">
+                <span>CHF</span>39<small>.–</small>
+              </p>
+              <p style={{ margin: 0, color: '#555555', fontSize: '18px' }}>
+                {isGerman ? (
+                  <>
+                    pro Steuererklärung · Endpreis · kein Abo
+                    <br />
+                    Ehepaare zahlen einmal
+                  </>
+                ) : (
+                  <>
+                    per tax return · final price · no subscription
+                    <br />
+                    Couples pay only once
+                  </>
+                )}
+              </p>
+              <Link
+                href="/register"
+                className="btn btn-red thbtn"
+                style={{
+                  marginTop: '28px',
+                  background: '#1E7B52',
+                  color: '#FFFFFF',
+                  textDecoration: 'none',
+                }}
+              >
+                {isGerman ? 'Jetzt starten' : 'Get started'}
+                <svg
+                  className="arr"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 16 16"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M2 8h12M9 3l5 5-5 5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </Link>
+              <p style={{ margin: '14px 0 0', color: '#6B6B6B', fontSize: '15px' }}>
+                {isGerman
+                  ? 'Bezahlt wird erst vor dem Einreichen – mit TWINT oder Karte.'
+                  : 'Pay only before final filing – via TWINT or card.'}
+              </p>
+            </div>
+
+            <div className="thincl">
+              <p style={{ margin: '0 0 6px', fontWeight: 700, fontSize: '18px' }}>
+                {isGerman ? 'Alles inbegriffen' : 'All-inclusive'}
+              </p>
+              <ul className="thul">
+                <li>
+                  <span className="thok" style={{ background: '#16A34A' }}>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12l4 4L19 6" />
+                    </svg>
+                  </span>
+                  {isGerman
+                    ? 'Steuererklärung für Kanton, Gemeinde und Bund'
+                    : 'Tax declaration for canton, municipality, and federation'}
+                </li>
+                <li>
+                  <span className="thok" style={{ background: '#16A34A' }}>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12l4 4L19 6" />
+                    </svg>
+                  </span>
+                  {isGerman
+                    ? 'Alle Abzüge deines Kantons'
+                    : 'All statutory deductions for your canton'}
+                </li>
+                <li>
+                  <span className="thok" style={{ background: '#16A34A' }}>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12l4 4L19 6" />
+                    </svg>
+                  </span>
+                  {isGerman
+                    ? 'Belege lesen und ordnen'
+                    : 'Intelligent document extraction & sorting'}
+                </li>
+                <li>
+                  <span className="thok" style={{ background: '#16A34A' }}>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12l4 4L19 6" />
+                    </svg>
+                  </span>
+                  {isGerman
+                    ? 'Dossier fertig zum Ausdrucken & Einreichen'
+                    : 'Dossier generated ready to print and sign'}
+                </li>
+                <li>
+                  <span className="thok" style={{ background: '#16A34A' }}>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="#FFFFFF"
+                      strokeWidth="2.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M5 12l4 4L19 6" />
+                    </svg>
+                  </span>
+                  {isGerman
+                    ? 'Persönliche Spar-Tipps'
+                    : 'Personalized tax-saving opportunities'}
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 9. FAQ SECTION (#faq) ─────────────────────────────────────────────── */}
+      <section id="faq" style={{ background: '#FFFFFF' }}>
+        <div className="wrap thsec" style={{ maxWidth: '900px' }}>
+          <div className="thhead">
+            <p className="reveal thkick">{isGerman ? 'Fragen' : 'FAQ'}</p>
+            <h2 className="sec-h reveal thh2">
+              {isGerman ? 'Häufige Fragen' : 'Frequently Asked Questions'}
+            </h2>
+          </div>
+          <div className="reveal thfaq">
+            {FAQ_ITEMS.map((item, idx) => (
+              <details key={idx}>
+                <summary>
+                  <span>{isGerman ? item.qDe : item.qEn}</span>
+                  <span
+                    className="plus"
+                    style={{
+                      flex: 'none',
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      border: '1.5px solid #DDDDDD',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 13 13" aria-hidden="true">
+                      <path d="M6.5 1v11M1 6.5h11" stroke="#0A0A0A" strokeWidth="1.8" />
+                    </svg>
+                  </span>
+                </summary>
+                <p className="ans">{isGerman ? item.aDe : item.aEn}</p>
+              </details>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 10. FINAL CTA BANNER ──────────────────────────────────────────────── */}
+      <section style={{ background: '#FFFFFF' }}>
+        <div className="wrap" style={{ paddingBottom: '100px' }}>
+          <div className="reveal thcta">
+            <h2
+              className="sec-h"
+              style={{
+                margin: 0,
+                fontSize: '48px',
+                lineHeight: 1.1,
+                letterSpacing: '-0.03em',
+                fontWeight: 700,
+              }}
+            >
+              {isGerman
+                ? 'Bereit für deine Steuererklärung?'
+                : 'Ready for your Swiss tax return?'}
+            </h2>
+            <p
+              style={{
+                margin: '14px auto 0',
+                color: '#C9C9C9',
+                fontSize: '19px',
+                maxWidth: '520px',
+              }}
+            >
+              {isGerman
+                ? 'Registrieren ist kostenlos. Bezahlt wird erst, wenn du einreichst.'
+                : 'Registration is free. You only pay when you finalize your dossier.'}
+            </p>
+            <Link
+              href="/register"
+              className="btn btn-red thbtn"
+              style={{
+                marginTop: '30px',
+                background: '#1E7B52',
+                color: '#FFFFFF',
+                textDecoration: 'none',
+              }}
+            >
+              {isGerman ? 'Kostenlos registrieren' : 'Register for free'}
+              <svg
+                className="arr"
+                width="18"
+                height="18"
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+              >
+                <path
+                  d="M2 8h12M9 3l5 5-5 5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+              </svg>
             </Link>
-            <Link href="/privacy" className="hover:text-[#1E7B52] transition-colors">
-              {t('landing.footerPrivacy')}
-            </Link>
-            <LanguageSwitcher />
+          </div>
+        </div>
+      </section>
+
+      {/* ─── 11. FOOTER ────────────────────────────────────────────────────────── */}
+      <footer style={{ borderTop: '1px solid #EEEEEE' }}>
+        <div
+          className="wrap foot-pad"
+          style={{ paddingTop: '56px', paddingBottom: '40px' }}
+        >
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: '32px',
+              fontSize: '14px',
+              color: '#666666',
+            }}
+          >
+            <div>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+                <svg width="25" height="29" viewBox="0 0 40 46" aria-hidden="true">
+                  <path
+                    d="M4 0H27L38 11V28L23 43H4a4 4 0 0 1-4-4V4a4 4 0 0 1 4-4z"
+                    fill="#15181D"
+                  />
+                  <path d="M27 0L38 11H30a3 3 0 0 1-3-3z" fill="#D6D6D6" />
+                  <path
+                    d="M9.5 17.5h4.5V13h5v4.5h4.5v5H19V27h-5v-4.5H9.5z"
+                    fill="#FFFFFF"
+                  />
+                  <rect x="28" y="33" width="10" height="3" rx="1" fill="#6B6F76" />
+                  <rect x="23" y="39" width="15" height="3" rx="1" fill="#6B6F76" />
+                </svg>
+                <span
+                  style={{
+                    fontSize: '22px',
+                    letterSpacing: '-0.04em',
+                    lineHeight: 1,
+                  }}
+                >
+                  <span style={{ fontWeight: 800, color: '#15181D' }}>Sun</span>
+                  <span style={{ fontWeight: 600, color: '#4B4F57' }}>Tax</span>
+                </span>
+              </span>
+              <p
+                style={{
+                  margin: '14px 0 0',
+                  fontSize: '15px',
+                  color: '#555555',
+                  lineHeight: 1.5,
+                }}
+              >
+                {isGerman ? (
+                  <>
+                    Deine Steuererklärung.
+                    <br />
+                    In wenigen Minuten erledigt.
+                  </>
+                ) : (
+                  <>
+                    Your Swiss tax return.
+                    <br />
+                    Completed in minutes.
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div>
+              <p style={{ margin: '0 0 10px', fontWeight: 600, color: '#0A0A0A' }}>
+                {isGerman ? 'Kontakt' : 'Contact'}
+              </p>
+              <p style={{ margin: 0 }}>
+                <a
+                  href="mailto:info@suntax.ch"
+                  style={{ color: '#1E7B52', fontWeight: 600 }}
+                >
+                  info@suntax.ch
+                </a>
+              </p>
+            </div>
+
+            <div>
+              <p style={{ margin: '0 0 10px', fontWeight: 600, color: '#0A0A0A' }}>
+                {isGerman ? 'Standards' : 'Standards'}
+              </p>
+              <p style={{ margin: 0 }}>
+                {isGerman ? (
+                  <>
+                    Server in der Schweiz
+                    <br />
+                    Schweizer Datenschutzgesetz (DSG)
+                    <br />
+                    Im Format der kantonalen Steuerämter
+                  </>
+                ) : (
+                  <>
+                    Servers located in Switzerland
+                    <br />
+                    Swiss Data Protection Act (DSG)
+                    <br />
+                    Format aligned with cantonal requirements
+                  </>
+                )}
+              </p>
+            </div>
+
+            <div>
+              <p style={{ margin: '0 0 10px', fontWeight: 600, color: '#0A0A0A' }}>
+                {isGerman ? 'Rechtliches' : 'Legal note'}
+              </p>
+              <p style={{ margin: 0 }}>
+                {isGerman
+                  ? 'SunTax hilft beim Ausfüllen und Erstellen deines Dossiers. Die Steuer wird verbindlich von deinem kantonalen Steueramt berechnet.'
+                  : 'SunTax assists in compiling your declaration dossier. The legally binding tax is calculated exclusively by your cantonal tax authority.'}
+              </p>
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: '48px',
+              paddingTop: '20px',
+              borderTop: '1px solid #EEEEEE',
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px 24px',
+              fontSize: '13px',
+              color: '#6E6E6E',
+            }}
+          >
+            <span className="mono" style={{ fontSize: '12px' }}>
+              © 2026 SunTax · Ein Schweizer Unternehmen aus Neftenbach ZH
+            </span>
+            <nav
+              aria-label="Rechtliches"
+              style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 22px' }}
+            >
+              <Link
+                href="/impressum"
+                style={{
+                  color: '#555555',
+                  textDecoration: 'none',
+                  minHeight: '32px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                {isGerman ? 'Impressum' : 'Imprint'}
+              </Link>
+              <Link
+                href="/datenschutz"
+                style={{
+                  color: '#555555',
+                  textDecoration: 'none',
+                  minHeight: '32px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                {isGerman ? 'Datenschutz' : 'Privacy policy'}
+              </Link>
+              <Link
+                href="/agb"
+                style={{
+                  color: '#555555',
+                  textDecoration: 'none',
+                  minHeight: '32px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
+                {isGerman ? 'AGB' : 'Terms of service'}
+              </Link>
+            </nav>
           </div>
         </div>
       </footer>
+
+      {/* ─── 12. MOBILE STICKY BAR (.mbar.show-sm) ────────────────────────────── */}
+      <div className="mbar show-sm">
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            background: 'rgba(255,255,255,.92)',
+            backdropFilter: 'saturate(1.6) blur(14px)',
+            WebkitBackdropFilter: 'saturate(1.6) blur(14px)',
+            border: '1px solid #E6E6E6',
+            borderRadius: '20px',
+            padding: '10px 10px 10px 18px',
+            boxShadow: '0 18px 40px -16px rgba(0,0,0,.35)',
+          }}
+        >
+          <span style={{ lineHeight: 1.15 }}>
+            <span
+              style={{
+                display: 'block',
+                fontWeight: 700,
+                fontSize: '18px',
+                letterSpacing: '-0.02em',
+              }}
+            >
+              CHF 39
+            </span>
+            <span style={{ display: 'block', fontSize: '12px', color: '#6B6B6B' }}>
+              {isGerman ? 'pro Steuererklärung' : 'per tax return'}
+            </span>
+          </span>
+          <Link
+            href="/register"
+            className="btn btn-red"
+            style={{
+              background: '#1E7B52',
+              color: '#FFFFFF',
+              textDecoration: 'none',
+              padding: '13px 20px',
+              borderRadius: '14px',
+              fontWeight: 600,
+              fontSize: '16px',
+              minHeight: '48px',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            {isGerman ? 'Jetzt starten' : 'Get started'}
+            <svg
+              className="arr"
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              aria-hidden="true"
+            >
+              <path
+                d="M2 8h12M9 3l5 5-5 5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              />
+            </svg>
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
