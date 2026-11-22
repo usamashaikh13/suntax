@@ -696,6 +696,19 @@ async def list_documents(
 ) -> DocumentListResponse:
     await set_rls_user_id(db, current_user.id)
 
+    if tax_return_id:
+        tr_result = await db.execute(
+            select(TaxReturn.id).where(
+                TaxReturn.id == str(tax_return_id),
+                TaxReturn.user_id == str(current_user.id),
+            )
+        )
+        if not tr_result.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Tax return not found or access denied.",
+            )
+
     base_q = select(Document).where(Document.user_id == str(current_user.id))
     if tax_return_id:
         base_q = base_q.where(Document.tax_return_id == str(tax_return_id))
