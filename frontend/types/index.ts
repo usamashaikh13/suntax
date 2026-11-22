@@ -74,7 +74,11 @@ export enum TaxReturnStatus {
   REVIEW = 'review',
   COMPLETED = 'completed',
   CONFIRMED = 'confirmed',
+  DOSSIER_READY = 'dossier_ready',
+  READY_FOR_DOWNLOAD = 'ready_for_download',
+  READY_FOR_POSTAL_FILING = 'ready_for_postal_filing',
   SUBMITTED = 'submitted',
+  ACCEPTED = 'accepted',
   ERROR = 'error',
 }
 

@@ -56,8 +56,14 @@ class DocumentPipelineService:
 
     async def process_document_by_id(self, document_id: str, raise_on_failure: bool = False) -> None:
         """Entrypoint for background tasks and Celery workers creating their own session."""
+        from sqlalchemy import text
         async with AsyncSessionLocal() as session:
             try:
+                # Grant system / background worker privilege so RLS allows pipeline to process any queued document
+                try:
+                    await session.execute(text("SELECT set_config('app.is_admin', 'true', false)"))
+                except Exception:
+                    pass
                 await self.process_document(document_id, session, raise_on_transient_error=raise_on_failure)
             except Exception as exc:
                 logger.exception("Pipeline fatal error for document %s: %s", document_id, exc)
@@ -66,7 +72,12 @@ class DocumentPipelineService:
 
     async def mark_document_failed_by_id(self, document_id: str, error_message: str) -> None:
         """Mark a document as failed when worker retries are exhausted or a fatal error occurs."""
+        from sqlalchemy import text
         async with AsyncSessionLocal() as session:
+            try:
+                await session.execute(text("SELECT set_config('app.is_admin', 'true', false)"))
+            except Exception:
+                pass
             result = await session.execute(select(Document).where(Document.id == document_id))
             doc = result.scalar_one_or_none()
             if doc:
@@ -88,9 +99,11 @@ class DocumentPipelineService:
         if not doc:
             raise ValueError(f"Document {document_id} not found.")
 
-        # Transition to processing state
-        doc.processing_status = "processing"
-        await db.commit()
+        # Keep status as 'queued' while waiting in line for the OCR worker slot
+        # (prevents all uploaded documents from showing misleading active spinners simultaneously)
+        if not doc.processing_status or doc.processing_status in ("draft", "pending"):
+            doc.processing_status = "queued"
+            await db.commit()
 
         # Download from storage
         try:
@@ -118,6 +131,10 @@ class DocumentPipelineService:
         # Execute OCR with timeout in a worker thread (serialized to protect CPU on cloud containers)
         try:
             async with self._get_semaphore():
+                # Transition to processing state once worker slot is acquired
+                doc.processing_status = "processing"
+                await db.commit()
+
                 ocr_result = await asyncio.wait_for(
                     asyncio.to_thread(
                         ocr_service.process_file,
@@ -188,7 +205,10 @@ class DocumentPipelineService:
             await self._check_cross_document_integrity(doc, db)
 
         await db.commit()
-        await db.refresh(doc)
+        try:
+            await db.refresh(doc)
+        except Exception:
+            pass
         logger.info(
             "Document %s successfully processed. State: needs_review (%d fields extracted)",
             doc.id,
@@ -363,7 +383,10 @@ class DocumentPipelineService:
         doc.extracted_data = payload
         doc.processed_at = datetime.now(timezone.utc)
         await db.commit()
-        await db.refresh(doc)
+        try:
+            await db.refresh(doc)
+        except Exception:
+            pass
         logger.warning("Document %s marked as failed: %s", doc.id, error_message)
         return doc
 

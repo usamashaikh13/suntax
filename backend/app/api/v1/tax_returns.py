@@ -568,10 +568,10 @@ async def reopen_tax_return(
 ) -> dict:
     """Reopen a confirmed tax return so the user can make modifications."""
     tax_return = await _get_owned_tax_return(tax_return_id, current_user, db)
-    if tax_return.status == "submitted":
+    if tax_return.status in ("submitted", "accepted"):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Bereits übermittelte Steuererklärungen können nicht erneut geöffnet werden.",
+            detail="Bereits an das kantonale Steueramt übermittelte Steuererklärungen können nicht erneut geöffnet werden.",
         )
 
     now = datetime.now(timezone.utc)
@@ -1546,16 +1546,19 @@ async def submit_to_canton_adapter(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
     if tx_res.accepted:
-        tax_return.status = "submitted"
+        # A dossier generated locally is called 'dossier_ready'.
+        # 'submitted' is set ONLY after an actual external canton endpoint confirms receipt.
+        tax_return.status = tx_res.status if tx_res.status in ("dossier_ready", "ready_for_download", "ready_for_postal_filing") else "dossier_ready"
+        tax_return.transmission_status = tax_return.status
         tax_return.updated_at = datetime.now(timezone.utc)
         audit = AuditLog(
             user_id=str(current_user.id),
-            action="canton_transmission_prepared",
+            action="canton_dossier_prepared",
             resource_type="tax_return",
             resource_id=str(tax_return.id),
             extra_data=(
                 f'{{"canton": "{tx_res.canton_code}", "channel": "{tx_res.channel}", '
-                f'"transmission_id": "{tx_res.transmission_id or ""}"}}'
+                f'"transmission_id": "{tx_res.transmission_id or ""}", "status": "{tax_return.status}"}}'
             ),
         )
         db.add(audit)

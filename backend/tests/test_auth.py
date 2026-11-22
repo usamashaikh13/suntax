@@ -230,13 +230,24 @@ async def test_password_72_byte_truncation_collision_prevented(client: AsyncClie
 
 
 @pytest.mark.asyncio
-async def test_2fa_login_endpoint_lockout(client: AsyncClient, test_user: User):
+async def test_2fa_login_endpoint_lockout(client: AsyncClient, test_user: User, db_session):
     """5 failed 2FA attempts lock the account; 6th attempt returns HTTP 403 Forbidden."""
+    import pyotp
+    test_user.two_factor_enabled = True
+    test_user.totp_enabled = True
+    test_user.totp_secret = pyotp.random_base32()
+    test_user.failed_login_attempts = 0
+    test_user.locked_until = None
+    db_session.add(test_user)
+    await db_session.commit()
+    await db_session.refresh(test_user)
+
     login_resp = await client.post("/api/v1/auth/login", json={
         "email": test_user.email,
         "password": "Test1234!",
     })
     assert login_resp.status_code == 200
+    assert login_resp.json()["two_factor_required"] is True
     temp_token = login_resp.json()["temp_token"]
 
     for _ in range(5):

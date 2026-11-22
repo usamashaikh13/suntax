@@ -21,6 +21,7 @@ import hashlib
 import json
 import logging
 import mimetypes
+import os
 import re
 import uuid as uuid_mod
 from datetime import datetime, timezone
@@ -1137,7 +1138,7 @@ async def delete_document(
         )
 
     try:
-        await storage.delete_file(doc.storage_key)
+        await storage.delete_file(doc.storage_key, db=db)
     except Exception as exc:
         logger.warning("Could not delete storage file: %s", exc)
 

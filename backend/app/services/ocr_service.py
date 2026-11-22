@@ -139,9 +139,10 @@ class OcrService:
         return "+".join(available)
 
     def _get_tesseract_config(self) -> str:
+        parts = ["--oem 1"]
         if self._tessdata_dir:
-            return f'--tessdata-dir "{self._tessdata_dir}"'
-        return ""
+            parts.append(f'--tessdata-dir "{self._tessdata_dir}"')
+        return " ".join(parts)
 
     def _run_tesseract(self, img: Image.Image, timeout: Optional[float] = None) -> str:
         """Run Tesseract on a PIL Image with configured languages and process timeout."""
@@ -253,8 +254,8 @@ class OcrService:
                 f"Image size ({w}x{h} = {w*h} pixels) exceeds the maximum allowed limit of {settings.OCR_MAX_IMAGE_PIXELS} pixels."
             )
 
-        # 3. Downscale oversized camera images to optimal OCR resolution (max 1400px)
-        max_dim = 1400
+        # 3. Downscale oversized camera images to optimal OCR resolution (max 1100px for speed & accuracy)
+        max_dim = 1100
         if max(w, h) > max_dim:
             scale = max_dim / float(max(w, h))
             new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))

@@ -93,3 +93,20 @@ record_*.js
 test_header_footer.js
 generate_user_manual_pdf.js
 
+# Secret Protection & Test Scripts
+*.key
+*.pem
+*.pfx
+*.p12
+*.dump
+*.sql
+*.enc
+*.secret*
+*.credentials
+*regression*.js
+*regression*.py
+run_*.js
+run_*.py
+verify_db.py
+test_*.db
+

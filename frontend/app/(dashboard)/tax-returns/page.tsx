@@ -84,6 +84,13 @@ export default function TaxReturnsPage() {
           label: t('returns.statusConfirmed'),
           badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
         };
+      case 'dossier_ready':
+      case 'ready_for_download':
+      case 'ready_for_postal_filing':
+        return {
+          label: t('returns.statusDossierReady') || (isGerman ? 'Dossier bereit (Postversand / ZHprivateTax)' : 'Dossier Ready (Postal Filing / ZHprivateTax)'),
+          badgeClass: 'bg-teal-50 text-teal-800 border-teal-300 font-bold',
+        };
       case 'exported':
         return {
           label: t('returns.statusExported'),
@@ -93,6 +100,11 @@ export default function TaxReturnsPage() {
         return {
           label: t('returns.statusSubmitted'),
           badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        };
+      case 'accepted':
+        return {
+          label: t('returns.statusAccepted') || (isGerman ? 'Vom Kanton akzeptiert' : 'Accepted by Canton'),
+          badgeClass: 'bg-emerald-100 text-emerald-900 border-emerald-400 font-bold',
         };
       case 'completed':
         return {
@@ -128,7 +140,7 @@ export default function TaxReturnsPage() {
 
       const s = String(tr.status);
       if (statusFilter === 'confirmed') {
-        return s === 'confirmed' || s === 'exported' || s === 'submitted' || s === 'completed';
+        return s === 'confirmed' || s === 'dossier_ready' || s === 'ready_for_download' || s === 'ready_for_postal_filing' || s === 'exported' || s === 'submitted' || s === 'accepted' || s === 'completed';
       }
       return s === statusFilter;
     });

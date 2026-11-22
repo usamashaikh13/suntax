@@ -415,8 +415,12 @@ export interface TranslationDictionary {
     statusInProgress: string;
     statusReview: string;
     statusConfirmed: string;
+    statusDossierReady?: string;
+    statusReadyForDownload?: string;
+    statusReadyForPostalFiling?: string;
     statusExported: string; // "Exportiert (PDF bereit)" / "Exported (PDF ready)"
     statusSubmitted: string;
+    statusAccepted?: string;
     statusCompleted: string;
     taxYearLabel: string;
     bfsNumberLabel: string;

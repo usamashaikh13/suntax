@@ -174,7 +174,13 @@ export function FinalReview({
   }, [taxReturn.id, taxReturn.canton_code, taxReturn.tax_year]);
 
   const isReady = Boolean(profile && calculation);
-  const isAlreadyConfirmed = taxReturn.status === 'confirmed' || taxReturn.status === 'submitted';
+  const isAlreadyConfirmed =
+    taxReturn.status === 'confirmed' ||
+    taxReturn.status === 'dossier_ready' ||
+    taxReturn.status === 'ready_for_download' ||
+    taxReturn.status === 'ready_for_postal_filing' ||
+    taxReturn.status === 'submitted' ||
+    taxReturn.status === 'accepted';
 
   const pd = (profile?.personal_data || {}) as Record<string, any>;
   const inc = (profile?.income_data || {}) as Record<string, any>;
@@ -520,7 +526,9 @@ export function FinalReview({
             </div>
             <div>
               <h4 className="text-sm font-bold text-emerald-950">
-                {isGerman ? 'Steuererklärung erfolgreich finalisiert!' : 'Tax return successfully finalized!'}
+                {taxReturn.status === 'submitted'
+                  ? (isGerman ? 'Steuererklärung beim Kanton eingereicht' : 'Tax return submitted to canton')
+                  : (isGerman ? 'Steuerdossier bereit für Download & Postversand' : 'Tax dossier ready for download & postal filing')}
               </h4>
               <p className="text-xs text-emerald-800">
                 {isGerman
