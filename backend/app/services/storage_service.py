@@ -348,7 +348,7 @@ def _is_s3_reachable(endpoint: str, timeout: float = 0.5) -> bool:
 
 
 def _make_storage():
-    if settings.ENVIRONMENT == "development":
+    if settings.ENVIRONMENT in ("development", "test"):
         logger.info("Using LOCAL filesystem storage (dev mode)")
         return _LocalStorageService()
 

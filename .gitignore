@@ -110,3 +110,4 @@ run_*.py
 verify_db.py
 test_*.db
 
+coverage/
