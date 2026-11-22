@@ -25,6 +25,7 @@ WORKDIR /app
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN mkdir -p public
 
 # Next.js collects anonymous telemetry — disable it
 ENV NEXT_TELEMETRY_DISABLED=1
