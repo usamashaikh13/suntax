@@ -366,8 +366,8 @@ export function TaxQuestions({
       childcare_costs: childcareType === 'external' ? childcareCosts : 0,
       childcare_type: childcareType || 'self',
       pillar3a_asked: p3aAsked,
-      pillar3a_contributions: p3aAsked === 'yes' ? Math.min(p3aPaid, 7258) : 0,
-      pillar3a_catchup: taxYear >= 2026 && p3aAsked === 'yes' ? Math.min(p3aCatchup, 7258) : 0,
+      pillar3a_contributions: p3aAsked === 'yes' ? Math.max(0, p3aPaid) : 0,
+      pillar3a_catchup: taxYear >= 2026 && p3aAsked === 'yes' ? Math.max(0, p3aCatchup) : 0,
       health_insurance_premiums: parsedHealth,
     }
 
@@ -990,14 +990,14 @@ export function TaxQuestions({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <div>
                 <label className="font-bold text-slate-800 block mb-1">
-                  {isGerman ? 'Ordentliche Einzahlung Säule 3a (max. CHF 7’258)' : 'Ordinary Pillar 3a contribution (max CHF 7,258)'}
+                  {isGerman ? 'Ordentliche Einzahlung Säule 3a' : 'Ordinary Pillar 3a contribution'}
                 </label>
                 <Input
                   type="number"
-                  max={7258}
+                  min={0}
                   value={p3aPaid || ''}
-                  onChange={e => setP3aPaid(Math.min(Number(e.target.value) || 0, 7258))}
-                  placeholder="z. B. 7258"
+                  onChange={e => setP3aPaid(Math.max(0, Number(e.target.value) || 0))}
+                  placeholder={isGerman ? 'Beitrag in CHF' : 'Amount in CHF'}
                   className="h-8 text-xs bg-white font-mono rounded-lg"
                 />
               </div>
@@ -1006,15 +1006,15 @@ export function TaxQuestions({
                 <div>
                   <label className="font-bold text-[#1E7B52] block mb-1">
                     {isGerman
-                      ? (cardById('q12_pillar3a')?.followup_fields?.[1]?.label || 'Nachträglicher Einkauf Säule 3a (neu ab 2026, max. CHF 7’258)')
-                      : 'Pillar 3a retroactive catch-up (from 2026, max CHF 7,258)'}
+                      ? (cardById('q12_pillar3a')?.followup_fields?.[1]?.label || 'Nachträglicher Einkauf Säule 3a (neu ab 2026)')
+                      : 'Pillar 3a retroactive catch-up (new from 2026)'}
                   </label>
                   <Input
                     type="number"
-                    max={7258}
+                    min={0}
                     value={p3aCatchup || ''}
-                    onChange={e => setP3aCatchup(Math.min(Number(e.target.value) || 0, 7258))}
-                    placeholder="z. B. 2000 (optional)"
+                    onChange={e => setP3aCatchup(Math.max(0, Number(e.target.value) || 0))}
+                    placeholder={isGerman ? 'Einkauf in CHF (optional)' : 'Catch-up in CHF (optional)'}
                     data-testid="pillar3a-catchup-input"
                     className="h-8 text-xs bg-white font-mono rounded-lg border-emerald-300"
                   />
