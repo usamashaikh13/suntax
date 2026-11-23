@@ -26,7 +26,7 @@ export const BRAND: BrandConfig = {
   noreplyEmail: process.env.NEXT_PUBLIC_NOREPLY_EMAIL || 'noreply@suntax.ch',
   logoPath: process.env.NEXT_PUBLIC_BRAND_LOGO_PATH || '/brand-logo.svg',
   primaryColor: process.env.NEXT_PUBLIC_BRAND_PRIMARY_COLOR || '#1E7B52',
-  companyLegalName: process.env.NEXT_PUBLIC_COMPANY_LEGAL_NAME || 'SunTax Switzerland AG',
+  companyLegalName: process.env.NEXT_PUBLIC_COMPANY_LEGAL_NAME || 'Sun Group KLG',
   filePrefix: (process.env.NEXT_PUBLIC_BRAND_NAME || 'SunTax').replace(/\s+/g, ''),
 };
 

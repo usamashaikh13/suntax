@@ -206,7 +206,7 @@ create_bank(
 create_pillar3a(
     "demo_b_pillar3a_frankly.pdf",
     "Stiftung frankly Saeule 3a", "Thomas Keller", "756.1234.5678.97",
-    7056.0
+    7258.0
 )
 create_childcare(
     "demo_b_childcare_kita.pdf",

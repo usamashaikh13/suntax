@@ -144,6 +144,45 @@ async def get_tax_profile(
     }
 
 
+async def execute_and_persist_calculation(
+    tr: TaxReturn,
+    profile: TaxProfile,
+    db: AsyncSession,
+) -> TaxCalculation:
+    """Run deterministic tax calculation engine and persist fresh snapshot."""
+    loader = TaxRuleLoader()
+    rules = loader.load_from_files(
+        canton_code=tr.canton_code,
+        municipality_code=tr.municipality_code,
+        tax_year=tr.tax_year,
+    )
+    engine = TaxCalculationEngine()
+    result = engine.calculate(_to_engine_profile(profile, tr), rules)
+    result_data = result.model_dump(mode="json")
+    calc = TaxCalculation(
+        tax_return_id=str(tr.id),
+        rule_version=rules.version,
+        tax_rule_version=rules.version,
+        inputs=profile.personal_data or {},
+        results=result_data,
+        breakdown=result_data.get("breakdown", {}),
+        status="completed",
+        taxable_income=float(result.taxable_income),
+        taxable_wealth=float(result.taxable_wealth),
+        federal_income_tax=float(result.federal_income_tax),
+        cantonal_income_tax=float(result.cantonal_income_tax),
+        municipal_income_tax=float(result.municipal_income_tax),
+        wealth_tax=float(result.wealth_tax_canton + result.wealth_tax_municipal),
+        total_tax_due=float(result.total_tax),
+        calculation_details=result_data,
+        is_final=False,
+    )
+    db.add(calc)
+    await db.commit()
+    await db.refresh(calc)
+    return calc
+
+
 # ── Calculate ─────────────────────────────────────────────────────────────────
 
 
@@ -172,54 +211,31 @@ async def calculate_tax(
             ),
         )
 
-    # Load tax rules — gracefully handle missing rules files
     try:
-        loader = TaxRuleLoader()
-        rules = loader.load_from_files(
-            canton_code=tr.canton_code,
-            municipality_code=tr.municipality_code,
-            tax_year=tr.tax_year,
-        )
+        calc = await execute_and_persist_calculation(tr, profile, db)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Tax rules not found for {tr.canton_code}/{tr.tax_year}: {e}",
+            detail=f"Tax rules or calculation failed for {tr.canton_code}/{tr.tax_year}: {e}",
         )
 
-    # Run calculation
-    engine = TaxCalculationEngine()
-    result = engine.calculate(_to_engine_profile(profile, tr), rules)
-
-    # Persist calculation snapshot
-    result_data = result.model_dump(mode="json")
-    calc = TaxCalculation(
-        tax_return_id=str(tr.id),
-        rule_version=rules.version,
-        tax_rule_version=rules.version,
-        inputs=profile.personal_data or {},
-        results=result_data,
-        breakdown=result_data.get("breakdown", {}),
-        status="completed",
-        taxable_income=float(result.taxable_income),
-        taxable_wealth=float(result.taxable_wealth),
-        federal_income_tax=float(result.federal_income_tax),
-        cantonal_income_tax=float(result.cantonal_income_tax),
-        municipal_income_tax=float(result.municipal_income_tax),
-        wealth_tax=float(result.wealth_tax_canton + result.wealth_tax_municipal),
-        total_tax_due=float(result.total_tax),
-        calculation_details=result_data,
-        is_final=False,
-    )
-    db.add(calc)
-    await db.commit()
-    await db.refresh(calc)
-
+    result_data = calc.calculation_details or {}
     return {
         "calculation_id": str(calc.id),
+        "gross_income": float(result_data.get("gross_income", 0.0)),
+        "taxable_income": float(calc.taxable_income or 0.0),
+        "taxable_wealth": float(calc.taxable_wealth or 0.0),
+        "canton_deductions_total": float(result_data.get("canton_deductions_total", 0.0)),
+        "federal_deductions_total": float(result_data.get("federal_deductions_total", 0.0)),
+        "federal_income_tax": float(calc.federal_income_tax or 0.0),
+        "cantonal_income_tax": float(calc.cantonal_income_tax or 0.0),
+        "municipal_income_tax": float(calc.municipal_income_tax or 0.0),
+        "total_tax": float(calc.total_tax_due or 0.0),
+        "vst_refund": float(result_data.get("vst_refund", 0.0)),
         "results": result_data,
         "breakdown": result_data.get("breakdown", []),
         "savings_analysis": result_data.get("savings_analysis"),
-        "rule_version": rules.version,
+        "rule_version": calc.rule_version,
     }
 
 
@@ -235,7 +251,7 @@ async def get_calculation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get the latest tax calculation."""
+    """Get the latest tax calculation, automatically recalculating if missing or stale."""
     tr = await _get_tax_return(tax_return_id, db, current_user)
 
     result = await db.execute(
@@ -245,20 +261,41 @@ async def get_calculation(
         .limit(1)
     )
     calc = result.scalar_one_or_none()
+
+    # Automatically compute if missing or marked stale
+    if not calc or calc.status == "stale":
+        try:
+            profile = await _get_or_create_profile(tr, db)
+            if tr.tax_year in (2025, 2026) and rules_data_service.is_canton_available(tr.canton_code, tr.tax_year):
+                calc = await execute_and_persist_calculation(tr, profile, db)
+        except Exception as exc:
+            logger.warning("Could not auto-calculate in get_calculation: %s", exc)
+
     if not calc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No calculation found. Run /calculate first.",
         )
 
+    details = calc.calculation_details or {}
     return {
         "calculation_id": str(calc.id),
         "status": calc.status,
         "is_stale": calc.status == "stale",
         "calculated_at": calc.calculated_at.isoformat(),
-        "results": calc.calculation_details or {},
-        "breakdown": (calc.calculation_details or {}).get("breakdown", []),
-        "savings_analysis": (calc.calculation_details or {}).get("savings_analysis"),
+        "gross_income": float(details.get("gross_income", 0.0)),
+        "taxable_income": float(calc.taxable_income or 0.0),
+        "taxable_wealth": float(calc.taxable_wealth or 0.0),
+        "canton_deductions_total": float(details.get("canton_deductions_total", 0.0)),
+        "federal_deductions_total": float(details.get("federal_deductions_total", 0.0)),
+        "federal_income_tax": float(calc.federal_income_tax or 0.0),
+        "cantonal_income_tax": float(calc.cantonal_income_tax or 0.0),
+        "municipal_income_tax": float(calc.municipal_income_tax or 0.0),
+        "total_tax": float(calc.total_tax_due or 0.0),
+        "vst_refund": float(details.get("vst_refund", 0.0)),
+        "results": details,
+        "breakdown": details.get("breakdown", []),
+        "savings_analysis": details.get("savings_analysis"),
         "rule_version": calc.rule_version,
         "is_final": calc.is_final,
     }

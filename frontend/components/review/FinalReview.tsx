@@ -558,7 +558,7 @@ export function FinalReview({
               className="text-xs bg-[#1E7B52] hover:bg-[#165C3D] text-white font-bold shadow-xs flex items-center gap-1.5 rounded-xl h-10 px-4"
             >
               <Download className="h-4 w-4" />
-              {isGerman ? 'Amtliches PDF für Postversand' : 'Official PDF for postal filing'}
+              {isGerman ? 'Steuererklärung PDF für Postversand' : 'Tax return PDF for postal filing'}
             </Button>
             <Button
               size="sm"
@@ -861,7 +861,7 @@ export function FinalReview({
               ) : (
                 <Download className="h-3.5 w-3.5" />
               )}
-              {isGerman ? 'Amtliche Steuererklärung als PDF herunterladen' : 'Download official tax return PDF'}
+              {isGerman ? 'Steuererklärung als PDF herunterladen (Postversand)' : 'Download tax return PDF (postal filing)'}
             </Button>
 
             <Button

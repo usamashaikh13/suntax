@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { LanguageSwitcher } from '@/components/LanguageSwitcher';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
+import { BRAND } from '@/lib/brand';
 import './landing_redesign.css';
 
 interface CantonMeta {
@@ -1766,7 +1767,7 @@ export default function LandingPage() {
             }}
           >
             <span className="mono" style={{ fontSize: '12px' }}>
-              © 2026 SunTax · Ein Schweizer Unternehmen aus Neftenbach ZH
+              © 2026 {BRAND.companyLegalName} · {isGerman ? 'Ein Schweizer Unternehmen aus Neftenbach ZH' : 'A Swiss enterprise based in Neftenbach ZH'}
             </span>
             <nav
               aria-label="Rechtliches"

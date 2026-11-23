@@ -592,10 +592,30 @@ class TaxRuleLoader:
                 muni_info = munis[canonical_code]
                 return canonical_code, str(muni_info.get("name", canonical_code)), int(muni_info["multiplier"])
 
-        # Case D: Name match (case-insensitive)
+        # Case C.2: Swiss 4-digit postal code (PLZ) resolution via canton_service
+        try:
+            from app.services.canton_service import canton_service
+            plz_info = canton_service.lookup_plz(code_str)
+            if plz_info:
+                cand_bfs = str(plz_info.get("bfs_code") or plz_info.get("default_bfs") or "")
+                if cand_bfs in munis:
+                    muni_info = munis[cand_bfs]
+                    return cand_bfs, str(muni_info.get("name", cand_bfs)), int(muni_info["multiplier"])
+                for opt in plz_info.get("options", []):
+                    opt_bfs = str(opt.get("bfs_code", ""))
+                    if opt_bfs in munis:
+                        muni_info = munis[opt_bfs]
+                        return opt_bfs, str(muni_info.get("name", opt_bfs)), int(muni_info["multiplier"])
+        except Exception:
+            pass
+
+        # Case D: Name match (case-insensitive & normalized)
         norm_input = code_str.lower().strip()
+        norm_clean = norm_input.replace("(zh)", "").replace("a.a.", "").replace("a.d.l.", "").replace("a.i.", "").strip()
         for k, v in munis.items():
-            if str(v.get("name", "")).lower().strip() == norm_input:
+            m_name = str(v.get("name", "")).lower().strip()
+            m_clean = m_name.replace("(zh)", "").replace("a.a.", "").replace("a.d.l.", "").replace("a.i.", "").strip()
+            if m_name == norm_input or (norm_clean and m_clean == norm_clean):
                 return k, str(v.get("name", k)), int(v["multiplier"])
 
         # Case E: Unrecognized municipality identifier -> raise explicit error, NO SILENT FALLBACK!

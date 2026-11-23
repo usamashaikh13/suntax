@@ -119,8 +119,15 @@ export default function DashboardPage() {
           } catch {}
 
           try {
-            const calc = await api.taxEngine.getCalculation(activeReturn.id);
-            setActiveCalculation(calc);
+            let calc = null;
+            try {
+              calc = await api.taxEngine.getCalculation(activeReturn.id);
+            } catch {
+              calc = await api.taxEngine.calculate(activeReturn.id);
+            }
+            if (calc) {
+              setActiveCalculation(calc);
+            }
           } catch {}
         }
       } catch (e) {

@@ -482,7 +482,7 @@ def test_suite_4_xml_pdf_reconciliation():
             "travel_expenses": 2000.0,
             "meal_expenses": 1600.0,
             "professional_expenses": 2000.0,
-            "pillar3a_contributions": 7056.0,
+            "pillar3a_contributions": 7258.0,
             "health_insurance_premiums": 2600.0,
         }
 
@@ -512,14 +512,14 @@ def test_suite_4_xml_pdf_reconciliation():
                 {"code": "commute", "label": "ÖV", "amount": 2000},
                 {"code": "meals", "label": "Verpflegung", "amount": 1600},
                 {"code": "work_expenses_flat", "label": "Berufskosten", "amount": 2000},
-                {"code": "pillar3a", "label": "Säule 3a", "amount": 7056},
+                {"code": "pillar3a", "label": "Säule 3a", "amount": 7258},
                 {"code": "health_insurance", "label": "Krankenkasse", "amount": 2600},
             ],
             "federal_deductions_list": [
                 {"code": "commute", "label": "ÖV", "amount": 2000},
                 {"code": "meals", "label": "Verpflegung", "amount": 1600},
                 {"code": "work_expenses_flat", "label": "Berufskosten", "amount": 2000},
-                {"code": "pillar3a", "label": "Säule 3a", "amount": 7056},
+                {"code": "pillar3a", "label": "Säule 3a", "amount": 7258},
                 {"code": "health_insurance", "label": "Krankenkasse", "amount": 2600},
             ],
         }

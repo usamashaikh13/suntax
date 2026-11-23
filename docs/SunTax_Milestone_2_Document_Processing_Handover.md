@@ -83,8 +83,10 @@ Every business logic, document processing, calculation, UI, and security task re
 
 ### C. Core Tax Engine & Zurich Multi-Tier Calculation
 1. **Deterministic Multi-Tier Calculation:** Implemented versioned Swiss tax rules for Tax Years 2025 and 2026 covering Federal Direct Tax, Zurich Cantonal Tax, Municipal Tax (Winterthur & Zurich City), and Wealth Tax.
-2. **Statutory Deduction Caps:** Professional expenses (Berufsauslagen), commuting costs (ÖV, Velo, Auto), meal deductions, Pillar 3a statutory cap (CHF 7'056), healthcare costs, and childcare deductions (capped at CHF 25'000 cantonal / CHF 25'500 federal).
-3. **Official Dossier PDF Generation:** Generates the official Zurich Tax Declaration PDF dossier ready for download and postal filing.
+2. **Statutory Deduction Caps:** Professional expenses (Berufsauslagen), commuting costs (ÖV, Velo, Auto), meal deductions, Pillar 3a statutory cap (**CHF 7'258** for 2025/2026), healthcare costs, and childcare deductions (capped at **CHF 25'000** cantonal ZH / **CHF 25'800** federal).
+3. **All 160 Zürich Municipalities & Church Tax:** Full database of all 160 Zürich municipalities with official BFS numbers, tax rates (Steuerfuss), and church tax rates, resolvable via 4-digit postal code (PLZ).
+4. **Postal Filing PDF Dossier Generation:** Generates high-contrast black-on-white Zürich Tax Declaration PDF dossier with running name & AHV headers, signature blocks, and dedicated Barcode Sheet (*Barcode-Blatt*).
+5. **eCH-0119 XML Export:** Generates 100% valid eCH-0119 v4.0.0 XML declarations compliant with eCH schema standards.
 
 ### D. Production Security Separation & Hardening
 1. **Strict 3-Tier Environment Configuration:** Separated `development`, `staging`, and `production`. Fixed test codes (such as `123456`) and sandbox mocks are strictly disabled and rejected in production.
@@ -219,7 +221,7 @@ Every business logic, document processing, calculation, UI, and security task re
   1. `demo_b_salary_thomas_keller.pdf` *(Thomas: CHF 95'000 gross)*
   2. `demo_b_salary_sarah_keller.pdf` *(Sarah: CHF 62'000 gross, Person 2)*
   3. `demo_b_bank_ubs.pdf` *(UBS: Balance CHF 42'000)*
-  4. `demo_b_pillar3a_frankly.pdf` *(frankly 3a: CHF 7'056)*
+  4. `demo_b_pillar3a_frankly.pdf` *(frankly 3a: CHF 7'258)*
   5. `demo_b_childcare_kita.pdf` *(Childcare: CHF 18'000 for 2 kids)*
 - **Expected Result:** Batch ingestion succeeds; the backend processes OCR pipelines in parallel without blocking the UI.
 - **Evidence Screenshot:**  
@@ -324,14 +326,53 @@ The heading has been updated to pure white `#FFFFFF` text against `#14181F` back
 
 ---
 
-## 9. Deliverables & Sign-Off
+---
 
-1. **Client Handover Manual (Markdown):**  
-   [SunTax_Milestone_2_Document_Processing_Handover.md](file:///Users/osamashaikh/.gemini/antigravity/scratch/suntax/docs/SunTax_Milestone_2_Document_Processing_Handover.md)
-2. **Client Handover Manual (PDF):**  
-   [SunTax_Milestone_2_Document_Processing_Handover.pdf](file:///Users/osamashaikh/.gemini/antigravity/scratch/suntax/docs/SunTax_Milestone_2_Document_Processing_Handover.pdf)
-3. **Live Staging Application:**  
+## 9. Client Feedback Addendum (Milestone 2 Acceptance Resolutions)
+
+Following the initial Milestone 2 submission, all 7 feedback items raised by the client have been addressed, verified, and integrated into the live staging deployment:
+
+| # | Client Feedback Item | Resolution & Verification | Code & Artifact References |
+| :-: | :--- | :--- | :--- |
+| **1** | **Wrong Amounts**<br>• Pillar 3a max CHF 7'258 (2025/2026)<br>• Federal childcare max CHF 25'800<br>• Cantonal ZH childcare CHF 25'000<br>• Sourced from `rules_2025_2026.json` | **RESOLVED**: Updated `deduction_rules.csv` and rules JSON. Dynamic loading via `TaxRuleLoader`; all hardcoded caps removed. Synthetic certificates regenerated with CHF 7'258. | `tax-rules/deduction_rules.csv`<br>`backend/tax-rules/deduction_rules.csv`<br>`scripts/generate_synthetic_handover_docs.py` |
+| **2** | **Calculation & Sidebar Refresh**<br>• Sidebar showed "Abzüge CHF 0 / Steuer ca. —"<br>• All 160 Zürich municipalities + church tax needed | **RESOLVED**: `GET /tax-returns/{id}/calculation` auto-computes and returns deduction totals. Added postal code (PLZ) lookup for all 160 ZH municipalities with BFS numbers, Steuerfuss, and church tax. | `backend/app/api/v1/tax_engine.py`<br>`backend/app/services/tax_engine_service.py`<br>`frontend/app/(dashboard)/tax-returns/[id]/page.tsx` |
+| **3** | **Evidence & Screen Recordings**<br>• Dashboard showed loading spinner<br>• Duplicate, conflict & review showed upload screen<br>• Video walkthrough required | **RESOLVED**: Re-captured fully loaded dashboards without spinners. Captured Document Vault with AI badges, Review Modal with extracted fields, duplicate alert, and recorded full MP4 walkthroughs. | `docs/evidence/01_dashboard_loaded_account_a.png`<br>`docs/evidence/03_document_review_modal.png`<br>`docs/evidence/videos/milestone2_account_a_walkthrough.mp4`<br>`docs/evidence/videos/milestone2_account_b_walkthrough.mp4` |
+| **4** | **Company Legal Name**<br>• Replace "SunTax Switzerland AG" with "Sun Group KLG" in config | **RESOLVED**: Configured `"company_legal_name": "Sun Group KLG"` across backend and frontend config, and updated footer copyright notices. | `backend/app/data/brand_config.json`<br>`backend/app/core/config.py`<br>`frontend/lib/brand.ts`<br>`frontend/app/page.tsx` |
+| **5** | **Postal Filing PDF (Zürich)**<br>• Black on white layout<br>• Name & AHV on every page<br>• Date and signature blocks<br>• Dedicated Barcode Sheet (*Barcode-Blatt*)<br>• Not called "official" | **RESOLVED**: Refactored PDF generator to pure black on white (`#000000`). Added running header `Name: {taxpayer_name} \| AHV: {ahv_number}`, date & signature blocks, and Barcode Sheet with Code128 & QR. Titled "Steuererklärung {year} – Dossier für den Postversand (Entwurf)". | `backend/app/services/pdf_export_service.py`<br>`backend/tests/test_pdf_export.py`<br>`frontend/components/review/FinalReview.tsx` |
+| **6** | **eCH-0119 XML Export**<br>• Clarification on generation timeline | **RESOLVED**: eCH-0119 XML generation engine is **100% complete and operational**. Validates cleanly against official eCH-0119 v4.0.0 XSD schemas for single earners and married couples. | `backend/app/services/ech0119_export_service.py`<br>`backend/tests/test_ech0119_export.py` (9/9 passed) |
+| **7** | **Repository Transfer & Clean Links**<br>• Local file links replaced with live URLs<br>• GitHub ownership transfer procedure | **RESOLVED**: All local file links replaced with live GitHub and Vercel links. Repository transfer procedure provided below. | `https://github.com/usamashaikh13/suntax`<br>`https://frontend-ruby-gamma-46.vercel.app` |
+
+---
+
+## 10. GitHub Repository Ownership Transfer
+
+To transfer full repository ownership and administrative control to the client:
+
+1. **Step 1:** The repository owner navigates to:  
+   `https://github.com/usamashaikh13/suntax/settings`
+2. **Step 2:** Scroll down to the **Danger Zone** at the bottom of the Settings page.
+3. **Step 3:** Click **Transfer ownership**.
+4. **Step 4:** In the transfer prompt:
+   - Enter the client's GitHub username or organization name.
+   - Type `usamashaikh13/suntax` to confirm the repository name.
+   - Click **I understand, transfer this repository**.
+5. **Step 5:** The client will receive an email invitation and a notification in GitHub to accept the transfer. Upon acceptance, the client becomes the repository owner with full admin permissions.
+
+---
+
+## 11. Deliverables & Sign-Off
+
+1. **GitHub Source Code Repository:**  
+   [https://github.com/usamashaikh13/suntax](https://github.com/usamashaikh13/suntax)
+2. **Live Deployed Staging Application:**  
    [https://frontend-ruby-gamma-46.vercel.app](https://frontend-ruby-gamma-46.vercel.app)
+3. **Live Deployed Staging Backend API:**  
+   [https://suntax-api.onrender.com/api/v1](https://suntax-api.onrender.com/api/v1)
+4. **Demonstration Screen Recordings:**  
+   - [Account A Single Employee Walkthrough (MP4)](https://github.com/usamashaikh13/suntax/raw/main/docs/evidence/videos/milestone2_account_a_walkthrough.mp4)
+   - [Account B Family Multi-Document Walkthrough (MP4)](https://github.com/usamashaikh13/suntax/raw/main/docs/evidence/videos/milestone2_account_b_walkthrough.mp4)
+5. **Client Handover Document (PDF):**  
+   Included in repository at `docs/SunTax_Milestone_2_Document_Processing_Handover.pdf`
 
 *Handover Prepared by: SunTax Quality Assurance & Lead Engineering Team*  
-*Status: Ready for Client Acceptance Review*
+*Status: Ready for Final Client Acceptance*

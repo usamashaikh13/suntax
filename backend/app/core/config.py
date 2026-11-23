@@ -38,7 +38,7 @@ def _load_brand_defaults() -> Dict[str, Any]:
         "primary_hover_color": "#16603F",
         "source_description": "SunTax 1.0",
         "transaction_prefix": "SUNTAX",
-        "company_legal_name": "SunTax AG (Working Name)",
+        "company_legal_name": "Sun Group KLG",
         "hosting_country": "CH",
     }
 

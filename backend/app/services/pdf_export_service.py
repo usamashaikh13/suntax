@@ -71,11 +71,19 @@ _ASSET_LABELS = {
 
 
 def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lang: str = "de") -> bytes:
-    """Render a draft summary in German ('de', default) or English ('en'); never invent profile values or recalculate tax."""
+    """
+    Render a high-contrast black-on-white postal declaration dossier in German ('de', default)
+    or English ('en') conforming to Zurich postal filing requirements (Barcode-Blatt, AHV + Name on
+    every page, date & signature fields).
+    """
+    import re
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+    from reportlab.graphics.barcode import createBarcodeDrawing
+    from reportlab.graphics.barcode.qr import QrCodeWidget
+    from reportlab.graphics.shapes import Drawing
 
     locale = "en" if str(lang or "de").strip().lower().startswith("en") else "de"
     is_de = locale == "de"
@@ -102,20 +110,41 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lan
     year = _text(getattr(tax_return, 'tax_year', None), missing_lbl)
     brand_name = settings.get_brand_config()["brand_name"]
     municipality = _text(getattr(tax_return, 'municipality_name', None), missing_lbl)
+    muni_code = _text(getattr(tax_return, 'municipality_code', None), '261' if canton == 'ZH' else 'all')
     reference = str(getattr(tax_return, 'id', missing_lbl))
+
+    first_n = _raw(personal.get('first_name')) or ''
+    last_n = _raw(personal.get('last_name')) or ''
+    taxpayer_name = f"{first_n} {last_n}".strip() or str(personal.get('name') or missing_lbl)
+    ahv_number = str(_pick(personal, 'ahv_number', 'vn') or missing_lbl)
+
     output = io.BytesIO()
-    doc_title = f'{brand_name} {canton} {year} ' + t('Zusammenfassung Steuererklärung', 'Tax Return Summary')
-    doc = SimpleDocTemplate(output, pagesize=A4, leftMargin=42, rightMargin=42,
-                            topMargin=66, bottomMargin=52, title=doc_title, author=brand_name)
+    doc_title = f'{brand_name} {canton} {year} ' + t('Steuererklärung Dossier', 'Tax Return Dossier')
+    doc = SimpleDocTemplate(
+        output,
+        pagesize=A4,
+        leftMargin=42,
+        rightMargin=42,
+        topMargin=58,
+        bottomMargin=48,
+        title=doc_title,
+        author=brand_name,
+    )
     width = A4[0] - 84
-    ink = colors.HexColor('#173b35')
-    muted = colors.HexColor('#64756e')
+
+    # High-contrast black-on-white styling for cantonal scanning centers
+    ink = colors.black
+    muted = colors.HexColor('#222222')
+    border_color = colors.black
+    bg_subtle = colors.HexColor('#F2F2F2')
+    bg_card = colors.HexColor('#FAFAFA')
+
     styles = {
-        'body': ParagraphStyle('body', fontName='Helvetica', fontSize=9, leading=13, textColor=ink),
-        'title': ParagraphStyle('title', fontName='Helvetica-Bold', fontSize=25, leading=30, textColor=ink, spaceAfter=8),
-        'section': ParagraphStyle('section', fontName='Helvetica-Bold', fontSize=13, leading=17, textColor=ink, spaceBefore=16, spaceAfter=8, keepWithNext=True),
-        'small': ParagraphStyle('small', fontName='Helvetica', fontSize=8, leading=11, textColor=muted),
-        'amount': ParagraphStyle('amount', fontName='Helvetica', fontSize=9, leading=13, textColor=ink, alignment=2),
+        'body': ParagraphStyle('body', fontName='Helvetica', fontSize=8.5, leading=12, textColor=ink),
+        'title': ParagraphStyle('title', fontName='Helvetica-Bold', fontSize=18, leading=22, textColor=ink, spaceAfter=4),
+        'section': ParagraphStyle('section', fontName='Helvetica-Bold', fontSize=11, leading=14, textColor=ink, spaceBefore=12, spaceAfter=6, keepWithNext=True),
+        'small': ParagraphStyle('small', fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=muted),
+        'amount': ParagraphStyle('amount', fontName='Helvetica', fontSize=8.5, leading=12, textColor=ink, alignment=2),
     }
 
     def p(value, style='body'):
@@ -132,12 +161,15 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lan
             data.append([p(v, 'amount' if money_last and i == len(row) - 1 else 'body') for i, v in enumerate(row)])
         tbl = Table(data, colWidths=[width * n for n in proportions], repeatRows=1, hAlign='LEFT')
         tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#eaf0eb')),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#f7f9f6')]),
+            ('BACKGROUND', (0, 0), (-1, 0), bg_subtle),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, bg_card]),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 10), ('RIGHTPADDING', (0, 0), (-1, -1), 10),
-            ('TOPPADDING', (0, 0), (-1, -1), 8), ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
-            ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.HexColor('#cad7cf')),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LINEBELOW', (0, 0), (-1, 0), 1, border_color),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CCCCCC')),
         ]))
         story.append(tbl)
 
@@ -149,29 +181,122 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lan
                 rows.append((_text(item.get('description'), missing_lbl), _chf(item.get('amount'), missing_lbl)))
         return rows or [(empty_msg, missing_lbl)]
 
+    # ── 1. BARCODE-BLATT (Mandatory Sheet for Postal Submission) ───────────────
+    story.append(p(t('BARCODE-BLATT ZUR STEUERERKLÄRUNG', 'BARCODE SHEET FOR TAX RETURN'), 'title'))
+    story.append(p(
+        t(
+            f'Kanton {canton}  ·  Gemeinde {municipality} (BFS {muni_code})  ·  Steuerjahr {year}',
+            f'Canton {canton}  ·  Municipality {municipality} (BFS {muni_code})  ·  Tax Year {year}',
+        ),
+        'body',
+    ))
+    story.append(Spacer(1, 10))
+
+    # Generate 1D Code128 barcode and 2D QR Code
+    ahv_digits = re.sub(r'[^0-9]', '', ahv_number)
+    barcode_val = f"{year}-{canton}-{muni_code}-{ahv_digits}" if ahv_digits else f"{year}-{canton}-{muni_code}"
+    qr_payload = f"SUNTAX|{canton}|{year}|BFS:{muni_code}|AHV:{ahv_number}|NAME:{taxpayer_name}|REF:{reference[:18]}"
+
+    try:
+        bc_dwg = createBarcodeDrawing("Code128", value=barcode_val[:28], width=340, height=45, barHeight=32, barWidth=1.1)
+
+        qr_widget = QrCodeWidget(qr_payload)
+        bounds = qr_widget.getBounds()
+        bw = bounds[2] - bounds[0]
+        bh = bounds[3] - bounds[1]
+        qr_dwg = Drawing(70, 70, transform=[70.0 / bw, 0, 0, 70.0 / bh, 0, 0])
+        qr_dwg.add(qr_widget)
+
+        bc_table = Table([[bc_dwg, qr_dwg]], colWidths=[width * 0.76, width * 0.24])
+        bc_table.setStyle(TableStyle([
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+            ('BOX', (0, 0), (-1, -1), 1, border_color),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (-1, -1), colors.white),
+        ]))
+        story.append(bc_table)
+    except Exception:
+        pass
+
+    story.append(Spacer(1, 10))
+    table(
+        [t('STEUERDATEN / METADATEN', 'TAX DECLARATION METADATA'), t('WERT', 'VALUE')],
+        [
+            (t('Steuerpflichtige Person', 'Taxpayer'), taxpayer_name),
+            (t('AHV-Nummer', 'AHV / AVS number'), ahv_number),
+            (t('Steuerjahr / Kanton', 'Tax year / Canton'), f'{year} / {canton}'),
+            (t('Wohnsitzgemeinde (BFS)', 'Municipality (BFS)'), f'{municipality} (BFS {muni_code})'),
+            (t('Dossier-Referenz', 'Dossier Reference'), reference),
+        ],
+        proportions=(0.40, 0.60),
+    )
+    story.append(Spacer(1, 10))
+
+    story.append(p(
+        t(
+            'DRUCKVORSCHRIFTEN FÜR DEN POSTVERSAND (KANTON ZÜRICH):\n'
+            '• Ausdruck zwingend schwarz auf weiss auf weissem Standardpapier (A4).\n'
+            '• Dieses Barcode-Blatt muss bei der postalischen Einreichung zuoberst auf die Steuererklärung gelegt werden.\n'
+            '• Das Dossier muss auf den dafür vorgesehenen Zeilen datiert und eigenhändig unterschrieben werden.\n'
+            '• Reichen Sie die erforderlichen Belege (Lohnausweis, Säule 3a, Bankauszüge) mit dem Dossier ein.',
+            'PRINTING & MAILING INSTRUCTIONS (CANTON ZURICH):\n'
+            '• Must be printed in high-contrast black on white on standard white A4 paper.\n'
+            '• This barcode sheet must be placed at the very top of your tax return dossier.\n'
+            '• The dossier must be dated and signed by hand on the designated signature lines.\n'
+            '• Include required supporting receipts (salary certificate, Pillar 3a, bank statements).',
+        ),
+        'small',
+    ))
+    story.append(Spacer(1, 10))
+
+    bc_sig_data = [
+        [
+            p(t('Ort, Datum:\n\n__________________________________', 'Place, Date:\n\n__________________________________'), 'small'),
+            p(t('Unterschrift Steuerpflichtige Person:\n\n__________________________________', 'Signature of Taxpayer:\n\n__________________________________'), 'small'),
+        ]
+    ]
+    bc_sig_table = Table(bc_sig_data, colWidths=[width * 0.45, width * 0.55])
+    bc_sig_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BACKGROUND', (0, 0), (-1, -1), bg_card),
+        ('BOX', (0, 0), (-1, -1), 1, border_color),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(bc_sig_table)
+
+    story.append(PageBreak())
+
+    # ── 2. HAUPTTEIL: Steuererklärung Zusammenfassung (Entwurf) ───────────────
     story.extend([
         p(t('Zusammenfassung Steuererklärung', 'Tax Return Summary'), 'title'),
         p(t(f'Steuerjahr {year}  /  Kanton {canton}  /  {municipality}', f'Tax year {year}  /  Canton {canton}  /  {municipality}')),
-        Spacer(1, 12),
+        Spacer(1, 8),
         p(
             t(
-                f'Erstellt durch {brand_name} zu Ihrer Prüfung. Diese Zusammenfassung ist kein amtliches Steuerformular und kein Einreichungsnachweis. Die Angaben aus der gespeicherten Berechnung sind Schätzwerte.',
-                f'Prepared by {brand_name} for your review. This summary is not an official tax form or proof of submission. Figures from the saved calculation are estimates.',
+                f'Erstellt durch {brand_name} zu Ihrer Prüfung. Diese Zusammenfassung dient der Vorbereitung und dem Postversand. Die Angaben aus der gespeicherten Berechnung sind Schätzwerte.',
+                f'Prepared by {brand_name} for your review. This summary is for preparation and postal filing. Figures from the saved calculation are estimates.',
             ),
             'small',
         ),
     ])
 
     section(t('01  Persönliche Angaben', '01  Taxpayer details'))
-    name = ' '.join(str(_raw(personal[k])) for k in ('first_name', 'last_name') if _raw(personal.get(k))) or personal.get('name')
     address = ', '.join(str(_raw(personal[k])) for k in ('address_street', 'address_zip', 'address_city') if _raw(personal.get(k))) or personal.get('address')
     table(
         [t('PROFIL', 'PROFILE'), t('ERFASSTER WERT', 'RECORDED VALUE')],
         [
-            (t('Name', 'Name'), name),
+            (t('Name', 'Name'), taxpayer_name),
             (t('Adresse', 'Address'), address),
             (t('Geburtsdatum', 'Date of birth'), _pick(personal, 'date_of_birth', 'birth_date')),
-            (t('AHV-Nummer', 'AHV / AVS number'), _pick(personal, 'ahv_number', 'vn')),
+            (t('AHV-Nummer', 'AHV / AVS number'), ahv_number),
             (t('Zivilstand', 'Marital status'), _pick(personal, 'civil_status', 'marital_status')),
         ],
     )
@@ -195,7 +320,7 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lan
         ],
         money_last=True,
     )
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 8))
     story.append(
         p(
             t(
@@ -338,14 +463,14 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lan
         p(
             t(
                 f'Rechtliche Grundlage: Selbstdeklaration gemäss Art. 110 DBG (Bundesgesetz über die direkte Bundessteuer). '
-                f'Dieses Dokument ist eine unverbindliche Zusammenfassung und Berechnungshilfe zur Vorbereitung Ihrer Steuererklärung und stellt keine amtliche Steuerveranlagung dar. '
-                f'Die steuerpflichtige Person reicht die Steuererklärung eigenverantwortlich über das offizielle Portal des Kantons {canton} ein ({portal_info[0]}) '
-                f'oder unterzeichnet die offizielle Druckfassung zur postalischen Zustellung an: {portal_info[1]}. '
+                f'Dieses Dokument ist ein Deklarationsdossier und eine Berechnungshilfe zur Vorbereitung Ihrer Steuererklärung und stellt keine amtliche Steuerveranlagung dar. '
+                f'Die steuerpflichtige Person reicht die Steuererklärung eigenverantwortlich über das kantonale Portal des Kantons {canton} ein ({portal_info[0]}) '
+                f'oder unterzeichnet die Druckfassung zur postalischen Zustellung an: {portal_info[1]}. '
                 f'Die verbindliche Veranlagung und Festsetzung der Steuerfaktoren erfolgt ausschliesslich durch die zuständige kantonale Steuerbehörde.',
                 f'Legal basis: Self-declaration pursuant to Art. 110 DBG (Swiss Federal Act on Direct Federal Taxation). '
-                f'This document is a non-binding summary and preparation aid for your tax return and does not constitute an official tax assessment. '
+                f'This document is a declaration dossier and preparation aid for your tax return and does not constitute an official tax assessment. '
                 f'The taxpayer is solely responsible for filing via the official portal of Canton {canton} ({portal_info[0]}) '
-                f'or signing the official declaration for postal submission to: {portal_info[1]}. '
+                f'or signing the declaration for postal submission to: {portal_info[1]}. '
                 f'Binding tax assessment and final tax factor determination rest exclusively with the competent cantonal tax authority.',
             )
         )
@@ -355,18 +480,22 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lan
     sig_data = [
         [
             p(t('Ort, Datum:\n\n__________________________________', 'Place, Date:\n\n__________________________________'), 'small'),
-            p(t('Unterschrift Steuerpflichtige(r) gemäss Art. 110 DBG:\n\n__________________________________', 'Signature of Taxpayer pursuant to Art. 110 DBG:\n\n__________________________________'), 'small'),
+            p(t('Unterschrift Steuerpflichtige Person:\n\n__________________________________', 'Signature of Taxpayer:\n\n__________________________________'), 'small'),
+        ],
+        [
+            p('', 'small'),
+            p(t('Unterschrift Ehepartner / eingetr. Partner (bei gemeinsam veranlagten Paaren):\n\n__________________________________', 'Signature of Spouse / Registered Partner (for joint returns):\n\n__________________________________'), 'small'),
         ]
     ]
     sig_table = Table(sig_data, colWidths=[width * 0.45, width * 0.55])
     sig_table.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#f8fafc')),
-        ('BOX', (0, 0), (-1, -1), 1, colors.HexColor('#cbd5e1')),
-        ('TOPPADDING', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
-        ('LEFTPADDING', (0, 0), (-1, -1), 10),
-        ('RIGHTPADDING', (0, 0), (-1, -1), 10),
+        ('BACKGROUND', (0, 0), (-1, -1), bg_card),
+        ('BOX', (0, 0), (-1, -1), 1, border_color),
+        ('TOPPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
     ]))
     story.append(sig_table)
     story.append(Spacer(1, 8))
@@ -408,17 +537,33 @@ def generate_tax_return_pdf(tax_return: Any, profile: Any, calculation: Any, lan
 
     def page_frame(canvas, document):
         canvas.saveState()
-        canvas.setFillColor(ink)
-        canvas.setFont('Helvetica-Bold', 12)
-        canvas.drawString(42, A4[1] - 35, brand_name)
+        canvas.setFillColor(colors.black)
+
+        # Running Header (Line 1: App + Year + Canton + Municipality)
+        canvas.setFont('Helvetica-Bold', 8.5)
+        canvas.drawString(42, A4[1] - 28, f'{brand_name} · Steuererklärung {year} ({canton} / {municipality})')
+        canvas.setFont('Helvetica', 7.5)
+        canvas.drawRightString(A4[0] - 42, A4[1] - 28, header_badge)
+
+        # Running Header (Line 2: Taxpayer name and AHV on EVERY page)
+        canvas.setFont('Helvetica-Bold', 8)
+        canvas.drawString(42, A4[1] - 39, f'{t("Steuerpflichtig", "Taxpayer")}: {taxpayer_name}')
         canvas.setFont('Helvetica', 8)
-        canvas.drawRightString(A4[0] - 42, A4[1] - 35, f'{canton} / {year}  |  {header_badge}')
-        canvas.setStrokeColor(colors.HexColor('#cad7cf'))
-        canvas.line(42, 40, A4[0] - 42, 40)
-        canvas.setFillColor(muted)
+        canvas.drawString(250, A4[1] - 39, f'AHV: {ahv_number}')
+        canvas.drawRightString(A4[0] - 42, A4[1] - 39, f'{page_label} {document.page}')
+
+        canvas.setStrokeColor(colors.black)
+        canvas.setLineWidth(0.6)
+        canvas.line(42, A4[1] - 43, A4[0] - 42, A4[1] - 43)
+
+        # Running Footer
+        canvas.setStrokeColor(colors.HexColor('#CCCCCC'))
+        canvas.setLineWidth(0.5)
+        canvas.line(42, 36, A4[0] - 42, 36)
+        canvas.setFillColor(colors.HexColor('#333333'))
         canvas.setFont('Helvetica', 7)
-        canvas.drawString(42, 28, f'{ref_label}: {reference[:36]}')
-        canvas.drawRightString(A4[0] - 42, 28, f'{datetime.now(timezone.utc):%Y-%m-%d} UTC  |  {page_label} {document.page}')
+        canvas.drawString(42, 26, f'{ref_label}: {reference[:32]}  |  {taxpayer_name}  |  AHV: {ahv_number}')
+        canvas.drawRightString(A4[0] - 42, 26, f'{datetime.now(timezone.utc):%Y-%m-%d} UTC  |  Dossier Postversand')
         canvas.restoreState()
 
     doc.build(story, onFirstPage=page_frame, onLaterPages=page_frame)

@@ -197,9 +197,18 @@ export default function TaxReturnDetailPage() {
       } catch {}
 
       try {
-        const calc = await api.taxEngine.getCalculation(id)
-        setCalculation(calc)
-      } catch {}
+        let calc = null
+        try {
+          calc = await api.taxEngine.getCalculation(id)
+        } catch {
+          calc = await api.taxEngine.calculate(id)
+        }
+        if (calc) {
+          setCalculation(calc)
+        }
+      } catch (calcErr) {
+        console.warn('Calculation load error:', calcErr)
+      }
     } catch {
       if (!isBackgroundPoll) {
         toast({
@@ -890,6 +899,7 @@ export default function TaxReturnDetailPage() {
                 .reduce((acc: number, item: any) => acc + Math.abs(Number(item.amount)), 0)
             }
             grossIncome={
+              calculation?.results?.gross_income ??
               calculation?.gross_income ??
               Number((profile?.income_data as any)?.employment_income || (profile?.income_data as any)?.gross_salary || 0)
             }
@@ -902,10 +912,10 @@ export default function TaxReturnDetailPage() {
                   Number(calculation?.results?.municipal_income_tax ?? calculation?.municipal_income_tax ?? 0)
                 : null
             }
-            totalTax={calculation?.total_tax ?? calculation?.results?.total_tax ?? null}
-            vstRefund={calculation?.vst_refund ?? 0}
+            totalTax={calculation?.results?.total_tax ?? calculation?.total_tax ?? null}
+            vstRefund={calculation?.results?.vst_refund ?? calculation?.vst_refund ?? 0}
             cantonCode={taxReturn.canton_code}
-            savingsAnalysis={calculation?.savings_analysis ?? calculation?.results?.savings_analysis ?? null}
+            savingsAnalysis={calculation?.results?.savings_analysis ?? calculation?.savings_analysis ?? null}
           />
 
           {/* AI Assistant Help Trigger */}

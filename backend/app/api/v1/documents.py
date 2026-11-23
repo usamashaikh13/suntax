@@ -938,6 +938,14 @@ async def review_document(
         profile = profile_res.scalar_one_or_none()
         if profile:
             await document_pipeline_service.apply_approved_fields_to_profile(doc, profile, db)
+            try:
+                tr_res = await db.execute(select(TaxReturn).where(TaxReturn.id == str(doc.tax_return_id)))
+                tr = tr_res.scalar_one_or_none()
+                if tr:
+                    from app.api.v1.tax_engine import execute_and_persist_calculation
+                    await execute_and_persist_calculation(tr, profile, db)
+            except Exception as exc:
+                logger.warning("Could not auto-recalculate after review apply: %s", exc)
     else:
         db.add(doc)
         await db.commit()
@@ -978,6 +986,15 @@ async def apply_document(
         )
 
     applied = await document_pipeline_service.apply_approved_fields_to_profile(doc, profile, db)
+    try:
+        tr_res = await db.execute(select(TaxReturn).where(TaxReturn.id == str(doc.tax_return_id)))
+        tr = tr_res.scalar_one_or_none()
+        if tr:
+            from app.api.v1.tax_engine import execute_and_persist_calculation
+            await execute_and_persist_calculation(tr, profile, db)
+    except Exception as exc:
+        logger.warning("Could not auto-recalculate after document apply: %s", exc)
+
     return {
         "message": f"Successfully applied {len(applied)} approved fields to tax profile.",
         "applied_fields": applied,

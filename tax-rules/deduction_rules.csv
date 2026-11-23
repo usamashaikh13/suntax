@@ -23,8 +23,8 @@ ZH,2025,canton,health_insurance_child,11.1,cap,,,1300,premium_paid,,children,Weg
 ZH,2025,federal,health_insurance_child,11.1,cap,,,700,premium_paid,,children,https://www.estv.admin.ch,DBG Art. 33,checked
 ZH,2025,canton,child_deduction,16.1,flat,9000,,,,per child,children,Wegleitung S. 24,Wegleitung S. 24,checked
 ZH,2025,federal,child_deduction,16.1,flat,6700,,,,per child,children,https://www.estv.admin.ch,DBG Art. 35,checked
-ZH,2025,canton,childcare_costs,16.2,cap,,,10100,actual_costs,,children,Wegleitung S. 25,Wegleitung S. 25,checked
-ZH,2025,federal,childcare_costs,16.2,cap,,,25500,actual_costs,,children,https://www.estv.admin.ch,DBG Art. 33,checked
+ZH,2025,canton,childcare_costs,16.2,cap,,,25000,actual_costs,,children,Wegleitung S. 25,Wegleitung S. 25,checked
+ZH,2025,federal,childcare_costs,16.2,cap,,,25800,actual_costs,,children,https://www.estv.admin.ch,DBG Art. 33,checked
 ZH,2025,canton,donations,14.1,rate,0.20,100,,net_salary,,,Wegleitung S. 22,Wegleitung S. 22,checked
 ZH,2025,federal,donations,14.1,rate,0.20,100,,net_salary,,,https://www.estv.admin.ch,DBG Art. 33a,checked
 ZH,2025,canton,medical_expenses,13.1,rate,0.05,,,net_salary,excess only,,Wegleitung S. 21,Wegleitung S. 21,checked

@@ -10,7 +10,7 @@ let brandConfig = {
   noreply_email: 'noreply@suntax.ch',
   logo_path: '/brand-logo.svg',
   primary_color: '#1E7B52',
-  company_legal_name: 'SunTax Switzerland AG',
+  company_legal_name: 'Sun Group KLG',
 };
 
 try {
