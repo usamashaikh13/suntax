@@ -128,13 +128,14 @@ export default function RegisterPage() {
           </div>
         ) : (
           <div>
-            {/* Tab Switcher: Registrieren / Anmelden */}
-            <div role="tablist" className="inline-flex bg-[#F2F2F0] rounded-xl p-1 gap-1">
+            {/* Tab Switcher: Registrieren / Login */}
+            <div role="tablist" className="inline-flex bg-[#F2F2F0] rounded-xl p-1 gap-1 notranslate" translate="no">
               <button
                 type="button"
                 role="tab"
                 aria-selected={true}
-                className="px-4 py-1.5 rounded-lg text-sm font-semibold text-[#0A0A0A] bg-white shadow-xs"
+                className="px-4 py-1.5 rounded-lg text-sm font-semibold text-[#0A0A0A] bg-white shadow-xs notranslate"
+                translate="no"
               >
                 {t('auth.tabRegister')}
               </button>
@@ -142,7 +143,8 @@ export default function RegisterPage() {
                 href="/login"
                 role="tab"
                 aria-selected={false}
-                className="px-4 py-1.5 rounded-lg text-sm font-medium text-[#666666] hover:text-[#0A0A0A] transition-colors"
+                className="px-4 py-1.5 rounded-lg text-sm font-medium text-[#666666] hover:text-[#0A0A0A] transition-colors notranslate"
+                translate="no"
               >
                 {t('auth.tabLogin')}
               </Link>

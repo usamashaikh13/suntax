@@ -321,10 +321,11 @@ export default function LandingPage() {
             <LanguageSwitcher />
             <Link
               href="/login"
-              className="hide-sm"
+              className="hide-sm notranslate"
+              translate="no"
               style={{ textDecoration: 'none', color: '#555555' }}
             >
-              {isGerman ? 'Anmelden' : 'Log in'}
+              {isGerman ? 'Login' : 'Log in'}
             </Link>
             <Link
               href="/register"
